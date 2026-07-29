@@ -1,0 +1,9 @@
+AI Delivery Ops Agent
+Copyright 2026 AI Delivery Ops Agent contributors
+
+This product is licensed under the Apache License, Version 2.0.
+
+The AI news capability was informed by the public product approach of
+liyoro/ai-news-radar and uses the AI HOT public API through an independent
+adapter. No ownership of those projects or of third-party news content is
+claimed. See THIRD_PARTY_NOTICES.md for details.
