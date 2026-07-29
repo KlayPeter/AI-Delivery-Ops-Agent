@@ -1,0 +1,32 @@
+schemaVersion: "1.0"
+id: task-management
+version: "1.0.0"
+name: Task Management
+description: Safely inspect or execute the existing task workflow without bypassing TaskService boundaries.
+execution:
+  type: prompt
+instructionsRef: SKILL.md
+inputSchema:
+  type: object
+  required: [prompt]
+  properties:
+    prompt:
+      type: string
+    message:
+      type: object
+    source:
+      type: string
+      enum: [group, private]
+    replyContext:
+      type: object
+outputSchema:
+  type: string
+allowedTools:
+  - task.query
+  - task.handle_message
+  - task.sync_project
+compatibleAgents:
+  - built-in.task-agent
+riskLevel: high
+maxToolCalls: 4
+timeoutSeconds: 90

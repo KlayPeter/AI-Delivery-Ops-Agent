@@ -1,0 +1,140 @@
+---
+feature_id: message-routing
+name: 消息路由与上下文理解
+status: active
+agent_mapping:
+  - built-in.delivery-ops-agent
+last_reviewed: 2026-07-29
+---
+
+# 消息路由与上下文理解
+
+把飞书消息、引用消息和群上下文稳定地分发到确定性功能；无法确定时交给 Delivery Ops 主 Agent 编排。
+
+## 功能定位
+
+消息路由是整个系统的“入口仲裁层”。它不负责完成具体业务，而是根据消息来源、引用关系和文本意图，选择唯一的处理链路。路由一旦选错，后面的 Agent 和领域服务即使执行正确，也会得到错误结果。
+
+当前设计同时保留确定性 Handler 和 AI Agent。确定性规则处理高频、明确、涉及状态写入的操作；主 Agent 处理表达方式多、需要组合能力的请求。两条链路不是互相替代，而是用确定性保证底线，用 Agent 扩大理解范围。
+
+## 实现流程图
+
+```mermaid
+flowchart TD
+    A["飞书消息"] --> B["标准化消息上下文"]
+    B --> N{"p2p 确定性 Capability 路由?"}
+    N -- "默认 Bot 明确 AI 新闻意图" --> NA["直接派发 AI News Native Agent"]
+    N -- "专用 Bot entryCapability" --> NA
+    N -- 否 --> C["ContextResolver 恢复引用上下文"]
+    C --> D{"按 MESSAGE_ROUTE_POLICY 显式优先级命中?"}
+    D -- 是 --> E["对应业务 Handler"]
+    D -- 否 --> F{"MessageRouter 命中确定性规则?"}
+    F -- 是 --> E
+    F -- 否 --> G["Delivery Ops 主 Agent"]
+    G --> H["Tool 调用或委派专业 Agent"]
+    E --> I["领域服务"]
+    H --> I
+    I --> J["回复 / Outbox"]
+```
+
+## 能力边界
+
+### 目标
+
+- 明确表达“引用上下文优先、确定性规则优先、AI 兜底”的路由顺序。
+- 让同一消息只命中一个业务入口，并保留可审计的处理结果。
+
+### 非目标
+
+- 不在 Router 内实现任务、站会、日报或看板业务规则。
+- 不允许模型直接绕过 Tool 和领域服务写业务状态。
+
+## 核心规则
+
+1. **引用上下文优先。** 用户回复任务卡片、机器人追问或历史消息时，系统先恢复引用链，再判断当前文字；不能只看当前一句话。
+2. **一次消息只选择一条主链路。** `ContextRouter` 或某个 Handler 返回结果后，后续 Handler 不再执行，防止一条消息同时创建任务又触发日报。
+3. **优先级是显式契约。** `MESSAGE_ROUTE_POLICY` 为每条路由声明唯一数值优先级和适用来源，执行时按优先级排序，不能再依赖 Handler 数组的偶然位置。
+4. **确定性规则先于 Agent。** 群消息依次尝试上下文、站会、周报、日报、看板、会议纪要、状态更新和任务命令；私聊只开放上下文、站会、会议纪要、状态更新和任务命令。全部未命中后才进入主 Agent。
+5. **显式对象优先于推断对象。** 用户给出任务 ID、引用对象或明确日期时，系统使用显式信息；只有信息缺失时才从上下文推断。
+6. **否定表达不触发副作用。** “不要生成日报”“不是要创建任务”等句子必须在 Handler 或意图策略中被拦截。
+7. **Router 不拥有业务状态。** Router 只选择处理者；任务、站会和其他数据写入必须交给对应领域服务。
+8. **AI 不可用时保留基本能力。** 确定性 Handler 继续工作；未识别请求返回能力提示，不把模型故障伪装成业务成功。
+9. **周报命令受群站会资格约束。** `WeeklyReportHandler` 命中命令后先复用 `StandupService.isGroupEnabled`；未开启日报站会的群只回复配置提示，不创建 Agent Run。
+10. **确定性新闻意图在业务 Router 之前分流。** 默认交付机器人仅在明确 AI 新闻私聊，或同会话 30 分钟内的“查看更多”、关键词、来源和分类追问时，直接调用 `knowledge.ai.news.fetch`；其他模糊追问、否定、配置咨询或开发任务继续 Context/Handler/主 Agent 链路。配置独立应用后，带 `entryCapability` 的新闻机器人也只接受私聊文本，不进入任务、站会、成员识别或 TAPD。
+
+## 用户能力
+
+- 在飞书群中用自然语言或命令创建任务、更新进度、提交站会、生成日报、周报和看板。
+- 引用机器人历史消息继续操作对应上下文。
+- 未命中确定性规则时由主 Agent 识别意图并委派专业 Agent。
+- 在现有系统机器人私聊中直接查询 AI 新闻，不要求用户先绑定项目成员；也可由可选的独立新闻机器人查询。
+
+## 入口与触发
+
+| 入口 | 输入 | 输出 |
+| --- | --- | --- |
+| 飞书消息事件 | 文本、发送人、群、引用消息、附件 | 回复文本或卡片 |
+| 后端消息处理入口 | 标准化消息上下文 | Handler 或 Agent 执行结果 |
+
+## 运行逻辑
+
+1. 多 Bot 连接管理器接收事件并固定 BotInstance；默认 Bot 的明确 AI 新闻私聊和专用 Bot 的 `entryCapability` 在入口直接派发，其他默认 Bot 消息继续以下流程。
+2. `ContextResolver` 恢复引用消息和历史上下文，`ContextRouter` 判断上下文动作。
+3. `MessageRouter` 过滤当前消息来源可用的 `MESSAGE_ROUTE_POLICY`，按唯一优先级从高到低尝试 Handler。
+4. 未命中时，`AgentFallbackHandler` 调用 `built-in.delivery-ops-agent`。
+5. 主 Agent 通过 Tool 或委派调用专业 Agent，结果经统一回复或 Outbox 投递。
+
+## Agent、Tool 与服务边界
+
+| 对象 | 职责 | 禁止承担 |
+| --- | --- | --- |
+| `MessageRouter` / `ContextRouter` | 确定性路由和优先级 | 业务状态写入 |
+| Delivery Ops Agent | 意图理解、选择 Tool、委派专业 Agent | 直接修改底层 Store |
+| 业务 Handler | 参数解析、调用领域服务、组织响应 | 复制其他业务域规则 |
+
+## 数据与状态
+
+- 消息上下文以群、用户、引用消息标识隔离。
+- Agent Run、会话、Tool Call 与回复结果由平台持久化，业务状态仍由对应领域服务拥有。
+- 重复飞书事件应在入口或业务写入层保持幂等，不能靠模型判断重复。
+
+## 失败、安全与降级
+
+- 上下文无法恢复时回退到当前消息，不能猜测跨群上下文。
+- Agent 超时或模型不可用时返回可解释错误；确定性 Handler 仍可工作。
+- 内网部署不等于可信输入：消息内容仍可能包含 Prompt Injection，Tool 参数必须通过 Schema 和作用域校验。
+
+## 代码地图
+
+### 主要实现
+
+- `backend/src/services/messageHandler/MessageRouter.ts`：显式路由策略与统一 Handler 编排入口。
+- `backend/src/services/messageHandler/ContextRouter.ts`：引用上下文路由。
+- `backend/src/services/messageHandler/ContextResolver.ts`：上下文恢复。
+- `backend/src/services/messageHandler/handlers/AgentFallbackHandler.ts`：主 Agent 兜底。
+- `backend/src/services/messageHandler/handlers/WeeklyReportHandler.ts`：本周/上周周报确定性入口。
+- `backend/src/platform/bots/feishuBotMessageIngress.ts`：默认机器人意图与专用机器人的 p2p 前置分流。
+- `backend/src/agents/native/ai-news-radar/intent.ts`：AI 新闻确定性意图准入。
+- `backend/src/platform/bootstrap/agentHost.ts`：Agent、Tool 与平台装配。
+
+### 主要测试
+
+- `backend/test/messageHandler.test.ts`：群聊/私聊路由策略顺序、唯一优先级和业务入口。
+- `backend/test/agentFallbackHandler.test.ts`：AI 兜底。
+- `backend/test/agentDelegation.test.ts`：主 Agent 委派。
+- `backend/test/weeklyReport.test.ts`：周报命令识别、否定与元问题拦截、Agent 派发。
+- `backend/test/multiBotIngress.test.ts`：默认 Bot 新闻分流、非新闻回归及专用机器人隔离。
+
+## 变更记录
+
+| 日期 | 变更 | 验证 |
+| --- | --- | --- |
+| 2026-07-29 | 日报忽略规则移除公司品牌特判，改为识别公开机器人名称与通用“机器人”称呼 | `summaries.test.ts`、`messageHandler.test.ts` |
+| 2026-07-29 | 默认 Bot 在最近 AI 新闻会话内识别“查看更多”、搜索、来源和分类追问，其他会话的模糊“查看更多”不被新闻路由截获 | `aiNewsRadar.test.ts`、`multiBotIngress.test.ts` |
+| 2026-07-29 | 默认 Bot 增加严格的 AI 新闻私聊前置分流，非新闻消息保持原 Context/Handler/主 Agent 链路 | `aiNewsRadar.test.ts`、`multiBotIngress.test.ts` |
+| 2026-07-29 | 增加专用 Bot `entryCapability` 前置分流；AI 新闻私聊不进入项目成员识别、任务、站会或主 Agent | `multiBotIngress.test.ts` |
+| 2026-07-29 | 将群聊与私聊 Handler 顺序收敛为带唯一优先级和来源范围的 `MESSAGE_ROUTE_POLICY`，统一执行循环并保持原业务顺序 | `messageHandler.test.ts`、AI 兜底与周报回归、后端类型检查 |
+| 2026-07-27 | 周报命令增加群站会开关校验，未开启日报站会时不派发 Weekly Report Agent | `weeklyReport.test.ts` |
+| 2026-07-27 | 在日报前新增周报确定性 Handler，支持“生成本周/上周周报”，并将执行交给 Native Agent | `weeklyReport.test.ts`、`messageHandler.test.ts` |
+| 2026-07-22 | 补充入口仲裁原则、Handler 优先级与 AI 兜底规则，精简文档结构 | CodeGraph 调用链审查 |
+| 2026-07-22 | 建立消息路由功能卡并核对主 Agent 兜底链路 | CodeGraph 调用链审查 |

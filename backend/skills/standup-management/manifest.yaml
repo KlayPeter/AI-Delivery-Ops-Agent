@@ -1,0 +1,36 @@
+schemaVersion: "1.0"
+id: standup-management
+version: "1.0.0"
+name: Standup Management
+description: Safely submit and inspect standups through the existing StandupService boundary.
+execution:
+  type: prompt
+instructionsRef: SKILL.md
+inputSchema:
+  type: object
+  required: [prompt]
+  properties:
+    prompt:
+      type: string
+    message:
+      type: object
+    source:
+      type: string
+      enum: [group, private]
+    replyContext:
+      type: object
+    date:
+      type: string
+    groupId:
+      type: string
+outputSchema:
+  type: string
+allowedTools:
+  - standup.query
+  - standup.handle_message
+  - standup.missing_members
+compatibleAgents:
+  - built-in.standup-agent
+riskLevel: high
+maxToolCalls: 4
+timeoutSeconds: 90

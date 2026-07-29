@@ -1,0 +1,32 @@
+services:
+  backend:
+    build:
+      context: ../backend
+      dockerfile: ../docker/server/Dockerfile.k8s
+    image: delivery-ops-agent-backend:local
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "8090"
+      TZ: Asia/Shanghai
+    env_file:
+      - ../backend/.env
+    ports:
+      - "127.0.0.1:8090:8090"
+    volumes:
+      - ../data:/app/data
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/web/Dockerfile.k8s
+      args:
+        VITE_API_BASE: /api
+    image: delivery-ops-agent-frontend:local
+    restart: unless-stopped
+    environment:
+      BACKEND_UPSTREAM: http://backend:8090
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:8080:8080"

@@ -1,0 +1,37 @@
+# Apply this file manually after replacing CHANGE_ME values.
+# CI intentionally checks for these objects but does not apply this file,
+# so existing secrets are not overwritten by placeholders.
+#
+# Non-sensitive dynamic configuration is managed in SQLite (via admin UI),
+# while environment variables and secrets are injected via this file.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: delivery-ops-config
+  namespace: delivery-ops
+data:
+  TZ: "Asia/Shanghai"
+  PROJECT_NAME: "Demo Project"
+  DATA_DIR: "data"
+  DATABASE_URL: "file:../../data/data.db"
+  FEISHU_BOT_NAME: "AI 交付助理"
+  TAPD_WORKSPACE_ID: "0"
+  TAPD_WORKITEM_TYPE_ID: ""
+  TAPD_API_BASE: "https://api.tapd.cn"
+  AI_PROVIDER: "openai"
+  AI_API_BASE: "https://api.openai.com/v1"
+  AI_MODEL: ""
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: delivery-ops-secret
+  namespace: delivery-ops
+type: Opaque
+stringData:
+  FEISHU_APP_ID: CHANGE_ME
+  FEISHU_APP_SECRET: CHANGE_ME
+  FEISHU_BOT_OPEN_ID: CHANGE_ME
+  TAPD_API_TOKEN: CHANGE_ME
+  AI_API_KEY: CHANGE_ME

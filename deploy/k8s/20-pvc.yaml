@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: delivery-ops-data
+  namespace: delivery-ops
+  labels:
+    app.kubernetes.io/name: delivery-ops-agent
+    app.kubernetes.io/component: backend
+spec:
+  storageClassName: local-path
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi

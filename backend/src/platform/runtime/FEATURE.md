@@ -1,0 +1,185 @@
+---
+feature_id: operations-observability
+name: 运行控制与可观测性
+status: active
+agent_mapping: []
+last_reviewed: 2026-07-27
+---
+
+# 运行控制与可观测性
+
+统一记录审计日志、消息上下文、Job/Trigger/Agent Run、Artifact 和 Outbox 投递，并提供后台查询与手动验证入口。
+
+## 功能定位
+
+运行控制与可观测性把一次业务动作拆成可追溯的事实链：谁触发、系统怎样路由、Agent 或服务执行了哪些步骤、生成了什么产物、消息是否真正送达。它解决的是定位和恢复问题，而不是业务展示问题。
+
+系统刻意分开 Trigger、Run、Artifact 和 Outbox 状态。这样可以准确区分“未开始”“执行失败”“执行成功但投递失败”和“已经送达”，避免管理员只看到一个模糊的成功布尔值。
+
+## 实现流程图
+
+```mermaid
+flowchart TD
+    R["Host 启动"] --> S["收敛上次进程遗留的运行中记录"]
+    R --> Q["/healthz 进程存活"]
+    S --> Z["/readyz 数据库 + Agent Host 就绪"]
+    S --> A["消息 / Scheduler / API"]
+    A --> B["Trigger / Job Execution"]
+    B --> C["Agent Run / 业务服务"]
+    C --> L{"Run Tool 预算内?"}
+    L -- 是 --> D["Step / Tool Call / Audit"]
+    L -- 否 --> M["Guardrail Step / 明确失败"]
+    C --> E["Artifact"]
+    C --> F["Outbox Message"]
+    F --> G["Delivery Worker"]
+    G --> H{"投递成功?"}
+    H -- 否 --> I["退避重试 / 失败状态"]
+    H -- 是 --> J["Delivered"]
+    D --> K["Logs / Contexts / Debug 页面"]
+    E --> K
+    I --> K
+    J --> K
+```
+
+## 能力边界
+
+### 目标
+
+- 回答“谁在何时、以什么输入、调用了什么、产生了什么结果、是否投递成功”。
+- 允许管理员查询上下文、日志和运行状态，并安全地触发诊断动作。
+
+### 非目标
+
+- 日志和页面不拥有业务状态，不用于修补任务或站会真相源。
+- 可观测性不是独立 Agent；它是所有 Agent 和确定性流程共享的平台能力。
+
+## 核心规则
+
+1. **记录事实并执行有界保留。** Run、Step、Tool Call 采用追加式记录；Audit Event 默认保留 90 天，过期记录由每日维护任务分批删除，修复动作仍产生新事件而不覆盖原始证据。
+2. **不同状态机分别保存。** Job Execution 表示调度尝试，Agent Run 表示执行，Artifact 表示产物，Outbox 表示外部投递；它们用关联 ID 串联。
+3. **每条链路携带相关标识。** root Run、parent Run、trigger、group、bot 和 correlation ID 支持从用户消息追踪到最终投递。
+4. **Outbox 使用持久化领取和租约。** 同一条消息只允许一个 Worker 在租约期内处理；Worker 崩溃后其他实例可以重新领取。
+5. **重试不重新执行业务。** 临时投递错误只重试 Outbox；永久错误进入失败或死信状态，不能重新运行 Agent 来碰运气。
+6. **查询严格按 Scope 过滤。** 日志、上下文和 Run Detail 不能因为是后台接口就跨 workspace、group 或 bot 暴露。
+7. **日志默认脱敏。** Token、Secret、邮箱凭据、完整附件和不必要的 Prompt 内容不得写入审计或错误信息。
+8. **Debug 是受控新执行。** 手动触发必须指定已注册的 Job/Agent 与参数，并产生新的执行记录；它不能运行任意命令或直接篡改历史状态。
+9. **监控失败需要显式暴露。** 非关键审计写入失败可避免阻塞主业务，但系统必须记录或告警；关键合规动作应使用事务或 Outbox 保证证据落盘。
+10. **飞书令牌按有效期复用。** Adapter 在提前量内缓存 tenant access token，并合并并发刷新请求；发送失败仍按消息投递结果处理，不能通过每次重新申请令牌规避权限或接收人错误。
+11. **部分完成不是成功别名。** Job 完成业务扫描但存在跳过、临时投递失败或永久拒绝时记录 `job_completed_with_warnings`，查询页面显示“任务部分完成”；同步等前置条件失败仍记录 `job_failed`。
+12. **查询参数必须有边界。** 日志和上下文分页每页最多 200 条，非法页码回落到安全默认值；日期筛选按 `Asia/Shanghai` 自然日转换成 UTC 左闭右开区间，非法或反向日期返回 400。
+13. **日志清理不能阻塞业务调度。** 每日维护按配置时区领取一次执行，单批和单次总批数均有上限；失败只写维护失败事实，不中断站会、日报、周报或提醒任务。
+14. **Tool 调用预算覆盖完整 Run。** `AgentManifest.limits.maxToolCalls` 同时约束模型直接调用和 Skill 内部调用；暂停恢复或同一 Run 再进入时从已持久化 Tool Step 恢复用量，幂等命中旧结果不重复扣减，超限写 `guardrail` Step 并返回不可重试错误。
+15. **进程重启必须收敛非终态。** 单实例 Host 接收新触发前，将上次进程遗留的 `queued/running` Run、运行中 Step、Tool Call 和 Trigger 原子标记为 `PROCESS_RESTARTED`；`waiting_human`、成功记录和 Outbox 租约保持原语义，不自动重放可能已产生副作用的操作。
+16. **存活与就绪必须分离。** `/healthz` 只证明 HTTP 进程可响应，供 liveness 使用；`/readyz` 必须同时验证 SQLite 可查询且 Agent Host 已初始化并启动，失败返回 503，供 startup/readiness 在依赖异常时停止接收流量。探针响应不暴露数据库路径或底层错误。
+17. **发布必须通过质量门禁并可追溯。** CI 在镜像构建前运行后端依赖锁定安装、Prisma 校验、类型检查和全量测试，以及前端锁定安装、lint、类型检查、测试和生产构建；镜像以提交 SHA 作为部署标签，同时保留 `latest` 兼容标签，部署不再依靠强制重启拉取可变镜像。
+18. **Host 仅在扩展装配完整后就绪。** 本地 `AgentHostExtension` 在 Runtime 创建前串行注册且每个唯一 ID 只执行一次；任何扩展校验或注册失败都会阻止 `initialized=true`，从而使 `/readyz` 保持失败。
+19. **入站和投递幂等必须包含 BotInstance。** 飞书事件的进程内缓存键使用 `botInstanceId:messageId`，持久化 Trigger Claim 使用 workspace、bot、trigger type、message ID；两个应用即使产生相同 message ID 也不能互相吞消息。
+20. **私聊目标必须显式保存 channel。** `ReplyPolicy` 的配置目标可声明 `private` 或 `group`；新闻机器人使用发送者在该应用下的 OpenID 作为 private 目标，不能根据存在 `chatId` 就推断为群聊。
+21. **结构化文章产物由 Adapter 生成最终提示。** AI 新闻 Artifact 保存文章、来源与是否还有下一页等结构化事实；飞书 Delivery Adapter 统一渲染安全链接、多源信号和固定操作引导，外部 Provider 不能注入卡片尾部指令。
+
+## 用户能力
+
+- 查看审计日志、消息上下文、Agent Run、Step、Artifact 和投递状态。
+- 在 Debug 页面按明确参数手动运行 Job 或 Agent。
+- 识别生成成功但投递失败、模型失败但业务已写入等部分成功状态。
+
+## 入口与触发
+
+| 入口 | 输入 | 输出 |
+| --- | --- | --- |
+| 业务服务/Agent Runtime | Run、Step、Artifact、Audit Event | 持久化运行事实 |
+| Delivery Worker | Outbox 状态、错误、重试次数 | 投递结果 |
+| 后台 API/页面 | 时间、类型、群、Run ID 筛选 | 日志、上下文和运行详情 |
+| Debug API | 明确 Job/Agent 与参数 | 新执行记录 |
+| Kubernetes 探针 | `/healthz`、`/readyz` | 进程存活、数据库与 Agent Host 就绪状态 |
+
+## 运行逻辑
+
+1. 消息、Scheduler 或 API 建立 Trigger/Job Execution。
+2. Runtime 和业务服务追加结构化 Run、Step、Tool Call、Audit 与 Artifact。
+3. 外部消息先写 Outbox，Worker 领取、投递、失败退避并保存结果。
+4. 后端只返回当前 Scope 有权查看的记录。
+5. Logs、Contexts 和 Debug 页面用于查询、关联和受控重放。
+6. Host 重启时先收敛遗留非终态记录并追加恢复审计，再对外接受新的 Agent 调度。
+7. Kubernetes 以 `/readyz` 控制启动和接流量，以 `/healthz` 判断是否需要重启进程。
+
+## Agent、Tool 与服务边界
+
+| 对象 | 职责 | 禁止承担 |
+| --- | --- | --- |
+| Run/Trigger Store | 保存执行事实和状态转换 | 保存业务实体真相 |
+| Audit/Context | 记录输入、路由和动作证据 | 保存 Secret 或完整敏感载荷 |
+| Outbox/Worker | 至少一次尝试、退避和投递状态 | 无幂等地重新执行业务 |
+| Debug API/Page | 受控触发和查询 | 接受任意代码、路径或命令 |
+| 周报查看 API | 按持久化报告 ID 解析不可变 HTML | 接受客户端文件路径或目录遍历 |
+
+## 数据与状态
+
+- Job Execution、Agent Run、Artifact 和 Outbox Message 具有独立状态机和关联 ID。
+- Agent Tool 预算以持久化 `kind=tool` Step 为已用事实；Skill 只能使用共享预算，不能建立独立额度绕开 Agent 限制。
+- 重启恢复只改变 Agent 平台运行记录，不修改任务、站会、消息、Checkpoint 或 Artifact；等待人工输入的 Run 保持 `waiting_human`。
+- Outbox 至少一次投递要求目标端或消息键具备幂等语义。
+- 日志应使用结构化事件、相关 ID 和统一时间；保留期与清理策略需可配置。
+- 默认保留最近 90 天审计日志；每批删除 500 条、每次最多 20 批，仅额外清理过期 `scheduled:` 与 `maintenance:` 幂等记录，业务消息和 Agent 历史不在本轮清理范围。
+- 生产 SQLite 在应用启动前执行完整性检查和一致性备份，再运行非破坏性的 Prisma Schema 同步；全新数据目录先初始化有效空 SQLite 文件，避免 Schema Engine 无法创建首库；升级失败时应用不得带着未知数据库状态启动。
+
+## 失败、安全与降级
+
+- 日志必须脱敏 Token、Secret、邮箱凭据、完整 Prompt 和附件内容。
+- 后台查询与 Debug 入口即使在内网也需限制来源/身份，并隔离 tenant/group/bot scope。
+- 监控持久化失败不能阻塞关键业务写入，但必须有明确告警；审计要求高的动作应采用同事务或 Outbox 模式。
+- 重放只重放安全、声明幂等的动作，不能简单重复整个 Run。
+
+## 代码地图
+
+### 主要实现
+
+- `backend/src/platform/agents/runStore.ts`、`persistentRunStore.ts`：Agent 运行记录。
+- `backend/src/platform/agents/modelLoopAdapter.ts`、`backend/src/platform/tools/budget.ts`、`gateway.ts`：Run 级 Tool 预算恢复、共享扣减与超限 Guardrail。
+- `backend/src/platform/agents/persistentRunStore.ts`、`backend/src/platform/tools/callStore.ts`、`backend/src/platform/runtime/persistentTriggerStore.ts`、`interruption.ts`：进程重启后的原子状态收敛。
+- `backend/src/platform/bootstrap/agentHost.ts`：恢复完成后再初始化 Runtime 与 Trigger 接入。
+- `backend/src/platform/runtime/triggerRuntime.ts`、`persistentTriggerStore.ts`：触发记录。
+- `backend/src/platform/bots/feishuBotConnectionManager.ts`、`feishuBotMessageIngress.ts`：bot-scoped 飞书入站、短期去重和审计。
+- `backend/src/platform/delivery/outbox.ts`、`persistentOutbox.ts`、`worker.ts`：可靠投递。
+- `backend/src/adapters/feishu.ts`：飞书令牌缓存、消息发送和 API 结果解析。
+- `backend/src/services/jobExecution.ts`：Job 执行记录。
+- `backend/src/core/logQuery.ts`：日志/上下文分页与北京时间日期范围规范化。
+- `backend/src/core/dataRetention.ts`、`auditPayload.ts`：日志保留、临时幂等记录清理和敏感字段遮盖。
+- `backend/src/core/sqliteDeployment.ts`、`backend/src/scripts/dbPush.ts`：SQLite 完整性检查、升级前备份和安全 Schema 同步。
+- `backend/src/core/health.ts`、`backend/src/index.ts`：无敏感信息的存活/就绪探针，以及日志、上下文、运行与 Debug API。
+- `deploy/k8s/30-deployment-backend.yaml`：startup/readiness 使用就绪探针，liveness 使用存活探针。
+- `.github/workflows/ci.yml`：公共质量门禁与 Docker 构建验证；不推送镜像或部署集群。
+- `frontend/src/pages/LogsPage.tsx`、`ContextsPage.tsx`、`DebugPage.tsx`：后台入口。
+
+### 主要测试
+
+- `backend/test/deliveryOutbox.test.ts`、`routedFeishuDelivery.test.ts`：投递和 Bot 路由。
+- `backend/test/persistentAgentKernel.test.ts`、`triggerRuntime.test.ts`：运行持久化。
+- `backend/test/modelLoopAgent.test.ts`、`toolSkillRuntime.test.ts`：跨恢复 Tool 预算、Skill 共享额度和幂等去重。
+- `backend/test/persistentAgentKernel.test.ts`、`agentHost.test.ts`：遗留状态恢复、终态保护、人工等待保护和 Host 启动顺序。
+- `backend/test/jobExecution.test.ts`、`storage.test.ts`、`logQuery.test.ts`：执行记录、存储与查询边界。
+- `backend/test/dataRetention.test.ts`、`maintenanceScheduler.test.ts`：保留边界、批量上限、每日幂等和失败隔离。
+- `backend/test/sqliteDeployment.test.ts`：升级前备份、保留数量和损坏数据库拒绝。
+- `backend/test/health.test.ts`：存活、数据库异常和 Agent Host 未启动时的就绪判定。
+- `backend/test/multiBotIngress.test.ts`、`triggerRuntime.test.ts`：跨 Bot 幂等和显式 private 投递目标。
+
+## 变更记录
+
+| 日期 | 变更 | 验证 |
+| --- | --- | --- |
+| 2026-07-29 | 公司部署流水线替换为公共 GitHub Actions 质量门禁，不再自动推送镜像或修改集群 | Workflow YAML、Docker 构建验证 |
+| 2026-07-29 | `article_list` 投递增加多源信号展示和固定尾部操作提示，保留原 Outbox、同 Bot 路由和链接安全校验 | `routedFeishuDelivery.test.ts`、AI News Agent 回归 |
+| 2026-07-29 | 飞书入站去重加入 BotInstance，ReplyPolicy 支持显式 private 目标，AI 新闻产物经持久化 Outbox 使用同一机器人回传 | `multiBotIngress.test.ts`、`triggerRuntime.test.ts`、`routedFeishuDelivery.test.ts` |
+| 2026-07-29 | 将本地二开扩展纳入 Host 启动边界，扩展失败时不对 readiness 报告就绪 | `agentHost.test.ts`、`health.test.ts` |
+| 2026-07-29 | 发布流水线增加后端与前端完整质量门禁，Kubernetes 改为部署提交 SHA 镜像并移除冗余强制重启 | 本地复现全部门禁、Workflow YAML 离线解析 |
+| 2026-07-29 | 拆分 `/healthz` 存活探针与 `/readyz` 就绪探针；Kubernetes 仅在 SQLite 可查询且 Agent Host 已启动时接入流量 | `health.test.ts`、后端类型检查、Kubernetes 清单校验 |
+| 2026-07-29 | Host 启动前原子收敛上次进程遗留的 Run、Step、Tool Call 和 Trigger；不自动重放写操作，不关闭 `waiting_human` | `persistentAgentKernel.test.ts`、`agentHost.test.ts`、后端类型检查 |
+| 2026-07-29 | 将 Agent `maxToolCalls` 落为 Run 级共享硬上限，覆盖直接 Tool 与 Skill 内 Tool；恢复时依据持久化 Step 延续计数，超限记录 Guardrail | `modelLoopAgent.test.ts`、`toolSkillRuntime.test.ts`、后端类型检查 |
+| 2026-07-29 | 增加 90 天审计日志保留、500 条分批清理、每日维护幂等和秘密字段遮盖；维护失败不再影响业务 Scheduler | `dataRetention.test.ts`、`maintenanceScheduler.test.ts`、Scheduler 回归 |
+| 2026-07-29 | 容器启动改为先校验并备份 SQLite，再执行不接受数据丢失的 Prisma Schema 同步；全新 PVC 先初始化有效空库，损坏或同步失败时拒绝启动 | `sqliteDeployment.test.ts`（含真实 Prisma 首次及二次同步）、后端类型检查 |
+| 2026-07-27 | 日志与上下文查询限制单页最大数量，并按北京时间自然日生成 UTC 左闭右开筛选区间；非法日期返回 400 | `logQuery.test.ts`、类型检查 |
+| 2026-07-27 | 超期扫描暴露投递统计和部分完成状态；永久接收人错误与临时错误分开审计，日志页增加对应中文标签 | `scheduler.test.ts`、`jobs.test.ts`、前端类型检查 |
+| 2026-07-27 | 恢复 tenant access token 有效期缓存，并合并并发刷新，避免定时任务密集发送时重复申请令牌触发限流 | `adapters.test.ts` |
+| 2026-07-27 | 周报 Agent 接入 Trigger/Run/Artifact/Outbox；查看 API 通过数据库记录与目录边界校验解析 HTML | `weeklyReport.test.ts`、Agent Runtime 回归 |
+| 2026-07-22 | 补充执行事实链、状态分离、租约和重试规则，精简文档结构 | CodeGraph 与持久化投递测试 |
+| 2026-07-22 | 建立运行控制与可观测性功能卡 | CodeGraph 架构审查 |
