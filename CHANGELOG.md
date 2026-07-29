@@ -15,6 +15,8 @@ The project follows semantic versioning after the first public release.
 
 ### Changed
 
+- Reorganized the README and public documentation around setup, verification,
+  deployment, security boundaries, and audience-specific entry points.
 - Replaced organization-specific branding, identifiers, deployment settings,
   people, and example data with public-safe values.
 - Kubernetes templates now use the `delivery-ops` namespace and neutral image
