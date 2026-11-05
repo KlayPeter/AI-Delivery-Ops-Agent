@@ -60,6 +60,9 @@ are deferred while the local product is being validated.
 - [x] Add public GitHub SKILL.md inspection, fixed commit/content/license snapshots,
   reviewed local profile export and actual Prompt Skill Runtime text execution with
   zero external tools. Scripts and referenced resources require explicit adapters.
+  A reviewed catalog now exports up to eight pinned Skills in one profile, supports
+  explicit per-run selection, separates namesakes and revisions by content/source ID,
+  and rejects removed selections without sending other Skill bodies to the model.
 - [ ] Design authenticated MCP/OpenAPI onboarding and credential destination grants.
 - [x] Add versioned plugin result contracts, sample checks and recorded execution
   receipts. Checks cover structure and required steps, not semantic correctness.

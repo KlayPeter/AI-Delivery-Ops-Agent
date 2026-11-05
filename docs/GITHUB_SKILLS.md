@@ -1,4 +1,4 @@
-# 从 GitHub 接入一份文本 Skill
+# 从 GitHub 接入与选择文本 Skill
 
 用公开 GitHub 的 SKILL.md 文件链接，查看完整内容、固定版本和可用许可；审查后导出本地配置，再通过已有 Prompt Skill Runtime 运行。适合可用文字完成的写作、规划、设计建议和代码文本任务。
 
@@ -27,6 +27,24 @@ AGENT_PLUGINS_FILE=plugins.skill-reviewed.local.yaml bun run local
 
 在「连接与模型」填写自己的标准提供者设置，保存后重启。进入「使用 Skill」填写目标、材料和约束，结果以文本返回；实际经过 SkillRuntime、Prompt Executor 与模型网关，详情中可以查看 Skill/Model Step。SDK 可能重试，不能把一次任务等同于一次计费请求。无需真实模型即可完成读取/审查/导出；没有配置时生成按钮禁用，后端也会拒绝。
 
+## 把多份 Skill 放进同一工作台
+
+逐份读取并查看完整指令、固定提交和许可，勾选两项审查后点“加入待导出列表”。再读取另一份，重复审查加入；列表只在本页内存保存，刷新后可从成功发现记录重新加入。最多八份，同一固定来源和内容不重复添加。
+
+点“下载所选 Skill 的配置”，服务会重新核验每项原运行的归属、成功状态和内容指纹。任意项失效则整份不导出。把 plugins.skills-reviewed.local.yaml 保存到 backend 后，选择并重启：
+
+```bash
+AGENT_PLUGINS_FILE=plugins.skills-reviewed.local.yaml bun run local
+```
+
+此配置仍是五插件、两个 Agent，只包含所选 Skill、接入助手及三个模型提供者，不合并当前其他插件。在“使用 Skill”的“本次使用”列表明确选一份，再填写任务；只有一份时可直接使用。每次只发送所选指令，其他 Skill 正文不会进入该模型请求。不同仓库/路径/提交的同名 Skill 分别显示，不按名称隐式覆盖。
+
+新集合的 skillId 由仓库 owner/repo 小写归一后的固定来源 URL 和原文 SHA 共同生成，与配置顺序无关。旧版本移除后，旧任务参数不会自动改跑另一份；重新选择并核对来源后再发起。结果保留实际 ID、仓库、路径、提交和指令指纹。旧单份配置继续可用；多份配置下旧单份描述 API 返回 409，目录接口为 GET /api/skill-runner/skills。
+
+Skill 配置 JSON 的 UTF-8 总量最多 512 KiB，原文每份最多 128 KiB、许可最多 64 KiB；导出 YAML 大小可能不同。指令、工具权限和运行上限不因集合增多而扩大。这里没有自动选 Skill、多技能串联、附属资源加载或在线热安装。
+
+设计参考 [Agent Skills 官方接入指南](https://agentskills.io/client-implementation/adding-skills-support)的显式激活和按需提供指令思路。本项目在本机已审查目录中使用内容来源 ID 区分同名技能，属于自身运行选择规则，不声称实现所有官方集成路径。
+
 ## 已实际验证的公开来源
 
 本地浏览器实际读取 [Anthropic frontend-design](https://github.com/anthropics/skills/blob/ca45fc496a3436251f191354091d557da31c15b5/skills/frontend-design/SKILL.md)：
@@ -34,6 +52,10 @@ AGENT_PLUGINS_FILE=plugins.skill-reviewed.local.yaml bun run local
 - 提交：`ca45fc496a3436251f191354091d557da31c15b5`。
 - 原始文件：9,390 字节，SHA-256 `d91970639e9f5c37682ac7ab60094d35f1c7c1f38d731bd56396563aee10c1d3`。
 - 取得同一提交的[许可文件](https://github.com/anthropics/skills/blob/ca45fc496a3436251f191354091d557da31c15b5/skills/frontend-design/LICENSE.txt)，10,174 字节，Apache 2.0；许可原文随下载配置保存。其他 Skill 的许可需要逐一核对，系统不作许可判断。
+
+本次多份集合还实际读取了 [Anthropic brand-guidelines](https://github.com/anthropics/skills/blob/ca45fc496a3436251f191354091d557da31c15b5/skills/brand-guidelines/SKILL.md)：同一固定提交，原文 2,235 字节，SHA-256 `1120b3769e2985cefb3d25be981b1f914abeba57ae079b83c20c666c164fa9fe`。取得同提交的 [LICENSE.txt](https://github.com/anthropics/skills/blob/ca45fc496a3436251f191354091d557da31c15b5/skills/brand-guidelines/LICENSE.txt)，11,345 字节，含 Apache 2.0 文本及上游版权。两份已通过页面逐项加入、下载为同一配置并原样重启装配；这里只使用其文字指令，没有执行其中提及的 python-pptx、安装字体或制作品牌文件。
+
+![已装配的两份固定 Skill，可在本机明确选择](images/skill-catalog.png)
 
 下载的配置已实际保存并重启装配。使用本机受控 OpenAI 协议服务，确认模型请求包含原 Skill 正文，并生成有 Agent/Skill/Model 三个步骤的运行。下图的回答明确标记为固定协议样例，**不代表真实模型质量、前端设计效果或代码执行**。
 
@@ -45,7 +67,7 @@ AGENT_PLUGINS_FILE=plugins.skill-reviewed.local.yaml bun run local
 
 - 链接需为公开 github.com 的 blob 文件地址，分支名不含斜杠，路径暂限 ASCII；只使用默认 HTTPS 端口。私有仓库、Enterprise、认证和任意仓库代码执行不在当前范围。
 - 分支先解析为完整提交，再读取固定原文；运行使用配置中的快照，不在每次任务开始时拉取 GitHub。上游更新后需重新发现、审查与导出。
-- 只加载一个导入 Skill，ID 固定为 community.imported-prompt。上下游元数据不会授予 Bash、Read 或任意其他外部 Tool。
+- 可装配一至八份审查后的文本 Skill，单次只运行明确选择的一份；旧单份仍使用 community.imported-prompt。上下游元数据不会授予 Bash、Read 或任意其他外部 Tool。
 - 原始文件 SHA 对应完整 SKILL.md；执行步骤另存已注册指令 SHA（正文加宿主边界），成功产物也保留。它不代表完整模型请求、权重或语义质量，也不是来源签名。
 - Skill 最长 45 秒，输出最多 256 KiB。模型内容与代码文本不等于实际执行、文件修改或渲染验证；附属资源缺失会限制能力。
 - Skill 内部不支持持久化人工追问。既有模型执行器的内部追问函数可能使该次 Skill 失败；应补全任务后重新运行。Agent 层已有的暂停/恢复能力保持。

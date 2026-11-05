@@ -60,6 +60,7 @@ export const api = {
   fetchSkillInspection: (runId: string) => request(client.get('/skill-setup/inspection', { params: { runId } })),
   exportSkillProfile: (input: Record<string, unknown>) => request(client.post('/skill-setup/profile', input)),
   fetchImportedSkill: () => request(client.get('/skill-runner/skill')),
+  fetchImportedSkills: () => request(client.get('/skill-runner/skills')),
   fetchEvaluationSuite: () => request(client.get('/evaluations/suite')),
   fetchEvaluationReport: (runId: string) => request(client.get('/evaluations/report', { params: { runId } })),
   compareEvaluations: (baselineId: string, candidateId: string) => request(client.get('/evaluations/compare', { params: { baselineId, candidateId } })),

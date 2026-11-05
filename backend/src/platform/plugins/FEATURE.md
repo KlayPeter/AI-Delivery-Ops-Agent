@@ -341,9 +341,13 @@ skills.setup 和 skills.prompt 分别贡献发现/导出与运行入口，均显
 flowchart LR
     SK_URL[GitHub 固定提交与完整文本审查] --> SK_PROFILE[原发现记录绑定配置下载]
     SK_PROFILE --> SK_RESTART[本机保存并重启]
-    SK_RESTART --> SK_RUNTIME[已有 SkillRuntime 与零外部工具]
+    SK_RESTART --> SK_CATALOG[逐项审查的 Skill 目录；来源与内容绑定 ID]
+    SK_CATALOG --> SK_SELECT[用户明确选一份；未知或移除版本拒绝]
+    SK_SELECT --> SK_RUNTIME[已有 SkillRuntime 与零外部工具]
     SK_RUNTIME --> SK_TRACE[文本、真实步骤与指令 SHA]
 ```
+
+多份 Skill 在 skills.prompt 1.1.0 内共用一个 Native Runner，最多八份、内容配置 JSON 512 KiB；每份原成功发现记录及双确认在导出时复验，同名/不同来源或版本不覆盖。目录 ID 按固定来源与原文指纹生成，顺序变化不影响选择；模型只收到所选指令，未知/移除 ID 在调用前拒绝。旧单份配置和省略 ID 的单项运行保持，多份不能省略。结果保留实际 ID/来源/步骤；目录 GET 不调用模型，停用释放全部注册。代码与验证补充 catalog.ts、service.ts、promptPlugin.ts、SkillSetupPage.tsx、SkillRunnerPage.tsx、backend/test/skillWorkbench.test.ts。
 
 实现与限制见[Skill 工作台功能卡](../../connectors/skill-workbench/FEATURE.md)。代码：backend/src/connectors/skill-workbench/、platform/skills/packageLoader.ts、runtime.ts；前端 SkillSetupPage.tsx / SkillRunnerPage.tsx。验证：backend/test/skillWorkbench.test.ts、toolSkillRuntime.test.ts、context7Plugin.test.ts 与既有 Host/Plugin/模型回归，前端检查及桌面/375px 验收。仅支持指令文本，无脚本/引用资源自动执行或完整上游能力兼容；模型协议样例不证明真实质量。
 

@@ -17,7 +17,7 @@ const manifest: AgentManifest = {
     requirements: { tools: [toolId], secrets: [], networkHosts: ['api.github.com', 'raw.githubusercontent.com'] }, limits: { timeoutSeconds: 40, maxSteps: 2, maxToolCalls: 1, maxAgentCalls: 0, maxOutputBytes: 1024 * 1024 }, delivery: { allowedArtifactTypes: ['json'], directDelivery: false },
 };
 export function createSkillSetupPlugin(transport?: WebTransport): FeaturePlugin { return {
-    manifest: { apiVersion: '1.0', id: 'skills.setup', name: manifest.name, version: '1.0.0', description: manifest.description }, agents: [{ manifest, installationId: 'install-skill-inspector' }],
+    manifest: { apiVersion: '1.0', id: 'skills.setup', name: manifest.name, version: '1.1.0', description: manifest.description }, agents: [{ manifest, installationId: 'install-skill-inspector' }],
     apply(ctx) {
         const scope = { workspaceId: DEFAULT_WORKSPACE_ID, botInstanceId: DEFAULT_BOT_INSTANCE_ID };
         ctx.delivery.web.register({ id: 'skills.setup', pages: [{ path: '/skills', label: '接入 Skill', section: 'workspace', view: { kind: 'builtin', id: 'skill-setup', capability: INSPECT_CAPABILITY } }],

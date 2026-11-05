@@ -35,7 +35,7 @@ Obsidian、公开网页或本地文档开始，检索原文、生成带引用的
 | 个人知识 | 只读 Markdown/Obsidian、公开 URL 及两源混合检索，关键词检索、版本、原文定位；可选模型生成引用回答 |
 | 资料收集 | 单篇公开网页；微软 MarkItDown 0.1.9 转换 PDF、DOCX、PPTX、XLSX 等本地文件 |
 | 本地资料库 | 明确收录、去重、来源凭证、检索与知识来源切换 |
-| 开源能力接入 | 可选 GitHub SKILL.md 固定版本审查/导出/文本运行；MCP 工具发现、明确授权与配置导出、通用运行器；stdio/HTTPS 与标准 SKILL.md，真实 Context7 示例 |
+| 开源能力接入 | 可选 GitHub SKILL.md 多份审查/合并配置导出/逐份文本运行；MCP 工具发现、明确授权与配置导出、通用运行器；stdio/HTTPS 与标准 SKILL.md，真实 Context7 示例 |
 | 问答评测 | 可选六题虚构资料、实际 RAG、固定退化对照/当前模型、规则对比与 JSON/CLI 门槛；不验证语义 |
 | 插件契约 | Manifest、依赖、权限、页面/API/动作、结果规则与 Cordis 资源释放 |
 | 可靠执行 | Agent/Tool/Skill 预算、委派、Session/Checkpoint、Run/Artifact 与 Outbox |
@@ -92,7 +92,7 @@ bun run local
   Ollama 本机接口无需 Key，见[本机模型配置](docs/LOCAL_DEVELOPMENT.md#使用本机-ollama)。
   设置保存在本机 `connections.json`，权限 0600，密钥不回显；本机文件未加密。
 - 从[公开 GitHub 文件链接接入文本 Skill](docs/GITHUB_SKILLS.md)，审查固定指令与许可，
-  下载配置后本地运行；不执行仓库脚本或自动授予工具。
+  可逐份审查后一起下载配置，在已安装列表中明确选择一份运行；不执行仓库脚本或自动授予工具。
 - 体验 [Context7 与标准 Skill](docs/COMMUNITY_PLUGINS.md)，或按
   [MCP 指南](docs/MCP_TOOLS.md)连接经审查的本地工具。独立配置档需显式选择。
 - 使用[问答评测](docs/RAG_EVALUATIONS.md)检查修改模型或检索后的规则退化；
