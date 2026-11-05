@@ -1,3 +1,8 @@
+import type { PluginSelection } from '@/platform/plugins/configuration';
+import { knowledgeMixedPlugin } from '@/knowledge/mixed/plugin';
+import { knowledgeMixedAnswerPlugin } from '@/knowledge/mixed/answerPlugin';
+import { knowledgeMixedImpactPlugin } from '@/knowledge/mixed/impactPlugin';
+import { mixedReleasePlugin } from '@/knowledge/mixed/releasePlugin';
 import { standardModelPlugins } from '@/platform/models/providers';
 import * as path from 'node:path';
 import { knowledgeMarkdownPlugin } from '@/knowledge/markdown/plugin';
@@ -24,23 +29,27 @@ import { mcpSetupPlugin } from '@/connectors/mcp-workbench/plugin';
 import { createPersonalResearchPlugin } from '@/agents/personal-research/plugin';
 import { runRecipesPlugin } from '@/recipes/plugin';
 
-export function workspaceKnowledge(dataPath = buildConfig({}).data_path) {
+export function workspaceKnowledge(dataPath = buildConfig({}).data_path): PluginSelection {
     const kind = process.env.KNOWLEDGE_KIND || 'sample';
-    const selected = kind === 'web' ? {
-        plugins: [...standardModelPlugins, knowledgeWebPlugin, knowledgeWebAnswerPlugin, knowledgeWebImpactPlugin, createKnowledgeWorkspacePlugin('web'), webCapturePlugin, markItDownPlugin, knowledgeLibraryPlugin, pluginChecksPlugin, mcpSetupPlugin, createPersonalResearchPlugin('web'), runRecipesPlugin],
-        config: { 'knowledge.web': webSourceConfig.parse({ urls: lines(process.env.KNOWLEDGE_URLS || ''), sourceId: 'workspace-web' }) },
-    } : {
-        plugins: [...standardModelPlugins, knowledgeMarkdownPlugin, knowledgeAnswerPlugin, knowledgeImpactPlugin, createKnowledgeWorkspacePlugin(kind === 'sample' ? 'sample' : kind === 'library' ? 'library' : 'markdown'), webCapturePlugin, markItDownPlugin, knowledgeLibraryPlugin, pluginChecksPlugin, mcpSetupPlugin, createPersonalResearchPlugin(), runRecipesPlugin],
-        config: { 'knowledge.markdown': markdownSourceConfig.parse({
-            root: kind === 'sample' ? path.join(import.meta.dir, '../../../examples/knowledge-vault') : kind === 'library' ? libraryRoot(dataPath) : process.env.KNOWLEDGE_ROOT,
-            sourceId: kind === 'sample' ? 'workspace-sample' : kind === 'library' ? 'workspace-library' : 'workspace-notes',
-            vaultName: kind === 'library' ? undefined : process.env.KNOWLEDGE_VAULT_NAME || undefined,
-            exclude: kind === 'library' ? [] : lines(process.env.KNOWLEDGE_EXCLUDE || ''),
-        }) },
+    const web = kind === 'web', mixed = kind === 'mixed';
+    const config: Record<string, Record<string, unknown>> = {};
+    if (!web) config['knowledge.markdown'] = markdownSourceConfig.parse({
+        root: kind === 'sample' ? path.join(import.meta.dir, '../../../examples/knowledge-vault') : kind === 'library' ? libraryRoot(dataPath) : process.env.KNOWLEDGE_ROOT,
+        sourceId: kind === 'sample' ? 'workspace-sample' : kind === 'library' ? 'workspace-library' : 'workspace-notes',
+        vaultName: kind === 'library' ? undefined : process.env.KNOWLEDGE_VAULT_NAME || undefined,
+        exclude: kind === 'library' ? [] : lines(process.env.KNOWLEDGE_EXCLUDE || ''),
+    });
+    if (web || mixed) config['knowledge.web'] = webSourceConfig.parse({ urls: lines(process.env.KNOWLEDGE_URLS || ''), sourceId: 'workspace-web' });
+    const selected = {
+        plugins: [...standardModelPlugins, ...(mixed ? [knowledgeMarkdownPlugin, knowledgeWebPlugin, knowledgeMixedPlugin] : [web ? knowledgeWebPlugin : knowledgeMarkdownPlugin]),
+            mixed ? knowledgeMixedAnswerPlugin : web ? knowledgeWebAnswerPlugin : knowledgeAnswerPlugin,
+            mixed ? knowledgeMixedImpactPlugin : web ? knowledgeWebImpactPlugin : knowledgeImpactPlugin,
+            createKnowledgeWorkspacePlugin(kind as 'sample' | 'markdown' | 'web' | 'library' | 'mixed'), webCapturePlugin, markItDownPlugin, knowledgeLibraryPlugin, pluginChecksPlugin, mcpSetupPlugin,
+            createPersonalResearchPlugin(mixed ? 'mixed' : web ? 'web' : 'markdown'), runRecipesPlugin], config,
     };
     if (!process.env.RELEASE_GITHUB_REPOSITORY) return selected;
     return {
-        plugins: [...selected.plugins, githubPlugin, kind === 'web' ? webReleasePlugin : releasePlugin],
+        plugins: [...selected.plugins, githubPlugin, mixed ? mixedReleasePlugin : web ? webReleasePlugin : releasePlugin],
         config: { ...selected.config, 'connector.github': githubConfig.parse({
             repository: process.env.RELEASE_GITHUB_REPOSITORY,
             baseBranch: process.env.RELEASE_GITHUB_BRANCH || undefined,

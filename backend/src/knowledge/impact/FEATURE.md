@@ -157,3 +157,16 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 ## 共享 CLI 模型装配边界
 
 同一 knowledge CLI 的 --ask 分支现在显式选择模型插件，支持无密钥本机 Ollama；--check-run / --impact-status 分支仍只装配来源与复核插件，不调用或安装模型。版本核对与原证据保存规则不变，验证沿用 backend/test/knowledgeImpact.test.ts，生成分支另由 knowledgeAnswer.test.ts 覆盖。
+
+## 笔记与网页混合来源
+
+混合组合接受笔记与网页两类实际引用，经固定路由分别调用原版本 Tool；最多三次共享额度，只引用一种来源时只花两次。单源不可读只影响该源引用，原回答不覆盖；metrics 记录实际额度消耗。 实现、配置与验证边界见[混合知识功能卡](../mixed/FEATURE.md)；验证：backend/test/knowledgeMixed.test.ts 及既有功能回归。
+
+```mermaid
+flowchart LR
+    MIX_PORT[明确选择混合来源] --> MIX_TOOL[共享预算的混合 Tool]
+    MIX_TOOL --> MIX_MD[既有笔记来源]
+    MIX_TOOL --> MIX_WEB[既有公开网页来源]
+    MIX_MD --> MIX_RESULT[保留原引用与独立版本]
+    MIX_WEB --> MIX_RESULT
+```

@@ -274,3 +274,16 @@ flowchart LR
     MP_PLUGIN[显式模型插件] --> MP_REG[Host 共享模型网关]
     MP_REG --> MP_RUN[原有 Agent 或生成管线]
 ```
+
+## 笔记与网页混合来源
+
+knowledge.mixed 明确依赖两个现有来源；不自动合并同时安装的来源。answer/impact/workspace/research/release 通过既有工厂选择混合端口及调用成本，不修改 Host 执行协议；停止/缺依赖沿原 Cordis 生命周期处理。 实现、配置与验证边界见[混合知识功能卡](../../knowledge/mixed/FEATURE.md)；验证：backend/test/knowledgeMixed.test.ts 及既有功能回归。
+
+```mermaid
+flowchart LR
+    MIX_PORT[明确选择混合来源] --> MIX_TOOL[共享预算的混合 Tool]
+    MIX_TOOL --> MIX_MD[既有笔记来源]
+    MIX_TOOL --> MIX_WEB[既有公开网页来源]
+    MIX_MD --> MIX_RESULT[保留原引用与独立版本]
+    MIX_WEB --> MIX_RESULT
+```

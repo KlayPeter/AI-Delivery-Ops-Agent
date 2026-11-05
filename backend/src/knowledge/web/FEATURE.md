@@ -15,12 +15,13 @@ last_reviewed: 2026-11-06
 
 独立的 `knowledge.web` 功能插件负责网页读取、解析、同步与检索。它与 Markdown 来源复用中文关键词排序和证据协议，通过现有 Tool Gateway 供 `knowledge.answer` 使用。Native Agent 只把确定性来源服务接入 Host、Run 与 Artifact，不包含模型循环。
 
-`knowledge.web/answerPlugin.ts` 是现有回答插件的网页来源组合，不复制生成、引用核验或运行记录逻辑。每个 Host 只能选一个 `knowledge.answer` 组合；当前不提供网页与 Vault 的联合检索。
+`knowledge.web/answerPlugin.ts` 是现有回答插件的网页来源组合，不复制生成、引用核验或运行记录逻辑。每个 Host 只能选一个 `knowledge.answer` 组合；网页与 Vault 的联合由独立 knowledge.mixed 组合提供。
 
 ## 实现流程图
 
 ```mermaid
 flowchart TD
+    MIX[可选混合知识：沿用本来源 Tool 与引用身份] --> N
     C[可信配置：最多五个公开链接] --> P[Cordis: knowledge.web]
     U[CLI --url / 本地 SDK] --> N[Native Agent / knowledge.web.search Tool]
     P --> N
@@ -186,3 +187,7 @@ flowchart LR
     MP_PLUGIN[显式模型插件] --> MP_REG[Host 共享模型网关]
     MP_REG --> MP_RUN[原有 Agent 或生成管线]
 ```
+
+## 可选混合组合
+
+本来源保持独立读取与权限边界；knowledge.mixed 可通过原 search/versions Tool 与另一来源组合，保留各自身份和版本。它不扩大本来源的目录或 URL 范围，不自动启用；实现与测试见 [混合知识功能卡](../mixed/FEATURE.md) 及 backend/test/knowledgeMixed.test.ts。

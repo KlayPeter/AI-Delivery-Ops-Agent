@@ -17,6 +17,9 @@ export default function ReleasePage() {
   const [error, setError] = useState('');
   const [runId, setRunId] = useState<string | null>(null);
   const enabled = workspace?.agents.some(agent => agent.status === 'active' && agent.capabilities.includes('release.prepare'));
+  const sourceDependencies = workspace?.plugins.find(plugin => plugin.id === 'release.prepare')?.requires || [];
+  const sourceLabel = sourceDependencies.includes('knowledge.mixed') ? '已选笔记与公开网页' : sourceDependencies.includes('knowledge.web') ? '已选公开网页'
+    : sourceDependencies.includes('knowledge.markdown') ? (workspace?.knowledgeKind === 'sample' ? '虚构示例笔记' : '已选 Markdown / Obsidian 目录') : '该插件明确配置的知识来源';
   const runs = workspace?.runs.filter(run => run.capability === 'release.prepare') || [];
   const execute = async (operation: 'collect' | 'prepare') => {
     setError(''); setRunning(operation);
@@ -33,7 +36,7 @@ export default function ReleasePage() {
       : connections?.restartRequired && <Alert type="warning" showIcon title="连接配置等待重启生效" description="本次任务仍使用启动时的仓库和知识来源。" />}
     <section className="knowledge-search">
       <div className="connection-title"><span className="icon-tile"><FileSearchOutlined aria-hidden /></span><h2>准备这次发布</h2></div>
-      <p className="muted">读取固定仓库在时间段内合并的 PR，以及当前开放的 Issue。规则来自{workspace?.knowledgeKind === 'sample' ? '虚构示例笔记' : workspace?.knowledgeKind === 'web' ? '已选公开网页' : '已选 Markdown / Obsidian 目录'}。<Link to="/connections">配置仓库</Link> · <Link to={workspace?.pages.some(page => page.path === '/knowledge') ? '/knowledge' : '/plugins'}>查看个人规则配置</Link></p>
+      <p className="muted">读取固定仓库在时间段内合并的 PR，以及当前开放的 Issue。规则来自{sourceLabel}。<Link to="/connections">配置仓库</Link> · <Link to={workspace?.pages.some(page => page.path === '/knowledge') ? '/knowledge' : '/plugins'}>查看个人规则配置</Link></p>
       <Form form={form} layout="vertical" initialValues={{ since: dayjs().subtract(7, 'day').format('YYYY-MM-DDTHH:mm'), policyQuery: '发布规则 API 迁移' }} onFinish={() => execute('collect')}>
         <div className="connection-fields">
           <Form.Item name="since" label="合并开始时间" rules={[{ required: true, message: '请选择开始时间' }]}><Input type="datetime-local" /></Form.Item>

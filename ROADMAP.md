@@ -43,6 +43,9 @@ are deferred while the local product is being validated.
 - [x] Deliver a read-only Markdown/Obsidian plugin and local CLI with versioned keyword
   retrieval, source citations, link status, exclusions and in-memory change tracking.
   Public webpage retrieval is separately implemented with bounded public-URL fetching.
+- [x] Add an explicitly selected mixed knowledge plugin that combines existing note/web
+  tools, retains per-origin evidence and coverage, and reuses RAG/research/release/version
+  checks with one shared budget. This is interleaved keyword retrieval, not vector search.
 - [x] Add an optional RAG answer plugin using governed retrieval and the host model
   service; validate citation IDs and exact quotes before publishing. Semantic support
   is not automatically verified; integration tests use a local mock model endpoint.

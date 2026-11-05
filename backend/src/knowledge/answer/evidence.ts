@@ -3,7 +3,9 @@ import { z } from 'zod';
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 export const retrievalEvidence = z.object({
     retrieval: z.literal('keyword'),
-    source: z.object({ sourceId: z.string().min(1), version: hash, partial: z.boolean(), indexed: z.number().int().min(0), syncedAt: z.string() }),
+    source: z.object({ sourceId: z.string().min(1), version: hash, partial: z.boolean(), indexed: z.number().int().min(0), syncedAt: z.string(),
+        sources: z.array(z.object({ kind: z.enum(['markdown', 'web']), status: z.enum(['available', 'unavailable']), indexed: z.number().int().nonnegative(), partial: z.boolean(), version: hash.optional() })).max(2).optional(),
+    }),
     hits: z.array(z.object({
         citationId: hash, sourceId: z.string().min(1), path: z.string().min(1).max(1024), title: z.string().max(256),
         documentVersion: hash, heading: z.string().max(256), lineStart: z.number().int().positive(), lineEnd: z.number().int().positive(),

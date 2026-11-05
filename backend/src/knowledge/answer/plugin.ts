@@ -30,8 +30,9 @@ If the question cannot be answered from the excerpts, return {"status":"insuffic
 Do not infer that absent keyword hits mean a fact does not exist. If sources conflict, describe both with their citations and ask the user to resolve the conflict.
 Do not claim that citation checks prove semantic support. Do not invent facts or sources.`;
 
-export function createKnowledgeAnswerPlugin(source = { pluginId: 'knowledge.markdown', searchTool: KNOWLEDGE_SEARCH_TOOL }): FeaturePlugin {
-    const manifest: AgentManifest = { ...knowledgeAnswerManifest, requirements: { ...knowledgeAnswerManifest.requirements, tools: [source.searchTool] } };
+export function createKnowledgeAnswerPlugin(source: { pluginId: string; searchTool: string; toolCalls?: number } = { pluginId: 'knowledge.markdown', searchTool: KNOWLEDGE_SEARCH_TOOL }): FeaturePlugin {
+    const toolCalls = source.toolCalls ?? 1;
+    const manifest: AgentManifest = { ...knowledgeAnswerManifest, limits: { ...knowledgeAnswerManifest.limits, timeoutSeconds: toolCalls > 1 ? 90 : 60, maxToolCalls: toolCalls }, requirements: { ...knowledgeAnswerManifest.requirements, tools: [source.searchTool] } };
     return {
         manifest: { apiVersion: '1.0', id: 'knowledge.answer', name: 'Personal knowledge RAG', version: '1.0.0', description: knowledgeAnswerManifest.description, requires: [source.pluginId] },
         agents: [{ manifest, installationId: 'install-knowledge-answer' }],
@@ -40,10 +41,11 @@ export function createKnowledgeAnswerPlugin(source = { pluginId: 'knowledge.mark
                 signal.throwIfAborted();
                 const input = questionInput.parse(request.input);
                 requirePersonalScope(request.scope);
+                const budget = new RunToolCallBudget(toolCalls);
                 const retrieved = retrievalEvidence.parse(await ctx.delivery.toolGateway.execute(source.searchTool, { query: input.question, limit: input.limit }, {
                     runId: request.runId, agentId: manifest.id, scope: request.scope,
                     allowedTools: manifest.requirements.tools, idempotencyKey: `${request.runId}:retrieval`, signal,
-                    budget: new RunToolCallBudget(1),
+                    budget,
                 }));
                 signal.throwIfAborted();
                 const evidence = selectEvidence(retrieved.hits);
@@ -79,11 +81,11 @@ export function createKnowledgeAnswerPlugin(source = { pluginId: 'knowledge.mark
                 const data = {
                     ...draft, question: input.question, evidence,
                     retrieval: { method: retrieved.retrieval, sourceId: retrieved.source.sourceId, version: retrieved.source.version, syncedAt: retrieved.source.syncedAt,
-                        partial: retrieved.source.partial, candidateCount: retrieved.hits.length, suppliedCount: evidence.length, contextTruncated: evidence.length < retrieved.hits.length },
+                        partial: retrieved.source.partial, ...(retrieved.source.sources ? { sources: retrieved.source.sources } : {}), candidateCount: retrieved.hits.length, suppliedCount: evidence.length, contextTruncated: evidence.length < retrieved.hits.length },
                     verification: { citationIdentityAndQuotePresence: draft.status === 'answered' ? 'checked' : 'not_applicable', semanticSupport: 'not_verified' },
                 };
                 return {
-                    status: 'succeeded', data, metrics: { modelCalls, toolCalls: 1 + modelToolCalls, inputTokens, outputTokens },
+                    status: 'succeeded', data, metrics: { modelCalls, toolCalls: budget.used + modelToolCalls, inputTokens, outputTokens },
                     artifacts: [{ type: 'json', mediaType: 'application/json', schemaVersion: '1.0', content: data, metadata: { privateKnowledge: true, title: 'Personal knowledge answer', semanticSupport: 'not_verified' } }],
                 };
             });

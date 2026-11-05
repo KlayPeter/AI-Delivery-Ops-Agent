@@ -77,13 +77,13 @@ export class LocalConnections {
                 const url = new URL(merged[key]);
                 if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) throw new Error('API 地址必须是无内嵌凭据的 HTTP/HTTPS URL');
             }
-            if (merged.KNOWLEDGE_KIND && !['sample', 'markdown', 'web', 'library'].includes(merged.KNOWLEDGE_KIND)) throw new Error('知识来源类型不正确');
-            if (merged.KNOWLEDGE_KIND === 'markdown') {
+            if (merged.KNOWLEDGE_KIND && !['sample', 'markdown', 'web', 'library', 'mixed'].includes(merged.KNOWLEDGE_KIND)) throw new Error('知识来源类型不正确');
+            if (['markdown', 'mixed'].includes(merged.KNOWLEDGE_KIND || '')) {
                 if (!merged.KNOWLEDGE_ROOT || !path.isAbsolute(merged.KNOWLEDGE_ROOT)) throw new Error('请填写笔记目录的绝对路径');
                 const { markdownSourceConfig } = await import('@/knowledge/markdown/source');
                 markdownSourceConfig.parse({ root: merged.KNOWLEDGE_ROOT, exclude: lines(merged.KNOWLEDGE_EXCLUDE || '') });
             }
-            if (merged.KNOWLEDGE_KIND === 'web') {
+            if (['web', 'mixed'].includes(merged.KNOWLEDGE_KIND || '')) {
                 const { webSourceConfig } = await import('@/knowledge/web/source');
                 webSourceConfig.parse({ urls: lines(merged.KNOWLEDGE_URLS || '') });
             }

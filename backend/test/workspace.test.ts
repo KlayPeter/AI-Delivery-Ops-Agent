@@ -232,3 +232,16 @@ test('Ollama connection save takes effect only after reload and availability fol
         } finally { await next.stop(); }
     }
 });
+
+test('mixed source settings validate both boundaries atomically and select both sources only after restart', async () => {
+    const file = path.join(directory, 'connections.json'), settings = new LocalConnections(file); await settings.initialize();
+    await settings.save({ KNOWLEDGE_KIND: 'sample' }); const before = await readFile(file, 'utf8');
+    for (const update of [{ KNOWLEDGE_KIND: 'mixed', KNOWLEDGE_URLS: 'https://example.com/policy' }, { KNOWLEDGE_KIND: 'mixed', KNOWLEDGE_ROOT: directory, KNOWLEDGE_URLS: 'http://127.0.0.1/private' }]) {
+        await expect(settings.save(update)).rejects.toThrow(); expect(await readFile(file, 'utf8')).toBe(before);
+    }
+    const saved = await settings.save({ KNOWLEDGE_KIND: 'mixed', KNOWLEDGE_ROOT: directory, KNOWLEDGE_URLS: 'https://example.com/policy' });
+    expect(saved.restartRequired).toBe(true); expect(workspaceKnowledge(directory).plugins.some(plugin => plugin.manifest.id === 'knowledge.mixed')).toBe(false);
+    const restarted = new LocalConnections(file); await restarted.initialize();
+    const selected = workspaceKnowledge(directory); expect(selected.plugins.some(plugin => plugin.manifest.id === 'knowledge.mixed')).toBe(true);
+    expect(selected.config['knowledge.markdown']!.root).toBe(directory); expect(selected.config['knowledge.web']!.urls).toEqual(['https://example.com/policy']);
+});

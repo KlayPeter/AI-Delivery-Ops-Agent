@@ -36,7 +36,7 @@ export function createWorkspaceApi(host: AgentHost, connections: LocalConnection
             const [agents, runs] = await Promise.all([host.listAgents(), host.listLocalRuns()]);
             const plugins = host.listPlugins();
             const managedByPluginFile = Boolean(process.env.AGENT_PLUGINS_FILE);
-            const knowledgeKind = plugins.some(plugin => plugin.id === 'knowledge.web') ? 'web'
+            const knowledgeKind = plugins.some(plugin => plugin.id === 'knowledge.mixed') ? 'mixed' : plugins.some(plugin => plugin.id === 'knowledge.web') ? 'web'
                 : plugins.some(plugin => plugin.id === 'knowledge.markdown') ? (managedByPluginFile ? 'markdown' : process.env.KNOWLEDGE_KIND || 'sample') : 'none';
             return { agents, runs, plugins, pages: host.web.pages(), manualJobs: host.web.manualJobs(), health: host.health(), modelConfigured: host.isModelAvailable(), modelProviders: host.modelProviders.list(), knowledgeKind, managedByPluginFile };
         })

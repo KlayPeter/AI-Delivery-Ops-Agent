@@ -3,7 +3,7 @@ feature_id: personal-knowledge-workspace
 name: 个人知识工作台插件
 status: active
 agent_mapping: []
-last_reviewed: 2026-11-05
+last_reviewed: 2026-11-06
 ---
 
 # 个人知识工作台插件
@@ -44,13 +44,13 @@ flowchart TD
 
 ### 非目标
 
-- 不提供联合检索、向量索引、自动安装、多人认证或远端 UI 代码。
+- 不自行实现联合检索、向量索引、自动安装、多人认证或远端 UI 代码。
 - 不改变底层来源、回答、引用校验或运行记录协议。
 - 显式插件文件管理来源时不通过页面覆盖它；连接与核心运行服务仍逐步迁移。
 
 ## 核心规则
 
-1. createKnowledgeWorkspacePlugin 接受 sample、markdown、web 或 library，依赖对应来源插件；缺依赖在装配前拒绝。一个 Host 只装配一个知识工作台，底层两种来源可以并存。
+1. createKnowledgeWorkspacePlugin 接受 sample、markdown、web、library 或 mixed，依赖对应来源插件；缺依赖在装配前拒绝。一个 Host 只装配一个知识工作台，底层两种来源可以并存。
 2. /api/knowledge-workspace 仅提供 GET；返回 kind、pluginId 和 capability，不返回文件根目录、URL 列表或密钥。来源由宿主工厂选择，客户端不能改写。
 3. 默认 HTTP 组合增加本插件；Markdown 与网页来源自身不自动贡献 Web 界面。CLI/SDK 来源能力、SDK 默认团队组合和显式 AGENT_PLUGINS_FILE 语义不变。
 4. /knowledge 由 PluginPage 验证所有者后渲染已打包视图。核心 App/MainLayout 不再固定注册该路由与菜单。移除界面插件关闭描述 API 与入口，来源检索可单独保留。
@@ -126,3 +126,16 @@ flowchart TD
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
 | 2026-11-05 | 知识界面成为独立插件，明确来源与回答依赖；默认组合保留可用入口 | 知识工作台专项、既有回归与本地浏览器验收 |
+
+## 笔记与网页混合来源
+
+createKnowledgeWorkspacePlugin 新增 mixed，明确依赖 knowledge.mixed 并返回 knowledge.mixed.retrieve。默认来源设置同时显示目录/排除项和公开 URL，保存后重启；显式配置管理方式不变。 实现、配置与验证边界见[混合知识功能卡](../mixed/FEATURE.md)；验证：backend/test/knowledgeMixed.test.ts 及既有功能回归。
+
+```mermaid
+flowchart LR
+    MIX_PORT[明确选择混合来源] --> MIX_TOOL[共享预算的混合 Tool]
+    MIX_TOOL --> MIX_MD[既有笔记来源]
+    MIX_TOOL --> MIX_WEB[既有公开网页来源]
+    MIX_MD --> MIX_RESULT[保留原引用与独立版本]
+    MIX_WEB --> MIX_RESULT
+```

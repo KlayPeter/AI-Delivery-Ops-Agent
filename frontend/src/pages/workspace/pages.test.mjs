@@ -5,6 +5,7 @@ import { findPluginPage, pluginAgentHref, activePluginPage, agentPageHref, hasTe
 test('default capability uses installed active agents and preserves explicit unavailable links', () => {
   const personal = [{ status: 'inactive', capabilities: ['delivery.ops.orchestrate'] }, { status: 'active', capabilities: ['knowledge.markdown.retrieve'] }];
   assert.equal(defaultCapability(personal), 'knowledge.markdown.retrieve');
+  assert.equal(defaultCapability([...personal, { status: 'active', capabilities: ['knowledge.mixed.retrieve'] }]), 'knowledge.mixed.retrieve');
   assert.equal(defaultCapability(personal, 'missing.capability'), 'missing.capability');
   assert.equal(defaultCapability([...personal, { status: 'active', capabilities: ['delivery.ops.orchestrate'] }]), 'delivery.ops.orchestrate');
   assert.equal(defaultCapability([{ status: 'active', capabilities: ['example.echo'] }]), 'example.echo');

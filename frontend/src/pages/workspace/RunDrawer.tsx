@@ -18,8 +18,9 @@ export function RunStatus({ status }: { status: string }) {
   return <Tag color={color}>{label}</Tag>;
 }
 
-interface Evidence { title?: string; path: string; excerpt: string; lineStart?: number; lineEnd?: number; openUri?: string; citationId?: string }
-interface KnowledgeResult { hits?: Evidence[]; evidence?: Evidence[]; claims?: { text: string; citations?: { citationId: string }[] }[]; status?: string; reason?: string; source?: { partial?: boolean }; retrieval?: { partial?: boolean } }
+interface Evidence { sourceKind?: string; lineBasis?: string; title?: string; path: string; excerpt: string; lineStart?: number; lineEnd?: number; openUri?: string; citationId?: string }
+interface SourceCoverage { kind: 'markdown' | 'web'; status: 'available' | 'unavailable'; indexed: number; partial: boolean }
+interface KnowledgeResult { hits?: Evidence[]; evidence?: Evidence[]; claims?: { text: string; citations?: { citationId: string }[] }[]; status?: string; reason?: string; source?: { partial?: boolean; sources?: SourceCoverage[] }; retrieval?: { partial?: boolean; sources?: SourceCoverage[] } }
 interface RunDetail { run: RunInfo; steps: { id: string; name: string; kind: string; status: string; error?: { message: string } }[]; artifacts: { id: string; type: string; content?: unknown; metadata?: Record<string, unknown> }[]; children: RunInfo[]; checkpoint?: { question?: string } }
 function downloadMarkdown(content: string) {
   const url = URL.createObjectURL(new Blob([content], { type: 'text/markdown;charset=utf-8' }));
@@ -34,13 +35,15 @@ function ResultContent({ artifact, onSelectRun }: { artifact: { id: string; type
   const data = content && typeof content === 'object' ? content as KnowledgeResult : {};
   if (data.hits || data.claims || data.status === 'insufficient_evidence') {
     const evidence = data.hits || data.evidence || [];
+    const sourceCoverage = data.source?.sources || data.retrieval?.sources;
     return <div className="result-content">
       {(data.source?.partial || data.retrieval?.partial) && <Alert type="warning" title="部分来源未能完整读取，本次结果可能不完整" showIcon />}
+      {Array.isArray(sourceCoverage) && sourceCoverage.length <= 2 && <p className="muted">{sourceCoverage.filter(item => item && ['markdown', 'web'].includes(item.kind) && ['available', 'unavailable'].includes(item.status)).map(item => <Tag key={item.kind}>{item.kind === 'web' ? '网页' : '笔记'} · {item.status === 'unavailable' ? '读取失败' : item.partial ? '部分可读' : '已读取'}</Tag>)}</p>}
       {data.claims?.map((claim, i) => <p key={i}>{claim.text} {claim.citations?.map(citation => { const index = evidence.findIndex(hit => hit.citationId === citation.citationId); return index >= 0 ? <a key={citation.citationId} href={`#evidence-${artifact.id}-${index}`}>[{index + 1}] </a> : null; })}</p>)}
       {data.status === 'insufficient_evidence' && <Alert type="info" title="当前资料不足以回答" description={data.reason} showIcon />}
       <div className="section-caption">{data.hits ? `找到 ${evidence.length} 条相关片段` : '引用来源'}</div>
       {evidence.map((hit, i) => <article className="evidence" id={`evidence-${artifact.id}-${i}`} key={i}>
-        <strong>{data.claims ? `[${i + 1}] ` : ''}{hit.title || hit.path}</strong><div className="muted break-text">{hit.path} · 行 {hit.lineStart}–{hit.lineEnd}</div>
+        <strong>{data.claims ? `[${i + 1}] ` : ''}{hit.title || hit.path}</strong><div className="muted break-text">{hit.sourceKind === 'web' ? '网页 · 提取文本 · ' : hit.sourceKind === 'markdown' ? '笔记 · ' : ''}{hit.path} · 行 {hit.lineStart}–{hit.lineEnd}</div>
         <blockquote>{hit.excerpt}</blockquote>
         {sourceHref(hit.openUri) && <a href={sourceHref(hit.openUri)} target="_blank" rel="noreferrer">打开原文</a>}
       </article>)}

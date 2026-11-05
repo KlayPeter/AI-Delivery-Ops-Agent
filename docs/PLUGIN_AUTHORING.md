@@ -285,3 +285,11 @@ export default modelProviderPlugin({
 ```
 
 在可信 YAML 中像其他插件一样选择模块，无需修改 Host。原生插件代码自行负责其传输与凭据边界。Host 从空注册表开始，显式组合需要自行选择模型；标准默认导出位于 backend/src/platform/models/providers/{openai,google,ollama}Plugin.ts。独立 new AiSdkModelGateway(getConfig) 保留标准供应商方便 SDK 使用，Host 始终显式传自己的注册表。configured 只验证参数，不能当作连接成功或模型效果证明。Ollama 的直连限制与测试见[功能卡](../backend/src/platform/models/FEATURE.md)。
+
+## 组合知识来源
+
+knowledge.mixed 是固定两源组合的实际例子，依赖 knowledge.markdown 和 knowledge.web，不复制它们的读取服务；注册 search/versions Tool 并复用现有回答、研究、发布及复核工厂。明确定义上游授权，沿用同一 execution.budget/scope/runId/signal，不能通过嵌套调用补发预算。
+
+createKnowledgeAnswerPlugin 和 createReleasePlugin 的可信 source port 可声明 toolCalls（默认 1），代表一次检索含路由的总成本；混合为 3。该参数由宿主代码提供，不来自问题、模型输出或页面输入。消费者的 Manifest 和共享预算要覆盖实际嵌套调用，metrics 记录 budget.used。当前混合仅支持笔记与公开网页，不是任意来源/权限的自动发现器。
+
+retrievalEvidence.source 可选 sources 覆盖数组（最多两项，markdown/web、available/unavailable、indexed、partial、可选 version）。原每条引用身份与文档版本仍是事实凭证，合并版本不能替代它们。partial/全部不可读、取消、预算耗尽和单源版本失败要分别表达；不把未读到当作知识不存在。实现、可运行配置与专项见[混合知识功能卡](../backend/src/knowledge/mixed/FEATURE.md)。

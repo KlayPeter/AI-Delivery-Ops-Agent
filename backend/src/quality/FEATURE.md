@@ -121,3 +121,16 @@ flowchart TD
 | --- | --- | --- |
 | 2026-11-06 | 产物断言增加可选 selector，保留复合来源和旧规则语义 | 研究复合/重复/非法选择器专项与既有验收回归 |
 | 2026-11-05 | 独立结果验收插件、随插件的规则规范和每次执行快照 | 七项专项与 Runtime 回归，后端/前端门禁和本地界面；无真实模型调用 |
+
+## 笔记与网页混合来源
+
+混合研究仍由原 personal.research 规则检查研究稿与真实子资料索引，规则和 Artifact 角色不变；新增来源不会由父模型伪造子任务，也不把引用存在或结构通过当作语义证明。 实现、配置与验证边界见[混合知识功能卡](../knowledge/mixed/FEATURE.md)；验证：backend/test/knowledgeMixed.test.ts 及既有功能回归。
+
+```mermaid
+flowchart LR
+    MIX_PORT[明确选择混合来源] --> MIX_TOOL[共享预算的混合 Tool]
+    MIX_TOOL --> MIX_MD[既有笔记来源]
+    MIX_TOOL --> MIX_WEB[既有公开网页来源]
+    MIX_MD --> MIX_RESULT[保留原引用与独立版本]
+    MIX_WEB --> MIX_RESULT
+```

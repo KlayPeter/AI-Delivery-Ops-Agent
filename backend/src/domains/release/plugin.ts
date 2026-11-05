@@ -28,14 +28,15 @@ Findings are potential blockers or review requests, never proof of release readi
 Do not infer absence of migration documentation from a truncated PR body or from not seeing it in the body; diffs and repository files were not read. Distinguish current open issues from historical merged PRs. Preserve conflicts and missing information as review requests.
 Every citation ID must be supplied and every quote must be copied exactly from that excerpt. Citation checks do not prove semantic support.`;
 
-export function createReleasePlugin(source = { pluginId: 'knowledge.markdown', searchTool: KNOWLEDGE_SEARCH_TOOL }): FeaturePlugin {
+export function createReleasePlugin(source: { pluginId: string; searchTool: string; toolCalls?: number } = { pluginId: 'knowledge.markdown', searchTool: KNOWLEDGE_SEARCH_TOOL }): FeaturePlugin {
+    const toolCalls = 1 + (source.toolCalls ?? 1);
     const manifest: AgentManifest = {
         schemaVersion: '1.1', id: 'native.release-prepare', name: 'Knowledge-backed release preparation', version: '1.0.0',
         description: 'Combine repository facts and selected personal policies into a reviewable release draft with checked source references; read-only.',
         runtime: { type: 'native' }, capabilities: [RELEASE_PREPARE_CAPABILITY], triggers: ['manual', 'agent'],
         inputSchema: { type: 'object', required: ['since'], properties: { since: { type: 'string' }, until: { type: 'string' }, operation: { type: 'string', enum: ['collect', 'prepare'] }, policyQuery: { type: 'string' }, limit: { type: 'integer' } } },
         outputSchema: { type: 'object' }, requirements: { tools: [GITHUB_SNAPSHOT_TOOL, source.searchTool], secrets: [], networkHosts: [] },
-        limits: { timeoutSeconds: 120, maxSteps: 3, maxToolCalls: 2, maxAgentCalls: 0, maxOutputBytes: 2 * 1024 * 1024 },
+        limits: { timeoutSeconds: 120, maxSteps: 3, maxToolCalls: toolCalls, maxAgentCalls: 0, maxOutputBytes: 2 * 1024 * 1024 },
         delivery: { allowedArtifactTypes: ['json', 'markdown'], directDelivery: false },
     };
     return {
@@ -47,7 +48,7 @@ export function createReleasePlugin(source = { pluginId: 'knowledge.markdown', s
                 signal.throwIfAborted();
                 requirePersonalScope(request.scope);
                 const input = releaseInput.parse(request.input);
-                const budget = new RunToolCallBudget(2);
+                const budget = new RunToolCallBudget(toolCalls);
                 const options = { runId: request.runId, agentId: manifest.id, scope: request.scope, allowedTools: manifest.requirements.tools, budget, signal };
                 const facts = githubSnapshot.parse(await ctx.delivery.toolGateway.execute(GITHUB_SNAPSHOT_TOOL, { since: input.since, ...(input.until ? { until: input.until } : {}) }, { ...options, idempotencyKey: `${request.runId}:github` }));
                 const knowledge = retrievalEvidence.parse(await ctx.delivery.toolGateway.execute(source.searchTool, { query: input.policyQuery, limit: input.limit }, { ...options, idempotencyKey: `${request.runId}:knowledge` }));
@@ -64,7 +65,7 @@ export function createReleasePlugin(source = { pluginId: 'knowledge.markdown', s
                     currentIssuesCollectedAt: facts.collectedAt, consistency: facts.consistency, coverage: facts.coverage, warnings,
                     evidence: evidence.map(item => ({ citationId: item.citationId, kind: item.kind, number: item.number, title: item.title, excerpt: item.excerpt, truncated: item.truncated })) });
                 let status = 'evidence_only', reason: string | undefined, draft: ReturnType<typeof verifyReleaseDraft> | undefined, markdown: string | undefined;
-                let metrics = { modelCalls: 0, toolCalls: 2, inputTokens: 0, outputTokens: 0 };
+                let metrics = { modelCalls: 0, toolCalls: budget.used, inputTokens: 0, outputTokens: 0 };
                 if (input.operation === 'prepare') {
                     if (!facts.pullRequests.length || !notes.length) { status = 'insufficient_evidence'; reason = '需要时间段内的合并 PR 和命中的个人发布规则；空关键词结果不证明资料不存在。'; }
                     else if (facts.pullRequests.length > 30 || facts.openIssues.length > 30 || context.length > 48_000) { status = 'needs_review'; reason = '本轮资料超出生成预算，请缩小时间段或知识范围；没有静默省略记录。'; }
@@ -81,7 +82,7 @@ export function createReleasePlugin(source = { pluginId: 'knowledge.markdown', s
                             draft = verifyReleaseDraft(generated.text, evidence);
                             status = warnings.length || draft.findings.length ? 'needs_review' : 'draft';
                             markdown = renderReleaseDraft(facts, draft, evidence, warnings);
-                            metrics = { modelCalls: generated.metrics.modelCalls, toolCalls: 2, inputTokens: generated.metrics.inputTokens || 0, outputTokens: generated.metrics.outputTokens || 0 };
+                            metrics = { modelCalls: generated.metrics.modelCalls, toolCalls: budget.used, inputTokens: generated.metrics.inputTokens || 0, outputTokens: generated.metrics.outputTokens || 0 };
                             await runs.saveStep({ ...step, status: 'succeeded', completedAt: new Date().toISOString(), metadata: { ...step.metadata, ...generated.metrics } });
                         } catch (error: any) {
                             await runs.saveStep({ ...step, status: 'failed', completedAt: new Date().toISOString(), error: { code: 'RELEASE_DRAFT_FAILED', message: error?.message || String(error), retryable: false }, metadata: { ...step.metadata, attempted: true } });

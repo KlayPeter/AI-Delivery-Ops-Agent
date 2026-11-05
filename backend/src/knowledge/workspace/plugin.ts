@@ -3,10 +3,10 @@ import type { FeaturePlugin } from '@/platform/plugins/contracts';
 import { KNOWLEDGE_MARKDOWN_CAPABILITY } from '@/knowledge/markdown/plugin';
 import { KNOWLEDGE_WEB_CAPABILITY } from '@/knowledge/web/plugin';
 
-export function createKnowledgeWorkspacePlugin(kind: 'sample' | 'markdown' | 'web' | 'library' = 'markdown'): FeaturePlugin {
-    const sourceKind = z.enum(['sample', 'markdown', 'web', 'library']).parse(kind);
-    const source = Object.freeze({ kind: sourceKind, pluginId: sourceKind === 'web' ? 'knowledge.web' : 'knowledge.markdown',
-        capability: sourceKind === 'web' ? KNOWLEDGE_WEB_CAPABILITY : KNOWLEDGE_MARKDOWN_CAPABILITY });
+export function createKnowledgeWorkspacePlugin(kind: 'sample' | 'markdown' | 'web' | 'library' | 'mixed' = 'markdown'): FeaturePlugin {
+    const sourceKind = z.enum(['sample', 'markdown', 'web', 'library', 'mixed']).parse(kind);
+    const source = Object.freeze({ kind: sourceKind, pluginId: sourceKind === 'mixed' ? 'knowledge.mixed' : sourceKind === 'web' ? 'knowledge.web' : 'knowledge.markdown',
+        capability: sourceKind === 'mixed' ? 'knowledge.mixed.retrieve' : sourceKind === 'web' ? KNOWLEDGE_WEB_CAPABILITY : KNOWLEDGE_MARKDOWN_CAPABILITY });
     return {
         manifest: { apiVersion: '1.0', id: 'knowledge.workspace', name: 'Personal knowledge workspace', version: '1.0.0',
             description: 'Local knowledge search and source settings for one explicitly selected knowledge plugin.', requires: [source.pluginId, ...(sourceKind === 'library' ? ['knowledge.library'] : [])] },

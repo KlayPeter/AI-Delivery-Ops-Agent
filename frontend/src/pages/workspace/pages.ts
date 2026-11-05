@@ -12,7 +12,7 @@ export const hasTeamNavigation = (pages: PluginPage[] = [], manualJobs: string[]
 export function defaultCapability(agents: { status: string; capabilities: string[] }[] = [], requested?: string | null): string {
   if (requested) return requested;
   const active = agents.filter(agent => agent.status === 'active').flatMap(agent => agent.capabilities);
-  return active.includes('delivery.ops.orchestrate') ? 'delivery.ops.orchestrate' : active[0] || '';
+  return active.includes('delivery.ops.orchestrate') ? 'delivery.ops.orchestrate' : active.includes('knowledge.mixed.retrieve') ? 'knowledge.mixed.retrieve' : active[0] || '';
 }
 
 export const findPluginPage = (pages: PluginPage[] = [], pathname: string, search = '') => {

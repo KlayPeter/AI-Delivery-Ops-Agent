@@ -24,11 +24,12 @@ export const useConnections = () => useSWR<ConnectionState>('connections', api.f
 const names: Record<string, string> = {
   'delivery.ops.orchestrate': '交付协调', 'task.manage': '任务管理', 'standup.manage': '站会助手',
   'summary.daily.generate': '日报生成', 'summary.weekly.generate': '周报生成', 'dashboard.project.generate': '项目看板',
-  'knowledge.ai.news.fetch': 'AI 资讯', 'knowledge.markdown.retrieve': '笔记检索', 'knowledge.web.retrieve': '网页检索',
+  'knowledge.ai.news.fetch': 'AI 资讯', 'knowledge.markdown.retrieve': '笔记检索', 'knowledge.mixed.retrieve': '笔记与网页检索', 'knowledge.web.retrieve': '网页检索',
   'knowledge.answer': '知识问答', 'knowledge.impact.check': '引用复核', 'release.prepare': '发布准备',
 };
 export const capabilityName = (capability: string, fallback?: string) => names[capability] || fallback || capability;
 const descriptions: Record<string, string> = {
+  'knowledge.mixed.retrieve': '同时检索明确选择的笔记与公开网页，保留各自的原文引用、内容版本和来源覆盖。',
   'delivery.ops.orchestrate': '理解你的目标，选择合适的专业能力，协调任务并汇总结果。',
   'task.manage': '创建、查询和跟踪任务，处理进度、负责人及状态更新。',
   'standup.manage': '处理站会提交、补交和缺交查询，关联成员的任务进展。',

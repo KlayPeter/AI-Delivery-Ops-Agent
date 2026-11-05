@@ -6,9 +6,9 @@ import { requirePersonalScope } from '@/knowledge/scope';
 export const RESEARCH_CAPABILITY = 'personal.research';
 const roleSelector = (role: string) => ({ type: 'object', required: ['metadata'], properties: { metadata: { type: 'object', required: ['artifactRole'], properties: { artifactRole: { const: role }, waitingHuman: { not: { const: true } } } } } } as const);
 
-export function createPersonalResearchPlugin(kind: 'markdown' | 'web' = 'markdown'): FeaturePlugin {
-    const retrieval = kind === 'web' ? 'knowledge.web.retrieve' : 'knowledge.markdown.retrieve';
-    const evidenceLabels: Record<string, string> = { [retrieval]: kind === 'web' ? '网页检索' : '笔记检索', 'knowledge.answer': '引用回答', 'knowledge.page.capture': '网页正文', 'docs.context7.lookup': '开发文档', 'release.prepare': '发布准备' };
+export function createPersonalResearchPlugin(kind: 'markdown' | 'web' | 'mixed' = 'markdown'): FeaturePlugin {
+    const retrieval = kind === 'mixed' ? 'knowledge.mixed.retrieve' : kind === 'web' ? 'knowledge.web.retrieve' : 'knowledge.markdown.retrieve';
+    const evidenceLabels: Record<string, string> = { [retrieval]: kind === 'mixed' ? '笔记与网页检索' : kind === 'web' ? '网页检索' : '笔记检索', 'knowledge.answer': '引用回答', 'knowledge.page.capture': '网页正文', 'docs.context7.lookup': '开发文档', 'release.prepare': '发布准备' };
     const evidenceCapabilities = Object.keys(evidenceLabels);
     const manifest: AgentManifest = {
         schemaVersion: '1.1', id: 'personal.research-agent', name: '个人研究助手', version: '1.0.0',
@@ -24,7 +24,7 @@ export function createPersonalResearchPlugin(kind: 'markdown' | 'web' = 'markdow
     };
     return {
         manifest: { apiVersion: '1.0', id: 'personal.research', name: manifest.name, version: '1.0.0', description: manifest.description,
-            requires: [kind === 'web' ? 'knowledge.web' : 'knowledge.markdown', 'knowledge.answer', 'knowledge.capture', 'knowledge.impact'] },
+            requires: [kind === 'mixed' ? 'knowledge.mixed' : kind === 'web' ? 'knowledge.web' : 'knowledge.markdown', 'knowledge.answer', 'knowledge.capture', 'knowledge.impact'] },
         agents: [{ manifest, installationId: 'install-personal-research' }],
         checks: [{ id: 'personal.research.evidence', title: '研究稿与子任务资料索引', version: '1.0.0', agentId: manifest.id, capability: RESEARCH_CAPABILITY,
             artifacts: [{ id: 'summary', type: 'markdown', selector: roleSelector('personal.research.summary'), schema: { type: 'object', required: ['content', 'metadata'], properties: { content: { type: 'string', minLength: 1 }, metadata: { type: 'object', required: ['privateKnowledge', 'semanticSupport'], properties: { privateKnowledge: { const: true }, semanticSupport: { const: 'not_verified' } } } } } },

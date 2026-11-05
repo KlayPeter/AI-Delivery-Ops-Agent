@@ -12,14 +12,16 @@ export const KNOWLEDGE_IMPACT_CAPABILITY = 'knowledge.impact.check';
 const inputSchema = z.object({ runIds: z.array(z.string().min(1).max(256)).min(1).max(20).refine(ids => new Set(ids).size === ids.length, 'Duplicate target run ID'), operation: z.enum(['check', 'status']).default('check') }).strict();
 const referenceKey = (item: { path: string; sourceKey: string; documentVersion: string }) => JSON.stringify([item.sourceKey, item.path, item.documentVersion]);
 
-export function createKnowledgeImpactPlugin(source = { pluginId: 'knowledge.markdown', versionsTool: KNOWLEDGE_MARKDOWN_VERSIONS_TOOL, kind: 'markdown' as 'markdown' | 'web' }): FeaturePlugin {
+export function createKnowledgeImpactPlugin(source = { pluginId: 'knowledge.markdown', versionsTool: KNOWLEDGE_MARKDOWN_VERSIONS_TOOL, kind: 'markdown' as 'markdown' | 'web' | 'mixed' }): FeaturePlugin {
+    const maxToolCalls = source.kind === 'mixed' ? 3 : 1;
+    const accepts = (kind: string) => source.kind === 'mixed' ? ['markdown', 'web'].includes(kind) : kind === source.kind;
     const manifest: AgentManifest = {
         schemaVersion: '1.1', id: 'native.knowledge-impact', name: 'Knowledge change impact', version: '1.0.0',
         description: 'Check actual cited knowledge versions in selected past runs, preserve immutable artifacts, and record a review assessment without a model.',
         runtime: { type: 'native' }, capabilities: [KNOWLEDGE_IMPACT_CAPABILITY], triggers: ['manual', 'agent'],
         inputSchema: { type: 'object', required: ['runIds'], properties: { runIds: { type: 'array', items: { type: 'string' } }, operation: { type: 'string', enum: ['check', 'status'] } } },
         outputSchema: { type: 'object' }, requirements: { tools: [source.versionsTool], secrets: [], networkHosts: [] },
-        limits: { timeoutSeconds: 90, maxSteps: 1, maxToolCalls: 1, maxAgentCalls: 0, maxOutputBytes: 2 * 1024 * 1024 },
+        limits: { timeoutSeconds: 90, maxSteps: 1, maxToolCalls, maxAgentCalls: 0, maxOutputBytes: 2 * 1024 * 1024 },
         delivery: { allowedArtifactTypes: ['json'], directDelivery: false },
     };
     return {
@@ -42,18 +44,19 @@ export function createKnowledgeImpactPlugin(source = { pluginId: 'knowledge.mark
                 const revisions = await Promise.all(targets.map(target => service.begin(request.scope, target.run.id, request.runId)));
                 const wanted = new Map<string, { path: string; sourceKey: string; documentVersion: string }>();
                 for (const target of targets) for (const ref of target.references) {
-                    if (ref.sourceKey && ref.sourceKind === source.kind) {
+                    if (ref.sourceKey && ref.sourceKind && accepts(ref.sourceKind)) {
                         const document = { path: ref.path, sourceKey: ref.sourceKey, documentVersion: ref.documentVersion };
                         wanted.set(referenceKey(document), document);
                     }
                 }
+                const budget = new RunToolCallBudget(maxToolCalls);
                 let checked: z.infer<typeof versionResult> | undefined;
                 let sourceFailed = false;
                 if (wanted.size) {
                     try {
                         checked = versionResult.parse(await ctx.delivery.toolGateway.execute(source.versionsTool, { documents: [...wanted.values()] }, {
                             runId: request.runId, agentId: manifest.id, scope: request.scope, allowedTools: manifest.requirements.tools,
-                            idempotencyKey: `${request.runId}:versions`, budget: new RunToolCallBudget(1), signal,
+                            idempotencyKey: `${request.runId}:versions`, budget, signal,
                         }));
                         if (checked.documents.length !== wanted.size || new Set(checked.documents.map(referenceKey)).size !== wanted.size || checked.documents.some(document => !wanted.has(referenceKey(document)))) throw new Error('Version response does not match requested references');
                     } catch { signal.throwIfAborted(); sourceFailed = true; checked = undefined; }
@@ -65,7 +68,7 @@ export function createKnowledgeImpactPlugin(source = { pluginId: 'knowledge.mark
                     const target = targets[index]!;
                     const references = target.references.map(reference => {
                         if (!reference.sourceKey || !reference.sourceKind) return { ...reference, status: 'legacy_unverifiable' as const };
-                        if (reference.sourceKind !== source.kind) return { ...reference, status: 'out_of_scope' as const };
+                        if (!accepts(reference.sourceKind)) return { ...reference, status: 'out_of_scope' as const };
                         const current = byKey.get(referenceKey({ ...reference, sourceKey: reference.sourceKey }));
                         return { ...reference, status: current?.status || 'unavailable' as const, ...(current?.currentVersion ? { currentVersion: current.currentVersion } : {}) };
                     });
@@ -78,7 +81,7 @@ export function createKnowledgeImpactPlugin(source = { pluginId: 'knowledge.mark
                     assessments.push({ ...report, recordedAsLatest: await service.finish(request.scope, report, revisions[index]!) });
                 }
                 const data = { operation: 'check', assessments, checksOnlyDirectReferences: true };
-                return { status: 'succeeded', data, metrics: { modelCalls: 0, toolCalls: wanted.size ? 1 : 0 }, artifacts: [{
+                return { status: 'succeeded', data, metrics: { modelCalls: 0, toolCalls: budget.used }, artifacts: [{
                     type: 'json', mediaType: 'application/json', schemaVersion: '1.0', content: data, metadata: {
                         privateKnowledge: true, title: 'Knowledge change impact', semanticImpact: 'not_assessed',
                         statusPanels: assessments.map(report => ({ ...knowledgeReviewPanel(report), relatedRun: { id: report.runId, label: '返回原结果' },

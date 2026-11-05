@@ -180,3 +180,16 @@ flowchart LR
     MP_PLUGIN[显式模型插件] --> MP_REG[Host 共享模型网关]
     MP_REG --> MP_RUN[原有 Agent 或生成管线]
 ```
+
+## 笔记与网页混合来源
+
+混合组合通过相同工厂读取个人目录与公开规则，使用 GitHub + 混合路由 + 两源的四次共享 Tool 预算；单源组合仍为两次。模型/证据/PR 核验与只读语义保持，来源覆盖进入原 partial 警告，页面按实际 release.prepare 的来源依赖说明资料范围，不从仅安装了哪些来源猜测。 实现、配置与验证边界见[混合知识功能卡](../../knowledge/mixed/FEATURE.md)；验证：backend/test/knowledgeMixed.test.ts 及既有功能回归。
+
+```mermaid
+flowchart LR
+    MIX_PORT[明确选择混合来源] --> MIX_TOOL[共享预算的混合 Tool]
+    MIX_TOOL --> MIX_MD[既有笔记来源]
+    MIX_TOOL --> MIX_WEB[既有公开网页来源]
+    MIX_MD --> MIX_RESULT[保留原引用与独立版本]
+    MIX_WEB --> MIX_RESULT
+```

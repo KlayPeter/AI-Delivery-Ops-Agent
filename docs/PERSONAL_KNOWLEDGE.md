@@ -118,3 +118,21 @@ query/sync/ask 可选传 `--state ../data/personal-runtime.sqlite` 保存私有�
 默认团队配置不安装个人知识插件。当前只允许无群/会话的手动调用及其 Agent 调用；拒绝聊天范围。这个范围检查不构成用户认证。现有 Web 管理端缺少登录/RBAC，真实私人知识优先通过本地 CLI 使用，不能直接作为共享网站开放。
 
 Obsidian 的常用 YAML `title/aliases/tags`、ATX 标题、普通 Wikilink 和简单行内 Markdown 链接已处理。复杂行内链接、引用式链接、Setext 标题、块引用、Canvas、Bases、Dataview 与附件正文不在本次兼容范围。
+
+## 同时使用笔记和公开网页
+
+工作台「知识库 → 配置来源」选择“笔记 + 公开网页”，同时填写笔记目录、排除项和最多五个公开链接。保存并重启后端，再输入问题检索。原文检索无需模型；回答和研究会把选中片段发送给你配置的模型。
+
+两类来源分别读取，交错合并各自排名；保留笔记/网页标记、原文、定位与内容版本。一边读取失败会显示部分覆盖，两边均不可读则失败，不能把故障理解成知识不存在。答案中的“检查引用变化”按实际引用分别复核两类来源，原回答保留。
+
+这是两源关键词检索，没有向量索引、语义重排或跨源原子快照。所用网页仍是显式单页，不能读取私网、登录内容或网页脚本；笔记保持只读。
+
+在 backend 运行独立演示组合：
+
+```sh
+AGENT_PLUGINS_FILE=profiles/agents/knowledge-mixed-demo.yaml bun run dev
+```
+
+该组合使用虚构本地示例与固定版本的公开 [DeepSeek Harness README](https://github.com/deepseek-ai/deepseek-harness/blob/fcc0ad462172522aaf5c93a7b2e01f6b9f0b0159/README.md)；可检索“API plugin”，原文不是同一项目的业务规则，生成时应区分来源。它只读取远端文本，不执行仓库代码。自定义文件完整替换默认组合；按需替换目录/链接或加入其他插件。混合 CLI 参数尚未扩展，原有单源 CLI 保持原样。
+
+完整契约与测试：[混合知识功能卡](../backend/src/knowledge/mixed/FEATURE.md)。

@@ -21,6 +21,7 @@ Native Agent 是该确定性能力进入现有 Host、Trigger、Run 和 Artifact
 
 ```mermaid
 flowchart TD
+    MIX[可选混合知识：沿用本来源 Tool 与引用身份] --> N
     C[可信插件配置：固定目录与排除前缀] --> P[Cordis: knowledge.markdown]
     P --> N[Native Agent / 只读 Tool]
     CLI[本地 CLI / 手动 SDK / 本机工作台] --> N
@@ -180,3 +181,7 @@ flowchart LR
     MP_PLUGIN[显式模型插件] --> MP_REG[Host 共享模型网关]
     MP_REG --> MP_RUN[原有 Agent 或生成管线]
 ```
+
+## 可选混合组合
+
+本来源保持独立读取与权限边界；knowledge.mixed 可通过原 search/versions Tool 与另一来源组合，保留各自身份和版本。它不扩大本来源的目录或 URL 范围，不自动启用；实现与测试见 [混合知识功能卡](../mixed/FEATURE.md) 及 backend/test/knowledgeMixed.test.ts。

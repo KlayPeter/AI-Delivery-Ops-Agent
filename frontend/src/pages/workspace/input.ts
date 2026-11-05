@@ -17,7 +17,7 @@ export function prepareInput(capability: string, prompt: string): Record<string,
   const text = prompt.trim();
   if (!text) throw new Error('请先填写任务内容');
   if (capability === 'knowledge.answer') return { question: text, limit: 5 };
-  if (['knowledge.markdown.retrieve', 'knowledge.web.retrieve'].includes(capability)) return { operation: 'search', query: text, limit: 5 };
+  if (['knowledge.markdown.retrieve', 'knowledge.web.retrieve', 'knowledge.mixed.retrieve'].includes(capability)) return { operation: 'search', query: text, limit: 5 };
   if (capability === 'knowledge.impact.check') return { runIds: text.split(/[\s,，]+/), operation: 'check' };
   return { prompt: text, source: 'private' };
 }

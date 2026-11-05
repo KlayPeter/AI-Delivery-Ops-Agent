@@ -13,7 +13,7 @@ last_reviewed: 2026-11-06
 
 ## 功能定位
 
-`knowledge.answer` 默认依赖 `knowledge.markdown`；网页组合改为依赖 `knowledge.web` 并调用其检索 Tool。两者复用同一实现与 Capability，每个 Host 只能选择一个回答组合，当前不支持跨来源联合检索。不复制来源读取、索引或授权逻辑。它通过现有 Tool Gateway 取得片段，由宿主 Orchestrator 生成结构化结论，再执行确定性引用校验。当前 RAG 使用关键词检索；向量、重排、自动监控与多人共享尚未实现；独立 knowledge.impact 可显式检查已保存 Run 的实际引用。
+`knowledge.answer` 默认依赖 `knowledge.markdown`；网页组合改为依赖 `knowledge.web` 并调用其检索 Tool。两者复用同一实现与 Capability，每个 Host 只能选择一个回答组合；混合来源通过独立 knowledge.mixed 组合。不复制来源读取、索引或授权逻辑。它通过现有 Tool Gateway 取得片段，由宿主 Orchestrator 生成结构化结论，再执行确定性引用校验。当前 RAG 使用关键词检索；向量、重排、自动监控与多人共享尚未实现；独立 knowledge.impact 可显式检查已保存 Run 的实际引用。
 
 这是固定的检索、生成与核验管线，因此使用 Native Agent；模型在生成阶段没有 Tool，也不承担调度或文件读写。既有 Model Loop、委派和 Checkpoint 仍由平台其他 Agent 提供，本功能不伪装成多 Agent 自治或暂停恢复流程。
 
@@ -183,4 +183,17 @@ RAG 通过共享 Host 网关选择已装配提供者，支持无密钥 Ollama，
 flowchart LR
     MP_PLUGIN[显式模型插件] --> MP_REG[Host 共享模型网关]
     MP_REG --> MP_RUN[原有 Agent 或生成管线]
+```
+
+## 笔记与网页混合来源
+
+混合组合通过 knowledge.mixed.search 并行调用两个现有来源，仍保留各自引用身份和引文核验；可信 source port 声明 3 次共享调用成本、90 秒 Run 时限，默认单源仍为 1。sources 覆盖仅作为可选字段保留，不发给模型；partial 标记与实际 budget.used 保持。 实现、配置与验证边界见[混合知识功能卡](../mixed/FEATURE.md)；验证：backend/test/knowledgeMixed.test.ts 及既有功能回归。
+
+```mermaid
+flowchart LR
+    MIX_PORT[明确选择混合来源] --> MIX_TOOL[共享预算的混合 Tool]
+    MIX_TOOL --> MIX_MD[既有笔记来源]
+    MIX_TOOL --> MIX_WEB[既有公开网页来源]
+    MIX_MD --> MIX_RESULT[保留原引用与独立版本]
+    MIX_WEB --> MIX_RESULT
 ```

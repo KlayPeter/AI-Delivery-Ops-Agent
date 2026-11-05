@@ -1,3 +1,4 @@
+import { createKnowledgeWebPlugin } from '@/knowledge/web/plugin';
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -9,7 +10,7 @@ import { buildConfig } from '@/core/config';
 import { loadWorkspacePlugins } from '@/platform/workspace/composition';
 
 const profile = (name: string) => path.resolve(import.meta.dir, `../profiles/agents/${name}.yaml`);
-const environmentKeys = ['DATA_DIR', 'AGENT_PLUGINS_FILE', 'KNOWLEDGE_KIND', 'KNOWLEDGE_URLS', 'RELEASE_GITHUB_REPOSITORY', 'RELEASE_GITHUB_BRANCH', 'RELEASE_GITHUB_TOKEN'];
+const environmentKeys = ['DATA_DIR', 'AGENT_PLUGINS_FILE', 'KNOWLEDGE_KIND', 'KNOWLEDGE_URLS', 'KNOWLEDGE_ROOT', 'KNOWLEDGE_VAULT_NAME', 'KNOWLEDGE_EXCLUDE', 'RELEASE_GITHUB_REPOSITORY', 'RELEASE_GITHUB_BRANCH', 'RELEASE_GITHUB_TOKEN'];
 let previous: Record<string, string | undefined>;
 let root: string, directory: string;
 beforeEach(async () => {
@@ -82,4 +83,25 @@ test('switching profiles preserves successful run artifacts and does not re-enab
         expect(saved?.run.status).toBe('succeeded'); expect(saved?.artifacts[0]?.content).toBe('来自之前组合的演示记录');
         expect(personal.canDispatch('example.echo')).toBe(false);
     } finally { await personal.stop(); }
+});
+
+test('mixed HTTP selection composes both sources, matching answer/research/impact, and the optional mixed release port', async () => {
+    process.env.KNOWLEDGE_KIND = 'mixed'; process.env.KNOWLEDGE_ROOT = path.join(import.meta.dir, '../examples/knowledge-vault'); process.env.KNOWLEDGE_URLS = 'https://example.com/policy';
+    const selection = await loadWorkspacePlugins(directory, '');
+    expect(selection.plugins).toHaveLength(16);
+    expect(selection.plugins.find(plugin => plugin.manifest.id === 'knowledge.answer')!.manifest.requires).toEqual(['knowledge.mixed']);
+    const host = new AgentHost(() => ({ config: { ...buildConfig({}), data_path: directory }, store: new InMemoryPersistentKeyValueStore(), feishu: {}, tapd: {} } as any), 1000, undefined, [], {
+        plugins: selection.plugins.map(plugin => plugin.manifest.id === 'knowledge.web' ? createKnowledgeWebPlugin(async () => ({ url: 'https://example.com/policy', body: Buffer.from('# API policy\nAPI needs migration notes.'), contentType: 'text/markdown' })) : plugin), pluginConfig: selection.config,
+    });
+    try {
+        await host.initialize(); expect(await host.listAgents()).toHaveLength(11);
+        const result = await host.runLocal('knowledge.mixed.retrieve', { operation: 'search', query: 'API', limit: 5 }, randomUUID());
+        expect(result.execution?.run.status).toBe('succeeded');
+        expect((result.execution!.result.data as any).hits.some((hit: any) => hit.sourceKind === 'web')).toBe(true);
+    } finally { await host.stop(); }
+    process.env.RELEASE_GITHUB_REPOSITORY = 'example/project';
+    const release = await loadWorkspacePlugins(directory, ''); expect(release.plugins).toHaveLength(18);
+    expect(release.plugins.find(plugin => plugin.manifest.id === 'release.prepare')?.manifest.requires).toContain('knowledge.mixed');
+    const demo = await loadWorkspacePlugins(directory, profile('knowledge-mixed-demo'));
+    expect(demo.plugins).toHaveLength(11); expect(demo.plugins.reduce((sum, plugin) => sum + (plugin.agents?.length || 0), 0)).toBe(7); expect(demo.plugins.find(plugin => plugin.manifest.id === 'personal.research')?.manifest.requires).toContain('knowledge.mixed');
 });

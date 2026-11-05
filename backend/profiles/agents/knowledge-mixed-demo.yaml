@@ -1,0 +1,22 @@
+# Run from backend. Fictional local notes + a pinned public Harness README; no repository code is executed.
+apiVersion: '1.0'
+plugins:
+  - module: ../../src/platform/models/providers/openaiPlugin.ts
+  - module: ../../src/platform/models/providers/googlePlugin.ts
+  - module: ../../src/platform/models/providers/ollamaPlugin.ts
+  - module: ../../src/knowledge/markdown/plugin.ts
+    config:
+      root: examples/knowledge-vault
+      sourceId: mixed-demo-notes
+      vaultName: Delivery Demo
+  - module: ../../src/knowledge/web/plugin.ts
+    config:
+      urls:
+        - https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/fcc0ad462172522aaf5c93a7b2e01f6b9f0b0159/README.md
+      sourceId: mixed-demo-web
+  - module: ../../src/knowledge/mixed/plugin.ts
+  - module: ../../src/knowledge/mixed/answerPlugin.ts
+  - module: ../../src/knowledge/mixed/impactPlugin.ts
+  - module: ../../src/knowledge/mixed/workspacePlugin.ts
+  - module: ../../src/knowledge/capture/plugin.ts
+  - module: ../../src/knowledge/mixed/researchPlugin.ts
