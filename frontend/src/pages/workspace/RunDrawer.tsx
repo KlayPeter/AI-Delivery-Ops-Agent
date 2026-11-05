@@ -25,7 +25,7 @@ function downloadMarkdown(content: string) {
   const link = document.createElement('a'); link.href = url; link.download = 'result.md'; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-function ResultContent({ artifact, onSelectRun }: { artifact: { type: string; content?: unknown; metadata?: Record<string, unknown> }; onSelectRun: (id: string) => void }) {
+function ResultContent({ artifact, onSelectRun }: { artifact: { id: string; type: string; content?: unknown; metadata?: Record<string, unknown> }; onSelectRun: (id: string) => void }) {
   const content = artifact.content;
   const panels = parseStatusPanels(artifact.metadata?.statusPanels);
   if (panels) return <>{panels.map((panel, index) => <StatusPanelView key={index} panel={panel} onSelectRun={onSelectRun} />)}</>;
@@ -35,10 +35,10 @@ function ResultContent({ artifact, onSelectRun }: { artifact: { type: string; co
     const evidence = data.hits || data.evidence || [];
     return <div className="result-content">
       {(data.source?.partial || data.retrieval?.partial) && <Alert type="warning" title="部分来源未能完整读取，本次结果可能不完整" showIcon />}
-      {data.claims?.map((claim, i) => <p key={i}>{claim.text} {claim.citations?.map(citation => { const index = evidence.findIndex(hit => hit.citationId === citation.citationId); return index >= 0 ? <a key={citation.citationId} href={`#evidence-${index}`}>[{index + 1}] </a> : null; })}</p>)}
+      {data.claims?.map((claim, i) => <p key={i}>{claim.text} {claim.citations?.map(citation => { const index = evidence.findIndex(hit => hit.citationId === citation.citationId); return index >= 0 ? <a key={citation.citationId} href={`#evidence-${artifact.id}-${index}`}>[{index + 1}] </a> : null; })}</p>)}
       {data.status === 'insufficient_evidence' && <Alert type="info" title="当前资料不足以回答" description={data.reason} showIcon />}
       <div className="section-caption">{data.hits ? `找到 ${evidence.length} 条相关片段` : '引用来源'}</div>
-      {evidence.map((hit, i) => <article className="evidence" id={`evidence-${i}`} key={i}>
+      {evidence.map((hit, i) => <article className="evidence" id={`evidence-${artifact.id}-${i}`} key={i}>
         <strong>{data.claims ? `[${i + 1}] ` : ''}{hit.title || hit.path}</strong><div className="muted break-text">{hit.path} · 行 {hit.lineStart}–{hit.lineEnd}</div>
         <blockquote>{hit.excerpt}</blockquote>
         {sourceHref(hit.openUri) && <a href={sourceHref(hit.openUri)} target="_blank" rel="noreferrer">打开原文</a>}
@@ -55,7 +55,7 @@ export default function RunDrawer({ runId, onClose, onSelectRun }: { runId: stri
   const [reply, setReply] = useState('');
   const [resuming, setResuming] = useState(false);
   const [resumeError, setResumeError] = useState('');
-  const artifacts = [...(data?.artifacts || [])].sort((a, b) => Number(Boolean(parseStatusPanels(b.metadata?.statusPanels))) - Number(Boolean(parseStatusPanels(a.metadata?.statusPanels))));
+  const artifacts = (data?.artifacts || []).filter(artifact => data?.run.status === 'waiting_human' || artifact.metadata?.waitingHuman !== true).sort((a, b) => Number(Boolean(parseStatusPanels(b.metadata?.statusPanels))) - Number(Boolean(parseStatusPanels(a.metadata?.statusPanels))) || Number(b.metadata?.artifactRole === 'personal.research.summary') - Number(a.metadata?.artifactRole === 'personal.research.summary'));
   const resume = async () => {
     setResuming(true); setResumeError('');
     try { await api.resumeRun(runId!, { prompt: reply.trim(), text: reply.trim() }, crypto.randomUUID()); setReply(''); await Promise.all([refresh(), mutate()]); }
@@ -75,7 +75,7 @@ export default function RunDrawer({ runId, onClose, onSelectRun }: { runId: stri
         { key: 'result', label: '结果', children: artifacts.length ? artifacts.map(a => <ResultContent key={a.id} artifact={a} onSelectRun={onSelectRun} />) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={data.run.status === 'running' ? '执行中，产物完成后会显示在这里' : '本次运行没有生成产物'} /> },
         { key: 'steps', label: `执行步骤 · ${data.steps.length}`, children: <>
           <Timeline items={data.steps.map(step => ({ color: step.status === 'failed' ? 'red' : step.status === 'running' ? 'blue' : 'gray', content: <div><strong>{step.name}</strong><div className="muted">{step.kind} · {step.status}</div>{step.error && <p>{step.error.message}</p>}</div> }))} />
-          {data.children.map((run: RunInfo) => <div className="child-run" key={run.id}>{capabilityName(run.capability, workspace?.agents.find(agent => agent.capabilities.includes(run.capability))?.name)}<RunStatus status={run.status} /></div>)}
+          {data.children.map((run: RunInfo) => <div className="child-run" key={run.id}>{capabilityName(run.capability, workspace?.agents.find(agent => agent.capabilities.includes(run.capability))?.name)}<RunStatus status={run.status} /><Button type="link" onClick={() => onSelectRun(run.id)}>查看子任务</Button></div>)}
         </> },
         { key: 'detail', label: '详情', children: <Collapse items={[{ key: 'raw', label: '原始运行记录', children: <pre className="json-view">{JSON.stringify(data, null, 2)}</pre> }]} /> },
       ]} />

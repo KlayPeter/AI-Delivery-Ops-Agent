@@ -30,13 +30,13 @@ const createHost = async (store = new InMemoryPersistentKeyValueStore(), file = 
 
 test('HTTP default loads personal plugins without implicit team agents, routes or manual jobs', async () => {
     const selected = await loadWorkspacePlugins(directory, '');
-    expect(selected.plugins).toHaveLength(9);
+    expect(selected.plugins).toHaveLength(10);
     expect(selected.plugins.some(plugin => plugin.manifest.id.startsWith('builtin.'))).toBe(false);
     const host = await createHost();
     try {
         const result = await host.runLocal('knowledge.markdown.retrieve', { operation: 'search', query: 'API 迁移说明', limit: 5 }, randomUUID());
         expect(result.execution?.run.status).toBe('succeeded');
-        expect(await host.listAgents()).toHaveLength(8);
+        expect(await host.listAgents()).toHaveLength(9);
         expect(host.canDispatch('delivery.ops.orchestrate')).toBe(false);
         expect(host.web.pages().every(page => page.section === 'workspace')).toBe(true);
         expect(host.web.manualJobs()).toEqual([]);

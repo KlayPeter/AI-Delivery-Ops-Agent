@@ -65,6 +65,10 @@ flowchart LR
     WEB --> REPORTS[周报与隐藏纪要 API]
     REPORTS --> FILE[受限 HTML / Markdown 读取]
     REPORTS --> MAIL[手动确认后提交配置邮件服务]
+    UI --> RESEARCH[个人研究 Model Loop]
+    RESEARCH --> CHILD[受限资料子任务]
+    CHILD --> LEDGER[真实子运行资料索引与待复核研究稿]
+    LEDGER --> O
     UI --> SETUP[MCP 发现与授权配置导出]
     SETUP --> PROFILE[用户保存配置并重启]
     PROFILE --> RUNNER[通用 MCP 读取运行器]
@@ -89,6 +93,7 @@ HTTP 默认只装配个人知识、采集、验收与工具接入插件。下表
 
 | Feature ID | 功能 | 状态 | 运行时 Agent 映射 | 功能文档 |
 | --- | --- | --- | --- | --- |
+| `personal-research-agent` | 模型研究、专业子任务与真实资料完成门槛 | active | `personal.research-agent` | [查看](../../backend/src/agents/personal-research/FEATURE.md) |
 | `mcp-workbench` | MCP 工具发现、授权配置导出与通用运行 | active | `native.mcp-inspector` / `native.mcp-runner` | [查看](../../backend/src/connectors/mcp-workbench/FEATURE.md) |
 | `plugin-result-checks` | 插件声明规则、结构验收、执行版本与记录对比 | active | `native.plugin-checks` | [查看](../../backend/src/quality/FEATURE.md) |
 | `personal-knowledge-library` | 明确收录资料、私有保存、检索与 RAG 来源 | active | `native.knowledge-library` | [查看](../../backend/src/knowledge/library/FEATURE.md) |
@@ -132,6 +137,7 @@ HTTP 默认只装配个人知识、采集、验收与工具接入插件。下表
 | `native.ai-news-radar` | `knowledge.ai.news.fetch` | Native Agent | AI 热点新闻助手 |
 | `native.knowledge-markdown` | `knowledge.markdown.retrieve` | 可选 Native Agent | 个人 Markdown 知识源；显式安装后生效 |
 | `native.knowledge-web` | `knowledge.web.retrieve` | 可选 Native Agent | 公开网页知识源；显式安装后生效 |
+| `personal.research-agent` | `personal.research` | 可选 Model Loop | 个人研究；HTTP 默认装配，需要模型 |
 | `native.mcp-inspector` | `mcp.server.inspect` | 可选 Native Agent | MCP 接入助手；HTTP 默认装配 |
 | `native.mcp-runner` | `mcp.tools.run` | 可选 Native Agent | 已配置 MCP 读取工具运行；显式装配 |
 | `native.plugin-checks` | `quality.runs.check` | 可选 Native Agent | 插件结果验收；HTTP 默认装配 |
@@ -162,6 +168,7 @@ HTTP 默认只装配个人知识、采集、验收与工具接入插件。下表
 | `backend/src/domains/release/**`、`backend/src/scripts/release.ts` | `release-preparation` |
 | `backend/src/connectors/context7/**` | `community-developer-docs`、`plugin-runtime`、`agent-platform`、`operations-observability` |
 | `backend/src/platform/skills/packageLoader.ts` | `agent-platform`、`plugin-runtime`、`operations-observability`；外部 Skill 变化同步对应接入功能 |
+| `backend/src/agents/personal-research/**` | `personal-research-agent`、`agent-platform`、`plugin-runtime`、`operations-observability`、`local-agent-workspace`、`plugin-result-checks` |
 | `backend/src/connectors/mcp-workbench/**` | `mcp-workbench`、`plugin-runtime`、`agent-platform`、`operations-observability`、`local-agent-workspace` |
 | `backend/src/connectors/mcp/**`、`backend/examples/plugins/mcp-reader.ts` | `mcp-tool-connector`、`plugin-runtime`、`agent-platform`、`operations-observability` |
 | `backend/src/platform/agents/schema.ts` | `agent-platform`、`plugin-runtime`、`operations-observability`；使用完整外部 Schema 时追加连接功能 |
@@ -212,5 +219,5 @@ HTTP 默认只装配个人知识、采集、验收与工具接入插件。下表
 - **推荐在功能代码 Owner 目录使用 `FEATURE.md`，不推荐再放业务型 `AGENTS.md`。** `FEATURE.md` 面向人和 AI 共同解释产品能力；根目录 `AGENTS.md` 统一约束 AI 的修改流程。这样代码与功能事实相邻，又不会让业务说明和开发规则混在一起。
 - **系统已经是 Agent 系统。** 它具备 Registry、三类 Adapter、Model Loop、Tool/Skill Runtime、委派、Session/Checkpoint、Run/Artifact、Outbox 和 Bot Binding，不只是“调用一次大模型”的普通业务系统。
 - **系统采用混合架构是正确的。** 自主决策和可插拔执行使用 Agent，强一致状态交给 Domain Service，确定性管理和查询保留为服务/控制面。强行把每个页面或函数 Agent 化会增加成本、随机性和数据冲突。
-- **当前功能文档覆盖 27 个能力。** 团队 SDK 组合包含 7 个 Agent；HTTP 工作台默认额外装配知识来源、回答、复核、知识界面、网页收集、文档导入、资料库与结果验收，共 14 个 Agent；个人 Markdown、公开网页检索、RAG 回答、发布准备与知识变更复核是五个可选 Native Agent，AI Hot 是可选外部 Agent；会议纪要处于 dormant，其余功能通过 Agent、领域服务和控制面协作完成。
+- **当前功能文档覆盖 28 个能力。** 团队 SDK 组合包含 7 个 Agent；HTTP 个人默认十插件、九个 Agent，包含来源检索、RAG、采集、导入、资料库、验收、MCP 接入与个人研究。明确配置 GitHub 后为十二插件、十个 Agent；团队组合通过显式文件选择，AI Hot 是可选外部 Agent；会议纪要处于 dormant，其余功能通过 Agent、领域服务和控制面协作完成。
 - **下一步维护重点**是保证功能卡与代码同提交更新，并继续把业务写入口收敛到 `TaskService`、`StandupService` 和受治理 Tool；新增机器人优先增加 Binding，新增自治能力再增加 Agent。

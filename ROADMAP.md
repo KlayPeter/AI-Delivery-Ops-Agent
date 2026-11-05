@@ -69,6 +69,9 @@ are deferred while the local product is being validated.
 
 ## D. Reuse and adoption
 
+- [x] Add a bounded personal research Model Loop with actual child-run evidence,
+  human continuation, durable delegation limits and a completion gate. Summary
+  semantics remain unverified; model protocol tests use local fixtures.
 - [ ] Turn verified runs into user-reviewed reusable recipes.
 - [ ] Propose knowledge write-back as reviewable patches with source-version conflict checks.
 - [ ] Replay redacted fixtures to compare plugin and model versions without live writes.

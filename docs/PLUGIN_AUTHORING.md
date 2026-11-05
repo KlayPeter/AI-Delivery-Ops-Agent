@@ -45,7 +45,7 @@ await host.stop();
 AGENT_PLUGINS_FILE=profiles/agents/team.yaml bun run dev
 ```
 
-团队 SDK 未指定插件时仍为九个功能插件、七个 Agent；HTTP 工作台默认只装配选定知识来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收与 MCP 接入助手，共九个插件、八个 Agent；配置 GitHub 发布组合后为 11 个插件、9 个 Agent。HTTP 不再隐式装配团队能力；使用 profiles/agents/team.yaml 可显式选择原九个团队插件。会议纪要和外部 AI Hot 调度插件没有独立 Agent。会议纪要仍受原有模块开关控制，外部 AI Hot 能力仍需另行安装。示例还包括 `profiles/agents/native-demo.yaml`、`profiles/agents/empty.yaml` 和 `backend/examples/plugins.collectors.yaml`，分别选择 Echo 模板、零业务插件和采集/资料库三个插件。显式插件文件完全决定组合；未装配的插件页面和 API 不开放，基础服务仍由应用拥有。
+团队 SDK 未指定插件时仍为九个功能插件、七个 Agent；HTTP 工作台默认只装配选定知识来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收与 MCP 接入助手，共十个插件、九个 Agent；配置 GitHub 发布组合后为 12 个插件、10 个 Agent。HTTP 不再隐式装配团队能力；使用 profiles/agents/team.yaml 可显式选择原九个团队插件。会议纪要和外部 AI Hot 调度插件没有独立 Agent。会议纪要仍受原有模块开关控制，外部 AI Hot 能力仍需另行安装。示例还包括 `profiles/agents/native-demo.yaml`、`profiles/agents/empty.yaml` 和 `backend/examples/plugins.collectors.yaml`，分别选择 Echo 模板、零业务插件和采集/资料库三个插件。显式插件文件完全决定组合；未装配的插件页面和 API 不开放，基础服务仍由应用拥有。
 
 ```yaml
 apiVersion: '1.0'
@@ -159,7 +159,7 @@ ctx.delivery.web.register({
 });
 ```
 
-页面只能使用站内静态路径；label 最长 80 字符，section 为 workspace/team。view.kind=agent 打开指定 Capability 的现有工作台；kind=builtin 使用已打包 renderer ID（包括团队页面，以及 knowledge、release-preparation、web-capture、documents、knowledge-library、plugin-checks）。builtin view 可声明可选的 capability，让 Agent 卡片和任务选择进入所属结构化表单；网页收集和文档导入是实际例子。未知 renderer 显示恢复入口，不执行远程 HTML、JS 或 React 包。已保留的核心/旧页面不能覆盖，路径与贡献 ID 不得重复；Agent 导航跳转后保持当前项选中。
+页面只能使用站内静态路径；label 最长 80 字符，section 为 workspace/team。view.kind=agent 打开指定 Capability 的现有工作台；kind=builtin 使用已打包 renderer ID（包括团队页面，以及 knowledge、release-preparation、web-capture、documents、knowledge-library、plugin-checks、mcp-setup、mcp-runner、personal-research）。builtin view 可声明可选的 capability，让 Agent 卡片和任务选择进入所属结构化表单；网页收集和文档导入是实际例子。未知 renderer 显示恢复入口，不执行远程 HTML、JS 或 React 包。已保留的核心/旧页面不能覆盖，路径与贡献 ID 不得重复；Agent 导航跳转后保持当前项选中。
 
 API 声明 prefix、routes（method/path）与接收标准 Request、返回 Response 的 handle。每条声明必须位于所属前缀，前缀不可重叠或覆盖保留 API。应用在 Host 初始化后核对已有 API 命名空间，冲突时拒绝装配，不覆盖旧接口；随后装配声明路由，因此 OpenAPI 保留路径；请求体由所属 Fetch handler 解析，代理不会先消耗 body。`builtin.standup` 和 `backend/src/domains/standup/api.ts` 是真实例子。通过 Host.handlePluginRequest 进入本机来源校验与在途跟踪，停止时先等待请求，再释放资源。
 
@@ -193,7 +193,7 @@ checks: [{
 }]
 ```
 
-规则仅包含标准 JSON Schema 和步骤声明，不接受回调脚本。Schema 作用于完整 Artifact，正文放在 content 属性；可同时检查媒体类型及隐私标志。每项产物规则要求一个对应类型的产物；必要字段缺失、同类多个产物或步骤状态不符会失败。最多 8 项产物与 16 项步骤，规则最多 64 KiB；重复 ID、来源 Agent 不属于提供者或 Schema 无法编译会拒绝装配并回滚。
+规则仅包含标准 JSON Schema 和步骤声明，不接受回调脚本。Schema 作用于完整 Artifact，正文放在 content 属性；可同时检查媒体类型及隐私标志。每项产物断言先按 type 和可选 selector（标准 JSON Schema）匹配完整 Artifact，再对恰好一份匹配结果校验 schema；必要字段缺失、零/多个匹配或步骤状态不符会失败。省略 selector 保持同类只能一份的旧语义；两份 Schema 都在装配时编译，不执行脚本或下载远端引用。选择器不删除其他产物。最多 8 项产物与 16 项步骤，规则最多 64 KiB；重复 ID、来源 Agent 不属于提供者或 Schema 无法编译会拒绝装配并回滚。
 
 quality.checks 插件提供 /checks 和 quality.runs.check，输入 contractId/runId/可选 baselineRunId。最小组合见 backend/examples/plugins.checks.yaml；它检查已保存的记录，始终不重执行来源任务或调用模型。报告保留规则完整快照/哈希与当前规则提供者版本，另列历史执行步骤中记录的 Agent 版本。两次记录按同一当前规则判断；差异不自动归因升级，原始记录不改写。
 
@@ -221,3 +221,40 @@ Runtime 新步骤保存 execution 1.0，包括 Agent ID/版本、Manifest 及可
 `ctx.delivery.tools.list()` 返回隔离副本的 ToolDefinition，不含 Handler；可用于展示已授权工具的当前契约。`ToolExecutionContext.budget` 传入当前调用的共享预算。受信 Native Tool 需要转调其他 Tool 时，必须沿用同一 runId/agentId/scope/signal/budget，不能新建额度；权限来源必须是明确的可信配置，不能采用工具描述或模型输入。示例见 `backend/src/connectors/mcp-workbench/runner.ts`：固定路由权限与上游配置白名单分开，两层合计两次调用，缺少预算拒绝，实际 Tool 还须存在且声明 read。此扩展不构成原生代码沙箱。
 
 MCP 接入助手只生成固定模块配置，不执行上游代码；标准 Skills 和原生插件仍按各自授权入口接入，不能因为发现了 MCP 目录就自动取得权限。
+
+## Model Loop 的请求与完成守卫
+
+通过 modelAgents.register 提供 ModelLoopAgentDefinition，可复用同一执行链路：
+
+```ts
+interface ModelLoopAgentDefinition {
+  instructions: string;
+  artifactTitle?: string;
+  artifactMetadata?: Readonly<Record<string, unknown>>;
+  validateRequest?(request: AgentRequest, signal: AbortSignal): void | Promise<void>;
+  validateCompletion?(request: AgentRequest, signal: AbortSignal):
+    readonly ArtifactInput[] | Promise<readonly ArtifactInput[]>;
+}
+```
+
+请求守卫先于 Session/Checkpoint 读取及模型请求。完成守卫只在模型准备完成时执行，
+先于完成 Checkpoint 和保存助手消息；人工提问跳过该守卫。守卫异常使执行失败，
+回调后核对信号；返回额外产物和模型稿由既有 Runtime 校验、限制及持久化。
+artifactMetadata 用于模型稿与提问，title/waitingHuman 仍由 Adapter 决定。
+这些可选项不改变旧定义；回调是受信任 JS，函数体不在 Manifest 序列化哈希中，
+变更须更新插件/Agent 版本和测试，不可当作任意社区代码的安全沙箱。
+
+personal.research 读取真实子运行生成资料索引，并用如下 selector 区分复合 JSON，
+完整示例见 backend/src/agents/personal-research/plugin.ts：
+
+```ts
+selector: { type: 'object', required: ['metadata'], properties: {
+  metadata: { type: 'object', required: ['artifactRole'], properties: {
+    artifactRole: { const: 'personal.research.evidence' },
+  } },
+} }
+```
+
+Agent 委派上限从同一 Run 的 delegate: Agent 步骤恢复，失败和继续均计数，
+暂停不重置额度；未提供 RunStore 的裸 Adapter 仅能在当前调用计数。
+不要把保存的资料索引、结构验收或引用存在核验描述成模型语义正确的证明。

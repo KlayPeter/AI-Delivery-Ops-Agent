@@ -33,7 +33,7 @@
 
 ### 个人默认与按需团队
 
-当前 HTTP 默认九个个人插件、八个 Agent，首页直接选择可用的笔记检索；
+2026-11-05 验证时 HTTP 默认九个个人插件、八个 Agent，首页直接选择可用的笔记检索；
 无需先配置模型。默认导航不含团队交付和定时团队配置，团队业务 API/手动任务
 未装配。原团队组合仍可按[本地指南](LOCAL_DEVELOPMENT.md#按需启用团队功能)
 显式选择，不自动叠加个人组合。
@@ -50,6 +50,31 @@
 lint 与构建通过（163 项既有警告和大包提示保留）。预览保留原数据、复用已安装
 依赖，未重新执行干净安装；测试见 [装配与历史保留](../backend/test/workspaceComposition.test.ts)
 及 [导航与默认能力](../frontend/src/pages/workspace/pages.test.mjs)。
+
+### 个人研究：模型与专业子任务
+
+2026-11-06 增加 personal.research 后，个人默认为 **10 插件/9 Agent**，
+明确配置 GitHub 后为 **12 插件/10 Agent**。上节 9/8 是上一批切换验证的历史快照。
+原主预览仍未配置模型、无需飞书，保留原 5 条运行。
+
+按[研究助手指南](PERSONAL_RESEARCH.md)配置模型后，在「研究助手」提问。
+本轮使用独立数据库、本机 OpenAI 兼容模拟端点、真实 SDK 和专业子 Agent，
+实际通过表单完成笔记检索 → 引用回答 → 研究稿，保留两份子运行与原文行号。
+父详情有 6 个步骤（Agent、两次委派和三次模型步骤），能打开各子任务。
+这是协议与执行链路验证，截图明确标记“本机模拟模型演示”，不代表真实模型研究效果。
+
+![研究结果的真实资料索引与待复核模型稿，本机模拟模型演示](images/research-result.jpg)
+
+![研究父运行的模型步骤、两次委派及子任务入口](images/research-steps.jpg)
+
+另一次表单任务暂停提问，补充后沿用原 Run 完成；当前结果隐藏旧问题，
+原始详情保留历史。375px 表单与结果详情无横向溢出，多份资料引用锚点唯一。
+未配置模型的主预览禁用发起研究，并提供连接/检索入口。
+
+该批后端 **624 通过、1 项真实 TAPD 跳过**；研究专项 13 项覆盖实际 SDK、
+复合委派、引用拒绝、部分失败警告、未结束子任务、个人 Scope、空稿、暂停继续、
+持久委派预算与角色选择器。前端类型/lint/构建通过，保留 163 项既有警告与包体提示；
+未调用真实付费模型，预览复用已安装依赖。完整边界见[功能卡](../backend/src/agents/personal-research/FEATURE.md)。
 
 ### 在线开源工具进入执行记录
 
@@ -110,11 +135,12 @@ backend/examples，按页面命令重启；在「运行工具」提交：
 | 通用架构与修复迁移 | [迁移提交 cc8a7dc](https://github.com/KlayPeter/AI-Delivery-Ops-Agent/commit/cc8a7dc)；现有源工程的 49 个平台 TypeScript 路径在公开版均存在，公开版共有 63 个 | 路径覆盖配合回归验证；原工程的待提交实验未当作已迁移能力 |
 | Cordis 插件依赖与清理 | [插件规范](PLUGIN_AUTHORING.md)、[插件运行时](../backend/src/platform/plugins/FEATURE.md)、[生命周期测试](../backend/test/pluginRuntime.test.ts) | 独立功能装配、缺依赖/失败回滚/停止清理；基础服务仍有宿主耦合 |
 | Tool/Skill、委派与恢复 | [Agent 平台](../backend/src/platform/FEATURE.md)、[委派测试](../backend/test/agentDelegation.test.ts)、[会话测试](../backend/test/sessionRuntime.test.ts) | Scope、预算、父子 Run、人工继续、超时与父中止；原生代码不提供强杀沙箱 |
+| 研究编排与资料门槛 | [研究测试](../backend/test/personalResearch.test.ts)、上面的本机模拟模型截图 | 真 SDK/子任务/引用、阶段继续与持久委派上限；无真实模型质量或采用验证 |
 | RAG 与个人来源 | [Markdown 测试](../backend/test/knowledgeMarkdown.test.ts)、[网页测试](../backend/test/knowledgeWeb.test.ts)、[回答测试](../backend/test/knowledgeAnswer.test.ts) | 关键词检索与可选模型，引用 ID/精确原文核验；模型集成测试使用本地模拟服务 |
 | 知识变化影响 | [复核测试](../backend/test/knowledgeImpact.test.ts) | 显式检查实际引用；保留原结果，无全局自动通知 |
 | 开源工具与 Skill | [社区说明](COMMUNITY_PLUGINS.md)、[HTTP MCP 测试](../backend/test/mcpHttp.test.ts)、[Context7 测试](../backend/test/context7Plugin.test.ts) | Context7 与标准 Skill 实际接入；MarkItDown 真实格式转换；任意仓库仍需适配 |
 | 插件结果契约 | [规则与版本测试](../backend/test/pluginChecks.test.ts) | 同一规则检查保存的产物/步骤，发现植入回归；不重放历史环境或判断语义 |
-| 本地启动与连接表单 | [工作台测试](../backend/test/workspace.test.ts)、上面的浏览器截图 | 空凭据启动，17 插件/14 Agent；本机私有配置，重启生效 |
+| 本地启动与连接表单 | [工作台测试](../backend/test/workspace.test.ts)、上面的浏览器截图 | 当前个人默认 10 插件/9 Agent；历史干净安装基线为 17/14；本机私有配置，重启生效 |
 
 ## 本次验证结果
 
@@ -149,7 +175,7 @@ backend/examples，按页面命令重启；在「运行工具」提交：
 
 ## 仍需完成与验证
 
-完整的基础服务插件化、MCP/HTTP 接入助手、运行转配方、知识回写补丁与历史环境
+完整的基础服务插件化、认证 MCP/HTTP Agent 接入助手、运行转配方、知识回写补丁与历史环境
 回放仍在路线图中。应用登录、多人项目权限和具体外部写入确认尚未提供；当前使用
 范围是本机工作台。真实模型质量、外部维护者独立接入和重复使用价值尚未验证。
 

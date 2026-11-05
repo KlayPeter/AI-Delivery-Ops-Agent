@@ -20,14 +20,15 @@ import { libraryRoot } from '@/knowledge/library/service';
 import { buildConfig } from '@/core/config';
 import { pluginChecksPlugin } from '@/quality/plugin';
 import { mcpSetupPlugin } from '@/connectors/mcp-workbench/plugin';
+import { createPersonalResearchPlugin } from '@/agents/personal-research/plugin';
 
 export function workspaceKnowledge(dataPath = buildConfig({}).data_path) {
     const kind = process.env.KNOWLEDGE_KIND || 'sample';
     const selected = kind === 'web' ? {
-        plugins: [knowledgeWebPlugin, knowledgeWebAnswerPlugin, knowledgeWebImpactPlugin, createKnowledgeWorkspacePlugin('web'), webCapturePlugin, markItDownPlugin, knowledgeLibraryPlugin, pluginChecksPlugin, mcpSetupPlugin],
+        plugins: [knowledgeWebPlugin, knowledgeWebAnswerPlugin, knowledgeWebImpactPlugin, createKnowledgeWorkspacePlugin('web'), webCapturePlugin, markItDownPlugin, knowledgeLibraryPlugin, pluginChecksPlugin, mcpSetupPlugin, createPersonalResearchPlugin('web')],
         config: { 'knowledge.web': webSourceConfig.parse({ urls: lines(process.env.KNOWLEDGE_URLS || ''), sourceId: 'workspace-web' }) },
     } : {
-        plugins: [knowledgeMarkdownPlugin, knowledgeAnswerPlugin, knowledgeImpactPlugin, createKnowledgeWorkspacePlugin(kind === 'sample' ? 'sample' : kind === 'library' ? 'library' : 'markdown'), webCapturePlugin, markItDownPlugin, knowledgeLibraryPlugin, pluginChecksPlugin, mcpSetupPlugin],
+        plugins: [knowledgeMarkdownPlugin, knowledgeAnswerPlugin, knowledgeImpactPlugin, createKnowledgeWorkspacePlugin(kind === 'sample' ? 'sample' : kind === 'library' ? 'library' : 'markdown'), webCapturePlugin, markItDownPlugin, knowledgeLibraryPlugin, pluginChecksPlugin, mcpSetupPlugin, createPersonalResearchPlugin()],
         config: { 'knowledge.markdown': markdownSourceConfig.parse({
             root: kind === 'sample' ? path.join(import.meta.dir, '../../../examples/knowledge-vault') : kind === 'library' ? libraryRoot(dataPath) : process.env.KNOWLEDGE_ROOT,
             sourceId: kind === 'sample' ? 'workspace-sample' : kind === 'library' ? 'workspace-library' : 'workspace-notes',

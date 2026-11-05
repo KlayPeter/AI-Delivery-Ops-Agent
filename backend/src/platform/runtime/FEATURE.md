@@ -3,7 +3,7 @@ feature_id: operations-observability
 name: 运行控制与可观测性
 status: active
 agent_mapping: []
-last_reviewed: 2026-11-05
+last_reviewed: 2026-11-06
 ---
 
 # 运行控制与可观测性
@@ -49,6 +49,8 @@ flowchart TD
     TC -- 否 --> L{"Run Tool 预算内?"}
     L -- 是 --> D["Step / Tool Call / Audit"]
     L -- 否 --> M["Guardrail Step / 明确失败"]
+    C --> RE[研究完成守卫：真实子运行、未结束拒绝和覆盖警告]
+    RE --> E
     C --> E["Artifact"]
     C --> F["Outbox Message"]
     F --> G["Delivery Worker 串行 drain"]
@@ -193,7 +195,13 @@ HTTP 默认加入独立 mcp.setup 接入助手，公开 HTTPS 匿名发现、审
 
 ## HTTP 默认组合边界
 
-HTTP 仅默认加载个人知识、采集、资料库、验收与 MCP 接入助手（九插件/八 Agent）；SDK 团队默认不变，HTTP 团队通过既有可信文件显式选择。工作台根据实际 active Agent 和页面/手动任务贡献选择默认能力与导航，不将隐藏菜单作为 API 授权。默认没有站会/看板/周报插件接口或九项团队业务任务；切换保留成功历史，不自动重新启用旧插件。真实装配与保留历史验证见 backend/test/workspaceComposition.test.ts；首页数量由 featureIndex.test.ts 对照实际 HTTP 选择器检查。
+HTTP 仅默认加载个人知识、采集、资料库、验收与 MCP 接入助手（十插件/九 Agent）；SDK 团队默认不变，HTTP 团队通过既有可信文件显式选择。工作台根据实际 active Agent 和页面/手动任务贡献选择默认能力与导航，不将隐藏菜单作为 API 授权。默认没有站会/看板/周报插件接口或九项团队业务任务；切换保留成功历史，不自动重新启用旧插件。真实装配与保留历史验证见 backend/test/workspaceComposition.test.ts；首页数量由 featureIndex.test.ts 对照实际 HTTP 选择器检查。
+
+## 研究执行与阶段产物
+
+个人研究复用真实 Model Loop、子 Run 和 Checkpoint。请求守卫在模型/会话之前验证个人范围，完成守卫核对保存的成功资料，生成独立索引。没有资料或存在未结束子任务时不交付父研究稿；部分子任务失败且仍有成功资料时记录 failures/partial 警告，语义始终 not_verified。已保存子事实保留，完成守卫异常进入原失败链路。
+
+人工继续从持久化 delegate: Agent Step 恢复委派用量，包括失败与恢复；裸 Adapter 无 RunStore 时不能跨调用恢复。RunDrawer 在退出 waiting_human 后隐藏旧提问的当前展示，原始详情仍保留；引用锚点带 Artifact ID，复合来源互不串链。验收按可选 selector 区分最终稿和索引，不丢弃原始资料，旧规则语义保持。验证：backend/test/personalResearch.test.ts、modelLoopAgent.test.ts、pluginChecks.test.ts；模型测试是本机模拟端点，不证明研究质量。
 
 ## 用户能力
 

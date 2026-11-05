@@ -3,7 +3,7 @@ feature_id: plugin-runtime
 name: Cordis 功能插件运行时
 status: active
 agent_mapping: []
-last_reviewed: 2026-11-05
+last_reviewed: 2026-11-06
 ---
 
 # Cordis 功能插件运行时
@@ -47,6 +47,8 @@ flowchart TD
     MCP --> C7[可选 Context7 上游服务与标准 Skill]
     C7 --> E
     MCP --> E
+    D --> RESEARCH[个人研究：来源依赖、守卫及角色选择规则]
+    RESEARCH --> E
     D --> NS[原生插件可调用宿主 Orchestrator 与 Tool Gateway]
     NS --> E
     E --> F[恢复外部 Agent 与持久化 Bot Binding]
@@ -81,7 +83,7 @@ flowchart TD
 
 ## HTTP 工作台组合
 
-团队 SDK 默认仍为九个插件、七个 Agent；HTTP 通过 workspace/composition.ts 默认只加载个人来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收和 MCP 接入助手，共九个插件、八个 Agent。GitHub 配置后增加连接和发布插件，为 11 个插件、9 个 Agent。原团队组合用 profiles/agents/team.yaml 显式选择，显式文件完全覆盖默认，不隐式叠加个人能力；历史数据保留。页面从真实已装配贡献显示，团队分区仅在可见团队页面或手动任务存在时出现；默认没有团队业务 API/手动任务。来源设置仍在默认个人组合中保存并重启生效。
+团队 SDK 默认仍为九个插件、七个 Agent；HTTP 通过 workspace/composition.ts 默认只加载个人来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收、MCP 接入助手及个人研究，共十个插件、九个 Agent。GitHub 配置后增加连接和发布插件，为 12 个插件、10 个 Agent。原团队组合用 profiles/agents/team.yaml 显式选择，显式文件完全覆盖默认，不隐式叠加个人能力；历史数据保留。页面从真实已装配贡献显示，团队分区仅在可见团队页面或手动任务存在时出现；默认没有团队业务 API/手动任务。来源设置仍在默认个人组合中保存并重启生效。
 
 ## 核心规则
 
@@ -136,6 +138,12 @@ FeaturePlugin.checks 新增静态结果规则，由 Host 的 RunCheckRegistry �
 ## MCP 接入与通用运行
 
 HTTP 默认加入独立 mcp.setup 接入助手，公开 HTTPS 匿名发现、审查勾选与 local.yaml 导出；不调用目录内工具或读取 Secret。保存并重启明确组合后，mcp.runner 按可信 allowedTools 转调已注册读取工具，实时 Schema 校验、同一 Scope/信号与共享两次 Tool 预算，记录 Agent/路由/上游三步。ctx.delivery.tools.list 只返回契约副本，ToolExecutionContext.budget 沿用既有预算，不给旧调用新增额度。移除插件释放页面/API/Agent/Tool，历史保留；无在线安装或 OS 沙箱。实现与测试见 [接入功能卡](../../connectors/mcp-workbench/FEATURE.md)。
+
+## 个人研究与复合产物规范
+
+personal.research 是独立 Model Loop 插件，markdown/web 工厂同时固定依赖与委派来源；没有模型时仍保留原文检索入口。modelAgents.register 可声明请求/完成守卫及 artifactMetadata，复用 Adapter 的会话、预算和持久化，不新建执行框架；完成守卫返回额外 ArtifactInput[]，不由模型伪造索引。回调为可信宿主代码，定义本身不纳入 Manifest 哈希，行为修改须更新版本与测试。
+
+checks 的产物断言增加可选 selector（完整 Artifact 上的标准 JSON Schema）。先按 type/selector 匹配，恰好一份再校验 schema；省略时保持旧语义，注册时编译两份 Schema。选择不会丢弃子资料或把等待问题当最终稿；缺少、重复或坏 Schema 明确失败。验证：backend/test/personalResearch.test.ts、pluginChecks.test.ts。
 
 ## 用户能力
 

@@ -11,7 +11,7 @@ agent_mapping:
   - native.project-dashboard
   - native.ai-news-radar
   - external.ai-hot
-last_reviewed: 2026-11-05
+last_reviewed: 2026-11-06
 ---
 
 # Agent 平台与多机器人控制面
@@ -60,6 +60,9 @@ flowchart TD
     E -- Model Loop --> F["主 Agent / 专业 Agent"]
     E -- Native --> G["确定性 Agent"]
     E -- HTTP --> H["受限外部 Agent"]
+    F --> RG[可选请求守卫、持久委派预算与完成资料守卫]
+    RG --> RI[研究稿、真实子资料索引与覆盖警告]
+    RI --> K
     F --> I["Tool Gateway"]
     F -. 委派 .-> C
     D --> AB[父信号或自身截止时间中止执行；停止等待并拒绝迟到成功]
@@ -183,7 +186,15 @@ HTTP 默认加入独立 mcp.setup 接入助手，公开 HTTPS 匿名发现、审
 
 ## HTTP 默认组合边界
 
-HTTP 仅默认加载个人知识、采集、资料库、验收与 MCP 接入助手（九插件/八 Agent）；SDK 团队默认不变，HTTP 团队通过既有可信文件显式选择。工作台根据实际 active Agent 和页面/手动任务贡献选择默认能力与导航，不将隐藏菜单作为 API 授权。默认没有站会/看板/周报插件接口或九项团队业务任务；切换保留成功历史，不自动重新启用旧插件。真实装配与保留历史验证见 backend/test/workspaceComposition.test.ts；首页数量由 featureIndex.test.ts 对照实际 HTTP 选择器检查。
+HTTP 仅默认加载个人知识、采集、资料库、验收与 MCP 接入助手（十插件/九 Agent）；SDK 团队默认不变，HTTP 团队通过既有可信文件显式选择。工作台根据实际 active Agent 和页面/手动任务贡献选择默认能力与导航，不将隐藏菜单作为 API 授权。默认没有站会/看板/周报插件接口或九项团队业务任务；切换保留成功历史，不自动重新启用旧插件。真实装配与保留历史验证见 backend/test/workspaceComposition.test.ts；首页数量由 featureIndex.test.ts 对照实际 HTTP 选择器检查。
+
+## 个人研究与 Model Loop 守卫
+
+个人默认增加 personal.research Model Loop，按当前来源委派检索、引用回答、网页收集与引用复核；可选 Context7/发布准备仅在实际绑定后暴露。父模型没有直接文件或任意网络权限，完成守卫读取真实子运行生成资料索引；部分失败保留警告，未结束子任务阻止完成。索引只证明保存的查询/回答存在，研究稿语义仍未验证。
+
+ModelLoopAgentDefinition 新增可选 artifactMetadata、validateRequest(request, signal) 和 validateCompletion(request, signal)。请求守卫先于 Session/Checkpoint 读取及模型调用；成功模型返回后、完成 Checkpoint/追加助手消息之前执行完成守卫，其额外 ArtifactInput[] 与模型稿交给既有 Runtime 校验、预算和持久化。人工提问不执行完成守卫。回调后核对取消信号；异常走原失败链路。旧定义无需修改。这些回调是受信任宿主代码，不在 Manifest 序列化指纹内，行为变更须同步作者版本与测试，不提供代码沙箱。
+
+Model Loop 从原 Run 的 delegate: Agent Step 恢复已用委派数，失败和恢复都计数；暂停不能重置 maxAgentCalls。无 RunStore 的裸 Adapter 仅有当前调用计数。验证：backend/test/personalResearch.test.ts（真实 SDK 对本机模拟模型，含复合/部分失败/暂停/预算/完成拒绝），既有 modelLoopAgent/agentDelegation/pluginChecks 回归；真实模型研究效果未验证。
 
 ## 用户能力
 

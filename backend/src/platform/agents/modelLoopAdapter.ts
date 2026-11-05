@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { AgentManifest, AgentRequest, AgentResult, AgentRuntimeAdapter, Artifact, JsonSchema, ResolvedAgent } from './contracts';
+import type { AgentManifest, AgentRequest, AgentResult, AgentRuntimeAdapter, Artifact, ArtifactInput, JsonSchema, ResolvedAgent } from './contracts';
 import type { AgentExecutionOutcome } from './runtime';
 import type { AgentRunStore } from './runStore';
 import type { OrchestratorAdapter, OrchestratorStepTrace, OrchestratorTool } from '@/platform/models/contracts';
@@ -14,6 +14,9 @@ import type { ToolRegistry } from '@/platform/tools/registry';
 export interface ModelLoopAgentDefinition {
     instructions: string;
     artifactTitle?: string;
+    artifactMetadata?: Readonly<Record<string, unknown>>;
+    validateRequest?(request: AgentRequest, signal: AbortSignal): void | Promise<void>;
+    validateCompletion?(request: AgentRequest, signal: AbortSignal): readonly ArtifactInput[] | Promise<readonly ArtifactInput[]>;
 }
 
 export interface AgentDelegateExecutor {
@@ -61,6 +64,8 @@ export class ModelLoopAgentAdapter implements AgentRuntimeAdapter {
     async execute(request: AgentRequest, resolved: ResolvedAgent, signal: AbortSignal): Promise<AgentResult> {
         const definition = this.definitions.get(`${resolved.manifest.id}@${resolved.manifest.version}`);
         if (!definition) throw new Error(`Model Loop Agent definition not found: ${resolved.manifest.id}@${resolved.manifest.version}`);
+        await definition.validateRequest?.(request, signal);
+        signal.throwIfAborted();
         const checkpoint = await this.sessions.getCheckpoint(request.runId);
         const memory = resolved.manifest.memory || { mode: 'session' as const, maxMessages: 20, ttlHours: 24 * 7 };
         const session = checkpoint?.status === 'waiting'
@@ -72,11 +77,11 @@ export class ModelLoopAgentAdapter implements AgentRuntimeAdapter {
             ? `${definition.instructions}\n\nEarlier session context:\n${updated.summary}`
             : definition.instructions;
         const delegatedArtifacts: Artifact[] = [];
-        const priorToolCalls = this.runs
-            ? (await this.runs.listSteps(request.runId)).filter(step => step.kind === 'tool').length
-            : 0;
+        const priorSteps = this.runs ? await this.runs.listSteps(request.runId) : [];
+        const priorToolCalls = priorSteps.filter(step => step.kind === 'tool').length;
         const toolBudget = new RunToolCallBudget(resolved.manifest.limits.maxToolCalls, priorToolCalls);
-        const orchestratorTools = this.toolsFor(request, resolved, delegatedArtifacts, toolBudget);
+        const priorAgentCalls = priorSteps.filter(step => step.kind === 'agent' && step.name.startsWith('delegate:')).length;
+        const orchestratorTools = this.toolsFor(request, resolved, delegatedArtifacts, toolBudget, priorAgentCalls);
         const result = await this.orchestrator.run({
             agentId: resolved.manifest.id,
             modelProfile: resolved.manifest.modelProfile,
@@ -106,12 +111,14 @@ export class ModelLoopAgentAdapter implements AgentRuntimeAdapter {
                     mediaType: 'text/markdown',
                     schemaVersion: '1.0',
                     content: result.needsHuman.question,
-                    metadata: { title: definition.artifactTitle || resolved.manifest.name, waitingHuman: true },
+                    metadata: { ...definition.artifactMetadata, title: definition.artifactTitle || resolved.manifest.name, waitingHuman: true },
                 }, ...this.promotedArtifacts(delegatedArtifacts)],
                 metrics: result.metrics,
             };
         }
 
+        const completionArtifacts = await definition.validateCompletion?.(request, signal) || [];
+        signal.throwIfAborted();
         if (checkpoint?.status === 'waiting') await this.sessions.completeCheckpoint(request.runId);
         await this.sessions.append(updated.id, { role: 'assistant', content: result.text }, { maxMessages: memory.maxMessages, ttlHours: memory.ttlHours });
         return {
@@ -122,8 +129,8 @@ export class ModelLoopAgentAdapter implements AgentRuntimeAdapter {
                 mediaType: 'text/markdown',
                 schemaVersion: '1.0',
                 content: result.text,
-                metadata: { title: definition.artifactTitle || resolved.manifest.name },
-            }, ...this.promotedArtifacts(delegatedArtifacts)] : this.promotedArtifacts(delegatedArtifacts),
+                metadata: { ...definition.artifactMetadata, title: definition.artifactTitle || resolved.manifest.name },
+            }, ...this.promotedArtifacts(delegatedArtifacts), ...completionArtifacts] : [...this.promotedArtifacts(delegatedArtifacts), ...completionArtifacts],
             metrics: result.metrics,
         };
     }
@@ -133,6 +140,7 @@ export class ModelLoopAgentAdapter implements AgentRuntimeAdapter {
         resolved: ResolvedAgent,
         delegatedArtifacts: Artifact[],
         toolBudget: ToolCallBudget,
+        priorAgentCalls: number,
     ): OrchestratorTool[] {
         const definitions: OrchestratorTool[] = resolved.manifest.requirements.tools.map(toolId => {
             const tool = this.tools.resolve(toolId).definition;
@@ -171,7 +179,7 @@ export class ModelLoopAgentAdapter implements AgentRuntimeAdapter {
                 }),
             });
         }
-        let agentCalls = 0;
+        let agentCalls = priorAgentCalls;
         const requiredDelegates = new Set(resolved.manifest.delegates || []);
         const delegateCapabilities = [...requiredDelegates, ...(resolved.manifest.optionalDelegates || []).filter(capability => !requiredDelegates.has(capability))];
         for (const capability of delegateCapabilities) {

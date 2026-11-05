@@ -37,7 +37,7 @@ export class RunCheckService {
                 : agentSteps.length && executions.length === agentSteps.length ? 'passed' : 'unverifiable', message: executions.length === agentSteps.length && agentSteps.length ? undefined : '旧记录或不完整记录缺少执行快照；未根据当前安装版本补造凭证' });
             for (const expected of contract.artifacts) {
                 signal?.throwIfAborted();
-                const matches = artifacts.filter(artifact => artifact.type === expected.type);
+                const matches = artifacts.filter(artifact => artifact.type === expected.type && (!expected.selector || validateSchema(artifact, expected.selector).length === 0));
                 const errors = matches.length === 1 ? validateSchema(matches[0], expected.schema) : [`预期一个 ${expected.type} 产物，实际 ${matches.length} 个`];
                 assertions.push({ id: `artifact:${expected.id}`, label: `${expected.type} 产物 · ${expected.id}`, verdict: errors.length ? 'failed' : 'passed', message: errors.length ? errors.join('; ').slice(0, 500) : undefined });
             }

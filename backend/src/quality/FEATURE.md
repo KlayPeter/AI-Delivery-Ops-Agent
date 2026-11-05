@@ -4,7 +4,7 @@ name: 插件结果验收
 status: active
 agent_mapping:
   - native.plugin-checks
-last_reviewed: 2026-11-05
+last_reviewed: 2026-11-06
 ---
 
 # 插件结果验收
@@ -25,7 +25,8 @@ flowchart TD
     A --> S[先核对所有目标的 workspace/bot、能力与终态]
     S --> R[读取原 Run、步骤和产物；检查记录预算]
     REG --> R
-    R --> C[同一规则检查状态、执行身份/版本、产物 Schema 和必要步骤]
+    R --> SELECT[先按类型和可选 selector 选择完整 Artifact；恰好一份]
+    SELECT --> C[同一规则检查状态、执行身份/版本、产物 Schema 和必要步骤]
     C --> DIFF[比较新增失败、恢复通过与单次请求序列化指纹]
     DIFF --> O[独立报告：规则快照、证据指纹与原运行跳转]
     R -. 保持原记录 .-> OLD[源 Run/Step/Artifact]
@@ -50,7 +51,7 @@ flowchart TD
 ## 核心规则
 
 1. FeaturePlugin.checks 为静态 JSON 声明；规则 ID 必须位于插件 ID 命名空间，Agent/Capability 必须属于该插件。规则版本、唯一子项 ID、最多 8 项产物断言/16 项步骤断言与 64 KiB 大小在注册时检查。最多 100 份已装配规则。
-2. 每份规则要求一个对应类型的产物，按标准 JSON Schema 检查完整 Artifact（含 mediaType、metadata 和 content）；缺少或多个同类型产物均失败。步骤按 kind/name/status 检查真实记录。JSON Schema 编译失败使装配回滚，不下载未解析的远程引用。
+2. 每项产物断言先按 type 和可选标准 JSON Schema selector 匹配完整 Artifact，再以 schema 校验恰好一份匹配结果（含 mediaType、metadata 和 content）；缺少或重复匹配均失败。未声明 selector 保持原先同类型只能一份的语义。selector 不改写或删除资料；按 artifactRole 可区分研究稿、索引和多个子任务 JSON。步骤按 kind/name/status 检查真实记录。两个 Schema 均在注册时编译，失败使装配回滚，不执行代码或下载未解析的远程引用。
 3. 用户只能选择已装配规则 ID 和现有 Run UUID，可选另一个基准 UUID；不接收客户端提供的新 Schema、正文、Scope、脚本或路径。
 4. 仅个人 manual/agent 范围；先核对全部目标的 workspace/bot、匹配 Capability 与终态，再读取任一目标的 Artifact/Step。每目标最多 256 步骤、20 产物及 4 MiB 记录。
 5. Runtime 为每次实际 invoke 的 Agent Step 新增 execution 1.0：Agent ID、声明版本、Manifest 序列化哈希、可用时的输入序列化哈希。开始、成功与失败均保留；暂停恢复产生新快照，不覆盖旧步骤。原有 metrics 字段保持。
@@ -111,10 +112,12 @@ flowchart TD
 
 - `backend/test/pluginChecks.test.ts`：规范/Schema/归属/回滚、真实采集与 MarkItDown、不同版本回归、旧证据、跨范围先验证、取消、产物隐私标志/媒体类型丢失与原记录保留。
 - `backend/test/agentRuntime.test.ts`：开始/失败快照、人工继续、原 metrics 保留、无原始输入和不可序列化兼容。
+- `backend/test/personalResearch.test.ts`：真实复合产物按角色验收；缺失、重复、坏索引和非法 selector 拒绝。
 - `backend/test/pluginRuntime.test.ts`：既有 Cordis 回归。
 
 ## 变更记录
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-06 | 产物断言增加可选 selector，保留复合来源和旧规则语义 | 研究复合/重复/非法选择器专项与既有验收回归 |
 | 2026-11-05 | 独立结果验收插件、随插件的规则规范和每次执行快照 | 七项专项与 Runtime 回归，后端/前端门禁和本地界面；无真实模型调用 |

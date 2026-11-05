@@ -10,7 +10,7 @@ const jsonSchema = z.custom<JsonSchema>(value => value !== null && typeof value 
 const definition = z.object({
     id, title: z.string().trim().min(1).max(160), version, agentId: id, capability: id,
     expectedStatus: z.enum(['succeeded', 'failed', 'cancelled']).default('succeeded'),
-    artifacts: z.array(z.object({ id, type: z.enum(['json', 'markdown', 'text']), schema: jsonSchema }).strict()).min(1).max(8),
+    artifacts: z.array(z.object({ id, type: z.enum(['json', 'markdown', 'text']), selector: jsonSchema.optional(), schema: jsonSchema }).strict()).min(1).max(8),
     steps: z.array(z.object({ id, kind: z.enum(['tool', 'model', 'skill']), name: z.string().min(1).max(200), status: z.enum(['succeeded', 'failed', 'cancelled']).default('succeeded') }).strict()).max(16).default([]),
 }).strict();
 export type RunCheckDefinition = z.input<typeof definition>;
@@ -27,7 +27,7 @@ export class RunCheckRegistry {
         const keys = [...parsed.artifacts.map(item => `artifact:${item.id}`), ...parsed.steps.map(item => `step:${item.id}`)];
         if (new Set(keys).size !== keys.length) throw new Error('Duplicate result check assertion ID');
         for (const artifact of parsed.artifacts) {
-            try { new AjvJsonSchemaValidator().getValidator(artifact.schema); }
+            try { new AjvJsonSchemaValidator().getValidator(artifact.schema); if (artifact.selector) new AjvJsonSchemaValidator().getValidator(artifact.selector); }
             catch { throw new Error(`Invalid result check JSON Schema: ${parsed.id}`); }
         }
         const data = structuredClone({ ...parsed, provider: { pluginId: owner.manifest.id, pluginVersion: owner.manifest.version } });
