@@ -11,6 +11,7 @@ export default function OpenApiSetupPage() {
   const [catalog, setCatalog] = useState<Catalog | null>(null), [selected, setSelected] = useState<string[]>([]);
   const [servers, setServers] = useState<Record<string, string>>({}), [reviewed, setReviewed] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [profile, setProfile] = useState<{ filename: string; yaml: string } | null>(null), [inspectionId, setInspectionId] = useState<string | null>(null), [runId, setRunId] = useState<string | null>(null);
+  const [includePersonalWorkspace, setIncludePersonalWorkspace] = useState(true);
   const reset = () => { setSelected([]); setServers({}); setReviewed(false); setProfile(null); };
   const inspect = async (input: { serviceId: string; url: string }) => {
     setBusy(true); setError(''); setCatalog(null); setInspectionId(null); reset();
@@ -27,7 +28,7 @@ export default function OpenApiSetupPage() {
   const exportProfile = async () => {
     if (!catalog || !inspectionId) return;
     setBusy(true); setError('');
-    try { setProfile(await api.exportOpenApiProfile({ inspectionRunId: inspectionId, reviewedReadOnly: reviewed, selections: catalog.operations.filter(operation => selected.includes(operation.key)).map(operation => ({ key: operation.key, serverUrl: servers[operation.key] || operation.servers[0] })) })); }
+    try { setProfile(await api.exportOpenApiProfile({ inspectionRunId: inspectionId, reviewedReadOnly: reviewed, includePersonalWorkspace, selections: catalog.operations.filter(operation => selected.includes(operation.key)).map(operation => ({ key: operation.key, serverUrl: servers[operation.key] || operation.servers[0] })) })); }
     catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   };
   const download = () => {
@@ -37,6 +38,7 @@ export default function OpenApiSetupPage() {
   };
   return <div className="workspace-page">
     <div className="page-heading"><div><h1>接入 API</h1><p>从 OpenAPI 规范选择读取接口，审查服务地址后导出固定契约配置。</p></div></div>
+    <section className="knowledge-search"><h2>重启后保留哪些功能</h2><Checkbox checked={includePersonalWorkspace} disabled={busy} onChange={event => { setIncludePersonalWorkspace(event.target.checked); setProfile(null); }}>保留本机个人工作台：知识库、研究助手、资料库与任务配方</Checkbox><p className="muted">勾选后沿用本机来源和仓库设置，再追加已审查的 API。不勾选则使用独立 API 组合；自定义插件和团队组合不会自动合并。</p></section>
     <section className="knowledge-search"><h2>1. 读取接口目录</h2>
       <Form layout="vertical" onFinish={inspect} disabled={busy} initialValues={{ serviceId: 'open-meteo', url: 'https://raw.githubusercontent.com/open-meteo/open-meteo/ecd65b64d966224046aaebbcda33a216f0ebd731/openapi/forecast.yml' }} onValuesChange={() => { setCatalog(null); setInspectionId(null); reset(); }}>
         <Form.Item name="url" label="公开 OpenAPI JSON / YAML 地址" rules={[{ required: true, message: '请填写规范地址' }, { validator: async (_, value: string) => { const url = new URL(value); if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.port) throw new Error('请使用不含凭据或查询参数的公开 HTTPS 原始文档地址'); } }]} extra="支持 OpenAPI 3.0 / 3.1 的基础 GET 参数；GitHub 请提供固定版本的 raw 文件。此步骤不调用规范中列出的接口。"><Input maxLength={1024} /></Form.Item>
@@ -60,7 +62,7 @@ export default function OpenApiSetupPage() {
       <div className="form-actions"><Button type="primary" loading={busy} disabled={!selected.length || !reviewed} onClick={exportProfile}>生成接入配置</Button></div>
     </section>}
     {profile && <section className="knowledge-search"><h2>3. 保存并启动已授权接口</h2><p>将 <code>{profile.filename}</code> 保存到 <code>backend/examples/</code>。在仓库根目录停止原服务后启动：</p><pre className="json-view">AGENT_PLUGINS_FILE=examples/{profile.filename} bun run local</pre>
-      <p className="muted">该文件选择独立组合，重启后出现“API 工具”。配置固定本次选择的服务器、路径和输入契约；不会自动加载规范后续新增的接口，也不修改当前 Host。</p>
+      <p className="muted">{includePersonalWorkspace ? '该文件保留本机个人工作台并追加已审查的 API。' : '该文件选择独立组合。'}重启后出现“API 工具”。配置固定本次选择的服务器、路径和输入契约；不会自动加载规范后续新增的接口，也不修改当前 Host。</p>
       <details><summary>查看完整配置</summary><pre className="json-view">{profile.yaml}</pre></details><div className="form-actions"><Button type="primary" onClick={download}>下载本地配置</Button></div>
     </section>}
     <RunDrawer key={runId || 'closed'} runId={runId} onClose={() => setRunId(null)} onSelectRun={setRunId} />

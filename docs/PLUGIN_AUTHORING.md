@@ -73,7 +73,11 @@ plugins:
 
 显式配置只有声明 base: personal 才继承当前本机个人预设；未声明的旧文件仍完整替换。基底在重启时按本机来源与 GitHub 设置生成，不是冻结环境；追加插件重复 ID 拒绝，不覆盖基底，不递归继承其他文件或合并团队/自定义组合。 HTTP 与根目录 local 启动使用 loadWorkspacePlugins；直接调用 loadPluginConfiguration 时需提供可信 personalBase 回调，否则在模块导入前拒绝。未选择此基底时不读取个人设置。base 仅接受 personal，不接受路径或其他预设。新增插件可依赖基底插件，enabled:false 只跳过该追加项，不能移除基底。
 
-验证：backend/test/pluginConfiguration.test.ts、workspaceComposition.test.ts；实际 Skill 导出见 [GitHub Skills](GITHUB_SKILLS.md)。
+Skill、MCP 和 OpenAPI 的导出页面都可显式保留个人工作台；它们只追加各自模块，不自动合并之前的自定义附加插件。需要同时使用多种能力时，在一份已审查配置中声明一次 base: personal，合并各自 plugins 项并保留完整 config；所有相对 module 路径须以最终文件目录解析。相同插件 ID 只能出现一次，例如多个 MCP 服务应合并到同一个 connector.mcp 的 servers，而不是重复注册连接器。基底中的 mcp.setup 不再追加。
+
+实际验证已将 MCP 与 OpenAPI 两份个人导出的四个追加模块放在同一个 examples/*.local.yaml 中，十八插件十二 Agent 同时装配并成功运行 MCP、固定 GET 和知识检索；不涉及在线热安装或自动授予研究 Agent 新工具。
+
+验证：backend/test/pluginConfiguration.test.ts、workspaceComposition.test.ts、mcpWorkbench.test.ts、openApiConnector.test.ts；实际导出见 [GitHub Skills](GITHUB_SKILLS.md)、[MCP](MCP_TOOLS.md)与[OpenAPI](OPENAPI_TOOLS.md)。
 
 ## 声明字段
 

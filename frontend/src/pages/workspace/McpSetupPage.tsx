@@ -12,6 +12,7 @@ export default function McpSetupPage() {
   const [catalog, setCatalog] = useState<Catalog | null>(null), [selected, setSelected] = useState<string[]>([]);
   const [reviewed, setReviewed] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [profile, setProfile] = useState<{ filename: string; yaml: string } | null>(null);
+  const [includePersonalWorkspace, setIncludePersonalWorkspace] = useState(true);
   const [inspectionId, setInspectionId] = useState<string | null>(null), [runId, setRunId] = useState<string | null>(null);
   const resetSelection = () => { setSelected([]); setReviewed(false); setProfile(null); };
   const inspect = async (input: { serverId: string; url: string }) => {
@@ -29,7 +30,7 @@ export default function McpSetupPage() {
   const exportProfile = async () => {
     if (!catalog) return;
     setBusy(true); setError('');
-    try { setProfile(await api.exportMcpProfile({ serverId: catalog.serverId, url: catalog.url, reviewedReadOnly: reviewed,
+    try { setProfile(await api.exportMcpProfile({ serverId: catalog.serverId, url: catalog.url, reviewedReadOnly: reviewed, includePersonalWorkspace,
       tools: catalog.tools.filter(tool => selected.includes(tool.name)).map(({ name, alias }) => ({ name, alias })) })); }
     catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   };
@@ -41,6 +42,7 @@ export default function McpSetupPage() {
   };
   return <div className="workspace-page">
     <div className="page-heading"><div><h1>接入工具</h1><p>连接一个 MCP 服务，选择需要的能力，带着明确授权开始使用。</p></div></div>
+    <section className="knowledge-search"><h2>重启后保留哪些功能</h2><Checkbox checked={includePersonalWorkspace} disabled={busy} onChange={event => { setIncludePersonalWorkspace(event.target.checked); setProfile(null); }}>保留本机个人工作台：知识库、研究助手、资料库与任务配方</Checkbox><p className="muted">勾选后沿用本机来源和仓库设置，再追加所选 MCP 工具。不勾选则使用独立 MCP 组合；自定义插件和团队组合不会自动合并。</p></section>
     <section className="knowledge-search">
       <div className="connection-title"><span className="icon-tile"><ApiOutlined aria-hidden /></span><h2>1. 发现服务</h2></div>
       <Form layout="vertical" onFinish={inspect} disabled={busy} initialValues={{ serverId: 'context7', url: 'https://mcp.context7.com/mcp' }} onValuesChange={() => { setCatalog(null); setInspectionId(null); resetSelection(); }}>
@@ -68,9 +70,9 @@ export default function McpSetupPage() {
     </section>}
     {profile && <section className="knowledge-search">
       <h2>3. 保存配置并启动</h2>
-      <p>将 <code>{profile.filename}</code> 保存到项目的 <code>backend/examples/</code>，在后端目录启动：</p>
-      <pre className="json-view">AGENT_PLUGINS_FILE=examples/{profile.filename} bun run dev</pre>
-      <p className="muted">此文件选择独立的 MCP 组合，重启后出现“运行工具”入口。当前进程尚未安装这些工具；已有历史记录保留。</p>
+      <p>将 <code>{profile.filename}</code> 保存到项目的 <code>backend/examples/</code>，在仓库根目录停止原服务后启动：</p>
+      <pre className="json-view">AGENT_PLUGINS_FILE=examples/{profile.filename} bun run local</pre>
+      <p className="muted">{includePersonalWorkspace ? '此文件保留本机个人工作台并追加所选工具。' : '此文件选择独立的 MCP 组合。'}重启后出现“运行工具”入口。下载不会改变当前装配；已有历史记录保留。</p>
       <details><summary>查看完整配置</summary><pre className="json-view">{profile.yaml}</pre></details>
       <div className="form-actions"><Button type="primary" onClick={download}>下载本地配置</Button></div>
     </section>}

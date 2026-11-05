@@ -31,7 +31,8 @@ flowchart TD
     CATALOG --> REVIEW[用户勾选工具并明确审查读取授权]
     REVIEW --> EXPORT[有界本机 API；固定模块与实际 MCP 配置校验]
     EXPORT --> YAML[可审查 local.yaml；未修改当前 Host]
-    YAML --> RESTART[保存到 examples 并重启独立组合]
+    YAML --> RESTART[保存到 examples 并重启所选组合]
+    RESTART -. 显式个人基底 .-> PERSONAL[知识、研究、资料库与配方入口保留]
     RESTART --> CONNECTOR[connector.mcp 重新发现并注册所选 Tool]
     CONNECTOR --> RUNNER[运行工具页：已授权工具与当前 Schema]
     RUNNER --> RA[运行 Agent]
@@ -51,7 +52,7 @@ flowchart TD
 
 ### 非目标
 
-- 不自动执行仓库代码、自动安装依赖、热启停或叠加默认插件。
+- 不自动执行仓库代码、自动安装依赖、热启停或合并任意自定义组合；个人预设仅通过显式 base: personal 继承。
 - 发现助手暂不支持认证服务、OAuth、私网 HTTP、stdio 启动或运行输入指定 Secret 引用。可信 YAML 仍可手工配置既有 stdio/Bearer 连接。
 - 读取声明不证明第三方服务无副作用；原生代码不处于 OS 沙箱中。
 
@@ -60,8 +61,8 @@ flowchart TD
 1. 发现输入仅含 url/serverId，拒绝额外 token/tokenRef 等字段。网络复用现有 HTTPS 检查；不读取本机 Secret，不发送 tools/call。
 2. 发现总等待 10 秒，传输单响应最多 2 MiB；目录最多八页、200 项和 512 KiB，超限/重名失败，不假装完整。Schema 超过 16 KiB、无效引用、不支持的名字或 task-only 项标记不可选择。别名确定生成并消除碰撞。
 3. 服务名称/版本是有界自报元数据，不是锁定版本或真实性凭证。原始说明保留为数据，界面转义显示；导出使用宿主生成的中性说明，不把上游文本写为授权指令。
-4. 导出最多 50 个唯一工具，必须有 reviewedReadOnly=true；API 正文最多 16 KiB、5 秒。使用实际 mcpConfig 验证，固定三个本地模块；不接受模块路径、命令或 Secret。导出不证明用户实际完成审查。
-5. 文件保存于 backend/examples/mcp-<id>.local.yaml，重启选择 connector.mcp/mcp.runner/mcp.setup 独立组合。相对路径依赖该位置；已有 Run 保留，其他默认能力需另行明确组合。
+4. 导出最多 50 个唯一工具，必须有 reviewedReadOnly=true；API 正文最多 16 KiB、5 秒。使用实际 mcpConfig 验证，独立模式固定三个本地模块，个人模式固定两个追加模块并声明 base: personal；不接受客户端模块路径、命令或 Secret。导出不证明用户实际完成审查。
+5. includePersonalWorkspace 缺省/false 保持 backend/examples/mcp-<id>.local.yaml，三个插件两 Agent 的独立组合。true 输出 mcp-<id>.personal.local.yaml，声明 base: personal，只追加 connector.mcp/mcp.runner，避免与基底内 mcp.setup 重复；标准个人基底为十六插件十 Agent，保留当前来源设置与个人入口。路径仍依赖 examples；已有 Run 保留，不合并其他自定义附加插件或团队组合。
 6. runnerConfig 的 allowedTools 是可信装配授权；只接受 mcp.server.alias 形状且唯一、最多 50 项。启动及调用前检查实际工具存在且 sideEffect=read；授权元数据最多 1 MiB。运行输入不能扩大授权。
 7. Agent 仅授予固定路由 Tool；路由用可信配置授予上游 Tool，传同一身份、Scope、信号及 ToolExecutionContext.budget。两层共用预算，合计两次调用；缺少预算拒绝执行，不另开额度。
 8. Gateway 校验当前注册的 inputSchema，连接器按固定上游定义核验 outputSchema；未选工具、类型错误、预算/Scope 拒绝均不能产生上游调用或成功产物。
@@ -78,7 +79,7 @@ flowchart TD
 | 入口 | 输入 | 输出 |
 | --- | --- | --- |
 | /mcp-setup；mcp.server.inspect | url、serverId | 工具目录 Run、服务自报信息与兼容性 |
-| POST /api/mcp-setup/profile | 地址、工具 name/alias、显式读取审查 | filename/yaml，不写当前配置 |
+| POST /api/mcp-setup/profile | 地址、工具 name/alias、显式读取审查；可选 includePersonalWorkspace | filename/yaml，不写当前配置 |
 | /mcp-runner；GET /api/mcp-runner/tools | 已启用配置 | 所选 Tool 的当前参数契约 |
 | mcp.tools.run | toolId、arguments 对象 | Run、原始结果与文本 Artifact |
 
@@ -125,7 +126,7 @@ flowchart TD
 
 ### 主要测试
 
-- `backend/test/mcpWorkbench.test.ts`：真实 TCP/SDK 发现不调用、Session 清理、别名与 Schema/目录边界、无凭据输入、取消与实际连接释放、生成配置经真实加载器执行、权限/参数/Scope/共享预算拒绝、失败回滚与本机 API。
+- `backend/test/mcpWorkbench.test.ts`：个人配置真实重载、MCP setup 唯一、同 Host 知识与工具运行、旧请求保持；真实 TCP/SDK 发现不调用、Session 清理、别名与 Schema/目录边界、无凭据输入、取消与实际连接释放、生成配置经真实加载器执行、权限/参数/Scope/共享预算拒绝、失败回滚与本机 API。
 - `backend/test/mcpHttp.test.ts`、`pluginRuntime.test.ts`、`toolSkillRuntime.test.ts`：现有传输、生命周期和预算回归。
 - `frontend/src/pages/workspace/mcpInput.test.mjs`：嵌套对象、非法 JSON、非对象与 UTF-8 字节上限。
 - `backend/test/featureIndex.test.ts`：功能索引、默认/仓库/SDK 组合真实数量与本地文件忽略。
@@ -134,6 +135,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-06 | 导出可选保留个人工作台；页面默认勾选，旧请求保留独立模式 | 实际基底重载与 TCP/SDK 执行、回归、前端与浏览器验证 |
 | 2026-11-05 | 新增独立接入助手与通用运行插件；明确读取授权与可执行本地配置 | TCP/SDK 专项、类型/前端检查、全量回归与在线浏览器验收，结果见提交说明 |
 
 ## 共用有界输入读取

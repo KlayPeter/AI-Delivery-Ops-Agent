@@ -15,7 +15,7 @@ import { inspectOpenApi } from './catalog';
 export const OPENAPI_SETUP_CAPABILITY = 'openapi.spec.inspect';
 const tool = 'openapi-setup.inspect';
 const inputSchema = { type: 'object', required: ['url', 'serviceId'], properties: { url: { type: 'string', maxLength: 1024 }, serviceId: { type: 'string', pattern: '^[a-z][a-z0-9-]{0,63}$' } }, additionalProperties: false };
-const profileInput = z.object({ inspectionRunId: z.string().uuid(), reviewedReadOnly: z.literal(true), selections: z.array(z.object({ key: z.string().min(1).max(520), serverUrl: inspectInput.shape.url }).strict()).min(1).max(20) }).strict();
+const profileInput = z.object({ inspectionRunId: z.string().uuid(), reviewedReadOnly: z.literal(true), selections: z.array(z.object({ key: z.string().min(1).max(520), serverUrl: inspectInput.shape.url }).strict()).min(1).max(20), includePersonalWorkspace: z.boolean().optional() }).strict();
 const manifest: AgentManifest = {
     schemaVersion: '1.1', id: 'native.openapi-inspector', name: 'OpenAPI 接入助手', version: '1.0.0', description: '读取公开 OpenAPI JSON/YAML 目录，列出匿名 GET 的支持边界，审查后导出固定契约配置；不调用目录内接口。',
     runtime: { type: 'native' }, capabilities: [OPENAPI_SETUP_CAPABILITY], triggers: ['manual', 'agent'], inputSchema, outputSchema: { type: 'object' },
@@ -36,13 +36,13 @@ export async function exportOpenApiProfile(store: PersistentKeyValueStore, input
         return { ...operation, serverUrl: selection.serverUrl };
     });
     const config = connectorConfig.parse({ serviceId: catalog.serviceId, source: catalog.source, reviewedReadOnly: true, operations });
-    return { filename: `openapi-${config.serviceId}.local.yaml`, yaml: '# Save under backend/examples/. Review the fixed GET contracts before restarting.\n' + stringify({ apiVersion: '1.0', plugins: [
+    return { filename: `openapi-${config.serviceId}${selected.includePersonalWorkspace ? '.personal' : ''}.local.yaml`, yaml: '# Save under backend/examples/. Review the fixed GET contracts before restarting.\n' + stringify({ apiVersion: '1.0', ...(selected.includePersonalWorkspace ? { base: 'personal' } : {}), plugins: [
         { module: '../src/connectors/openapi/plugin.ts', config }, { module: '../src/connectors/openapi/setup.ts' },
     ] }) };
 }
 export function createOpenApiSetupPlugin(network?: WebTransport): FeaturePlugin {
     return {
-        manifest: { apiVersion: '1.0', id: 'openapi.setup', name: manifest.name, version: '1.0.0', description: manifest.description }, agents: [{ manifest, installationId: 'install-openapi-inspector' }],
+        manifest: { apiVersion: '1.0', id: 'openapi.setup', name: manifest.name, version: '1.1.0', description: manifest.description }, agents: [{ manifest, installationId: 'install-openapi-inspector' }],
         apply(ctx) {
             ctx.delivery.web.register({ id: 'openapi.setup', pages: [{ path: '/openapi-setup', label: '接入 API', section: 'workspace', view: { kind: 'builtin', id: 'openapi-setup', capability: OPENAPI_SETUP_CAPABILITY } }],
                 api: { prefix: '/api/openapi-setup', routes: [{ method: 'POST', path: '/api/openapi-setup/profile' }], async handle(request) {

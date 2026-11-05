@@ -23,12 +23,14 @@ https://raw.githubusercontent.com/open-meteo/open-meteo/ecd65b64d966224046aaebbc
 ```
 
 1. 读取目录，查看 `GET /v1/forecast` 的契约，选择公开的 `https://api.open-meteo.com/`。`customer-api` 是另一服务，不能当作匿名示例使用。
-2. 页面会提示省略可选 `apikey`；当前匿名模式不生成这个输入字段。审查实际用途和服务器后，勾选读取授权，生成并下载 `openapi-open-meteo.local.yaml`。
+2. 页面会提示省略可选 `apikey`；当前匿名模式不生成这个输入字段。审查实际用途和服务器后，勾选读取授权，页面默认勾选保留个人工作台，生成并下载 `openapi-open-meteo.personal.local.yaml`。
 3. 将文件放入 `backend/examples/`，停止本次服务，在根目录重新启动：
 
 ```sh
-AGENT_PLUGINS_FILE=examples/openapi-open-meteo.local.yaml bun run local
+AGENT_PLUGINS_FILE=examples/openapi-open-meteo.personal.local.yaml bun run local
 ```
+
+个人模式声明 base: personal，在重启时按本机设置组合个人知识、研究、资料库、配方与模型，再追加两项 OpenAPI 插件；标准基底为十六插件十一 Agent。取消保留时仍下载原 openapi-open-meteo.local.yaml，保持两插件两 Agent 独立组合；启动时使用下载的实际文件名。未传或 false 的 API 请求保持独立模式，true 显式选择个人基底。不合并其他自定义附加插件或团队组合，重复 ID 不覆盖。
 
 进入“API 工具”，选择接口并填写以下固定公开地点示例（柏林，非用户定位）：
 
@@ -67,7 +69,7 @@ GET 方法本身不能证明没有副作用，需核对接口实际用途。参�
 
 - `openapi.setup` / `native.openapi-inspector` / `openapi.spec.inspect`：目录发现、原记录绑定导出和接入页面。
 - `connector.openapi` / `native.openapi-runner` / `openapi.tools.run`：固定 GET 工具、通用运行页面和结果记录。
-- 导出请求仅提交成功发现的 Run ID、接口 key、服务器选择和明确审查。服务端先核对默认 workspace/bot 与成功根能力，再从该次目录生成配置；不接收客户端 Schema 或模块路径。
+- 导出请求仅提交成功发现的 Run ID、接口 key、服务器选择、明确审查及可选 includePersonalWorkspace 布尔值。服务端先核对默认 workspace/bot 与成功根能力，再从该次目录生成配置；不接收客户端 Schema 或模块路径。
 - 配置固定服务器、路径、参数及来源 SHA，不自动加载后续新增接口。更改授权需重新发现并审查。内容指纹不是上游服务版本或语义保证。
 - 下载不改变当前 Host。用户保存并重启后生效；切换组合保留旧记录，插件移除后入口和工具一起释放。*.local.yaml 被 Git 忽略。
 

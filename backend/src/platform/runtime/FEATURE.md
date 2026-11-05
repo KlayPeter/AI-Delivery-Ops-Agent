@@ -199,6 +199,19 @@ knowledge.collect 只固定当前成功采集 Run ID，经 knowledge.library.man
 
 HTTP 默认加入独立 mcp.setup 接入助手，公开 HTTPS 匿名发现、审查勾选与 local.yaml 导出；不调用目录内工具或读取 Secret。保存并重启明确组合后，mcp.runner 按可信 allowedTools 转调已注册读取工具，实时 Schema 校验、同一 Scope/信号与共享两次 Tool 预算，记录 Agent/路由/上游三步。ctx.delivery.tools.list 只返回契约副本，ToolExecutionContext.budget 沿用既有预算，不给旧调用新增额度。移除插件释放页面/API/Agent/Tool，历史保留；无在线安装或 OS 沙箱。实现与测试见 [接入功能卡](../../connectors/mcp-workbench/FEATURE.md)。
 
+
+mcp.setup / openapi.setup 1.1.0 的配置导出接受可选 includePersonalWorkspace 布尔值。页面默认勾选保留个人工作台，切换选择会清除已生成配置，需重新生成；缺省或 false 的旧 API 请求仍导出原独立组合。true 声明 base: personal，按重启时本机设置保留知识、研究、资料库、配方与模型提供者。MCP 只追加 connector.mcp / mcp.runner（基底已有 mcp.setup），标准基底下十六插件十 Agent；OpenAPI 追加 connector.openapi / openapi.setup，为十六插件十一 Agent。文件仍保存于 backend/examples，个人文件名含 .personal.local.yaml。不会合并其他自定义附加插件或团队组合；重复 ID 拒绝，授权/输入/预算/历史语义保持，不为研究 Agent 自动授予新工具。
+
+```mermaid
+flowchart LR
+    MCP_EXPORT[明确审查后导出] --> MCP_KIND[独立组合或显式个人基底]
+    MCP_KIND --> MCP_RESTART[用户保存并重启]
+    MCP_RESTART --> MCP_RUN[授权 MCP 工具]
+    MCP_RESTART -. 个人基底 .-> MCP_PERSONAL[保留知识与研究等入口]
+```
+
+验证补充：backend/test/mcpWorkbench.test.ts 与 openApiConnector.test.ts 将实际导出 YAML 经 loadWorkspacePlugins 装配，同 Host 成功运行知识检索和授权工具，检查入口、数量、MCP setup 唯一、历史保留与旧参数兼容。代码：mcp-workbench/catalog.ts / plugin.ts、openapi/setup.ts、McpSetupPage.tsx、OpenApiSetupPage.tsx、frontend/src/api.ts。
+
 ## HTTP 默认组合边界
 
 HTTP 仅默认加载个人知识、采集、资料库、验收、MCP 接入助手、个人研究及任务配方（十四插件/九 Agent）；SDK 团队默认不变，HTTP 团队通过既有可信文件显式选择。工作台根据实际 active Agent 和页面/手动任务贡献选择默认能力与导航，不将隐藏菜单作为 API 授权。默认没有站会/看板/周报插件接口或九项团队业务任务；切换保留成功历史，不自动重新启用旧插件。真实装配与保留历史验证见 backend/test/workspaceComposition.test.ts；首页数量由 featureIndex.test.ts 对照实际 HTTP 选择器检查。
@@ -448,6 +461,7 @@ flowchart LR
     OA_RUN --> OA_EXPORT[归属核验、选择审查与固定配置导出]
     OA_EXPORT --> OA_START[用户保存并重启]
     OA_START --> OA_GATE[Native Runner 与白名单 Tool]
+    OA_START -. 显式个人基底 .-> OA_PERSONAL[保留个人来源与研究等入口]
     OA_GATE --> OA_HISTORY[真实 JSON 与来源、响应指纹]
 ```
 

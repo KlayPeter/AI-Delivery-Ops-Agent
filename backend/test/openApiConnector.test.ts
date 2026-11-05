@@ -1,11 +1,15 @@
 import { expect, test } from 'bun:test';
 import { randomUUID, createHash } from 'node:crypto';
-import { writeFile, rm } from 'node:fs/promises';
+import { writeFile, rm, mkdtemp } from 'node:fs/promises';
+import * as path from 'node:path';
+import { tmpdir } from 'node:os';
 import { parse, stringify } from 'yaml';
 import { AgentHost } from '@/platform/bootstrap/agentHost';
 import { InMemoryPersistentKeyValueStore } from '@/platform/persistence/keyValueStore';
 import { PersistentAgentRunStore } from '@/platform/agents/persistentRunStore';
 import { loadPluginConfiguration } from '@/platform/plugins/configuration';
+import { loadWorkspacePlugins } from '@/platform/workspace/composition';
+import { buildConfig } from '@/core/config';
 import { RunToolCallBudget } from '@/platform/tools/budget';
 import { createExecutionScope, createTriggerScope } from '@/platform/runtime/scope';
 import type { WebTransport } from '@/knowledge/web/network';
@@ -101,6 +105,8 @@ test('inspection to scope-bound export to loaded profile executes through gatewa
         for (const patch of [{ workspaceId: 'another' }, { botInstanceId: 'another' }, { parentRunId: randomUUID() }, { capability: 'other' }, { status: 'failed' }]) { await store.setIdempotencyKey(key, { ...detail.run, ...patch }); await expect(exportOpenApiProfile(store, input)).rejects.toThrow('成功发现'); }
         await store.setIdempotencyKey(key, detail.run);
         const exported = await exportOpenApiProfile(store, input); expect(exported.filename).toBe('openapi-fixture.local.yaml'); expect(parse(exported.yaml).plugins).toHaveLength(2); await writeFile(filename, exported.yaml);
+        expect(await exportOpenApiProfile(store, { ...input, includePersonalWorkspace: false })).toEqual(exported);
+        await expect(exportOpenApiProfile(store, { ...input, includePersonalWorkspace: 'true' })).rejects.toThrow();
         const selected = await loadPluginConfiguration(filename); expect(selected.plugins.map(plugin => plugin.manifest.id)).toEqual(['connector.openapi', 'openapi.setup']);
         runner = host(selected.plugins.map(plugin => plugin.manifest.id === 'connector.openapi' ? createOpenApiConnectorPlugin(f.network) : plugin), selected.config, store); await runner.initialize();
         expect((await (await runner.web.handle(new Request('http://localhost/api/openapi-runner/tools'))).json()).tools[0].id).toBe('openapi.fixture.get-read');
@@ -120,6 +126,36 @@ test('inspection to scope-bound export to loaded profile executes through gatewa
         expect((await post(JSON.stringify(input))).status).toBe(200); expect((await post(JSON.stringify(input), 'https://evil.example')).status).toBe(403); expect((await post('x'.repeat(17000))).status).toBe(400);
         await runner.stop(); expect(runner.web.pages()).toEqual([]); expect(runner.toolRegistry.list()).toEqual([]); expect((await new PersistentAgentRunStore(store).get(detail.run.id))?.status).toBe('succeeded'); expect(connectorConfig.safeParse({ ...selected.config['connector.openapi'], reviewedReadOnly: false }).success).toBe(false);
     } finally { await setup.stop(); await runner?.stop(); await rm(filename, { force: true }); }
+});
+
+test('a personal OpenAPI export retains the actual knowledge workbench and only grants the reviewed fixed GET', async () => {
+    const f = fixture(), directory = await mkdtemp(path.join(tmpdir(), 'personal-openapi-'));
+    const file = `${import.meta.dir}/../examples/openapi-personal-${randomUUID()}.local.yaml`;
+    const keys = ['KNOWLEDGE_KIND', 'KNOWLEDGE_EXCLUDE', 'KNOWLEDGE_VAULT_NAME', 'RELEASE_GITHUB_REPOSITORY'];
+    const saved = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+    process.env.KNOWLEDGE_KIND = 'sample'; for (const key of keys.slice(1)) delete process.env[key];
+    const store = new InMemoryPersistentKeyValueStore(), setup = host([createOpenApiSetupPlugin(f.network)], {}, store); let runner: AgentHost | undefined;
+    try {
+        const inspection = await setup.runLocal(OPENAPI_SETUP_CAPABILITY, { serviceId: 'fixture', url: sourceUrl }, randomUUID());
+        const exported = await exportOpenApiProfile(store, { inspectionRunId: inspection.execution!.run.id, reviewedReadOnly: true, selections: [{ key: 'GET /items/{id}', serverUrl: 'https://api.example.com/v1' }], includePersonalWorkspace: true });
+        expect(exported.filename).toBe('openapi-fixture.personal.local.yaml'); expect(parse(exported.yaml).base).toBe('personal'); expect(parse(exported.yaml).plugins).toHaveLength(2);
+        await writeFile(file, exported.yaml); await expect(loadPluginConfiguration(file)).rejects.toThrow('本机工作台');
+        const selection = await loadWorkspacePlugins(directory, file); expect(selection.base).toBe('personal'); expect(selection.plugins).toHaveLength(16);
+        const config = { ...buildConfig({}), data_path: directory };
+        runner = new AgentHost(() => ({ store, config, feishu: {}, tapd: {} } as any), 1000, undefined, [], { plugins: selection.plugins.map(plugin => plugin.manifest.id === 'connector.openapi' ? createOpenApiConnectorPlugin(f.network) : plugin), pluginConfig: selection.config });
+        await runner.initialize(); expect(await runner.listAgents()).toHaveLength(11);
+        expect(runner.web.pages().map(page => page.path)).toEqual(expect.arrayContaining(['/knowledge', '/research', '/recipes', '/openapi-setup', '/openapi-runner']));
+        const knowledge = await runner.runLocal('knowledge.markdown.retrieve', { operation: 'search', query: 'API 迁移说明', limit: 5 }, randomUUID());
+        expect((knowledge.execution!.result.data as any).hits.length).toBeGreaterThan(0);
+        const result = await runner.runLocal(OPENAPI_RUN_CAPABILITY, { toolId: 'openapi.fixture.get-read', arguments: { path: { id: 42 } } }, randomUUID());
+        expect(result.execution!.run.status).toBe('succeeded'); expect(result.execution!.result.metrics).toEqual({ modelCalls: 0, toolCalls: 2 });
+        expect(f.requests.map(request => request.url)).toEqual([sourceUrl, 'https://api.example.com/v1/items/42']);
+        expect((await (await runner.web.handle(new Request('http://localhost/api/openapi-runner/tools'))).json()).tools.map((tool: any) => tool.id)).toEqual(['openapi.fixture.get-read']);
+        await runner.stop(); expect((await new PersistentAgentRunStore(store).get(knowledge.execution!.run.id))?.status).toBe('succeeded');
+    } finally {
+        for (const key of keys) { if (saved[key] === undefined) delete process.env[key]; else process.env[key] = saved[key]; }
+        await setup.stop(); await runner?.stop(); await rm(file, { force: true }); await rm(directory, { recursive: true, force: true });
+    }
 });
 
 test('bounded JSON reader cancels a stalled stream on caller abort', async () => {

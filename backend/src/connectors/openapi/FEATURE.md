@@ -29,6 +29,7 @@ flowchart TD
     EXPORT --> YAML[固定模块与固定契约的本地 YAML]
     YAML --> RESTART[用户保存并重启显式组合]
     RESTART --> RUNNER[Native Runner]
+    RESTART -. 显式个人基底 .-> PERSONAL[既有知识、研究、资料库与配方]
     RUNNER --> ROUTE[路由 Tool：共享两次预算与 Scope]
     ROUTE --> GET[白名单 Tool：参数 Schema 与固定地址]
     GET --> NET
@@ -53,8 +54,9 @@ OAuth/Bearer、私网/本机 API、Swagger 2、写入方法、任意 Header/Cook
 2. YAML 禁止别名；最多 200 路径/接口、512 KiB 目录、每接口 40 参数与 8 服务器；只解析当前文档 components 的 schemas/parameters/responses，引用链最多 16 跳。
 3. path/simple 支持必填标量和安全标识符；query/form 支持标量与一层基础数组，最多 100 项。字符串、布尔、数值、安全整数、枚举、基础范围与已支持字符串格式经既有 AJV 校验；int32 保留范围。额外输入拒绝，不隐式类型转换。
 4. 对象、可空、正则/组合 Schema、嵌套数组、Header/Cookie、正文、回调和必填凭据拒绝；可选的常见凭据参数省略并显示警告。其他不支持的参数使该接口不可选；不静默放宽契约。
-5. 导出仅接收 inspectionRunId、reviewedReadOnly=true、接口 key 与服务器选择。读取 Artifact 前核对默认 workspace/bot、成功根 Run 与 openapi.spec.inspect；所选服务器和可用接口必须在该次目录中。客户端不能提供 Schema、插件模块或新权限。
-6. 运行 Agent → 路由 Tool → 实际 Tool 共用两次预算和取消信号。个人 manual/agent Scope，不允许聊天；插件停止释放 Agent/Tool/API/页面，历史保留。
+5. 导出仅接收 inspectionRunId、reviewedReadOnly=true、接口 key 与服务器选择及可选 includePersonalWorkspace 布尔值。读取 Artifact 前核对默认 workspace/bot、成功根 Run 与 openapi.spec.inspect；所选服务器和可用接口必须在该次目录中。客户端不能提供 Schema、插件模块或新权限。
+6. includePersonalWorkspace 缺省/false 保持独立两插件两 Agent 与 openapi-<id>.local.yaml。true 输出 openapi-<id>.personal.local.yaml，声明 base: personal，追加 connector.openapi/openapi.setup；标准基底下十六插件十一 Agent，沿用重启时本机来源/仓库设置。文件仍须保存到 backend/examples；不合并其他自定义附加插件，不覆盖基底 ID。
+7. 运行 Agent → 路由 Tool → 实际 Tool 共用两次预算和取消信号。个人 manual/agent Scope，不允许聊天；插件停止释放 Agent/Tool/API/页面，历史保留。
 
 ## 用户能力
 
@@ -65,13 +67,13 @@ OAuth/Bearer、私网/本机 API、Swagger 2、写入方法、任意 Header/Cook
 | 入口 | 输入 | 输出 |
 | --- | --- | --- |
 | /openapi-setup / openapi.spec.inspect | url、serviceId | 目录 Run/Artifact |
-| POST /api/openapi-setup/profile | inspectionRunId、reviewedReadOnly、selections | 文件名与固定 YAML |
+| POST /api/openapi-setup/profile | inspectionRunId、reviewedReadOnly、selections、可选 includePersonalWorkspace | 文件名与固定 YAML |
 | /openapi-runner / GET /api/openapi-runner/tools | 已启用配置 | 当前授权的接口与输入契约 |
 | openapi.tools.run | toolId、arguments（path/query） | 原始 JSON、预览和三步骤记录 |
 
 ## 运行逻辑
 
-先启动 backend/examples/plugins.openapi.yaml，发现并审查后保存导出的 *.local.yaml，再通过仓库根目录 bun run local 启动。配置显式选择独立组合，当前 Host 不自动改变。每次请求生成普通 Run，失败不伪造成功 Artifact。
+先启动 backend/examples/plugins.openapi.yaml，发现并审查后保存导出的 *.local.yaml，再通过仓库根目录 bun run local 启动。配置可选择独立组合或个人基底，页面默认保留个人工作台；切换选项清除已生成配置并要求重新生成，当前 Host 不自动改变。每次请求生成普通 Run，失败不伪造成功 Artifact。
 
 ## Agent、Tool 与服务边界
 
@@ -105,7 +107,7 @@ OAuth/Bearer、私网/本机 API、Swagger 2、写入方法、任意 Header/Cook
 
 ### 主要测试
 
-- `backend/test/openApiConnector.test.ts`：目录/引用/Schema 边界、公网限制、原记录归属、导出后真实加载、Tool 预算/Scope/参数拒绝、JSON/预览、插件卸载与历史保留。
+- `backend/test/openApiConnector.test.ts`：个人组合实际导出/重载、同 Host 原文检索和固定 GET、入口/数量与旧参数保持；目录/引用/Schema 边界、公网限制、原记录归属、导出后真实加载、Tool 预算/Scope/参数拒绝、JSON/预览、插件卸载与历史保留。
 - `backend/test/mcpWorkbench.test.ts`、`knowledgeWeb.test.ts`：共用请求读取和网络默认行为回归。
 - `frontend/src/pages/workspace/mcpInput.test.mjs`：经兼容导出验证共用 JSON 输入解析。
 - `backend/test/featureIndex.test.ts`：Owner、索引及默认组合数量。
@@ -114,4 +116,5 @@ OAuth/Bearer、私网/本机 API、Swagger 2、写入方法、任意 Header/Cook
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-06 | 导出可选保留个人工作台与本机来源；旧独立请求保持 | 实际基底重载、固定 GET 与知识检索、回归及浏览器验证 |
 | 2026-11-06 | 新增显式 OpenAPI 发现、记录绑定授权与固定契约读取插件 | 专项、类型/前端门禁、后端回归及 Open-Meteo 本地端到端验收；见用户指南与提交证据 |

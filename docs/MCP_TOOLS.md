@@ -8,13 +8,15 @@ MCP 插件不在默认组合中。它不提供在线安装、任意仓库分析�
 
 默认工作台的「接入工具」输入匿名公开 HTTPS 地址和本地服务标识；预填 Context7 官方地址。点击「发现工具」只执行握手和目录发现，不运行目录内工具或读取宿主凭据。展开参数契约，审查并勾选最多 50 个读取工具，明确确认后生成配置。上游 readOnlyHint 只是未受信提示，不能代替审查；这与 [MCP 工具规范](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)的信任边界一致。
 
-下载 `mcp-<服务标识>.local.yaml`，保存到项目 **backend/examples/**。在 backend 目录按页面命令重启，例如：
+页面默认勾选“保留本机个人工作台”。下载 `mcp-<服务标识>.personal.local.yaml`，保存到项目 **backend/examples/**；停止原服务后，在仓库根目录按页面命令重启，例如：
 
 ```sh
-AGENT_PLUGINS_FILE=examples/mcp-context7.local.yaml bun run dev
+AGENT_PLUGINS_FILE=examples/mcp-context7.personal.local.yaml bun run local
 ```
 
-该文件选择连接器、通用运行器和接入助手三个插件，两位 Native Agent；不会叠加原默认组合。重启后在「运行工具」选择已授权工具，按当前 Schema 填写 JSON 对象参数并执行。结果保留 Agent、授权路由 Tool 和上游 Tool 三个步骤，共享两次工具预算，零模型调用；协议资源链接仅保存在结果中，不自动下载。
+个人模式的配置声明 base: personal，按本机来源/仓库设置重新装配个人工作台，再追加连接器和运行器；接入助手已在基底中。标准基底下共十六插件十 Agent，知识、研究、资料库、配方和模型设置保留。
+
+取消保留时，仍导出原 mcp-<服务标识>.local.yaml，选择连接器、运行器、接入助手三个插件及两位 Native Agent；使用下载的实际文件名启动。API 缺省/false 保持此旧行为，true 采用个人基底。两种模式都不合并其他自定义附加插件或团队组合；重复 ID 拒绝覆盖。重启后在「运行工具」选择已授权工具，按当前 Schema 填写 JSON 对象参数并执行。结果保留 Agent、授权路由 Tool 和上游 Tool 三个步骤，共享两次工具预算，零模型调用；协议资源链接仅保存在结果中，不自动下载。
 
 生成配置尚未修改当前 Host 或安装工具。相对模块路径要求文件放在 examples；其他能力需要在可信 YAML 中明确组合。目录限制八页/200 项/512 KiB，不兼容或超过 16 KiB 的 Schema 项不能在页面勾选；运行参数最多 32 KiB。服务名称和版本是自报信息，不能作为锁定版本。生成配置启动时会重新校验工具是否存在及其当前 Schema。
 

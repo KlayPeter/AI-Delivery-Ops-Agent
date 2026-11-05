@@ -12,7 +12,7 @@ export const inspectInput = z.object({ serverId: identifier, url: z.string().max
     try { mcpHttpEndpoint(value); return true; } catch { return false; }
 }, '请使用不含凭据、查询参数或片段的公开 HTTPS MCP 地址') }).strict();
 const toolName = z.string().regex(/^[A-Za-z0-9_.-]{1,128}$/);
-const profileInput = inspectInput.extend({ reviewedReadOnly: z.literal(true), tools: z.array(z.object({ name: toolName, alias: identifier }).strict()).min(1).max(50) }).strict();
+const profileInput = inspectInput.extend({ reviewedReadOnly: z.literal(true), tools: z.array(z.object({ name: toolName, alias: identifier }).strict()).min(1).max(50), includePersonalWorkspace: z.boolean().optional() }).strict();
 
 export async function inspectMcp(value: unknown, signal: AbortSignal, network?: McpHttpNetwork) {
     const input = inspectInput.parse(value);
@@ -64,10 +64,10 @@ export function exportMcpProfile(value: unknown) {
     if (new Set(input.tools.map(tool => tool.name)).size !== input.tools.length) throw new Error('不能重复选择同一工具');
     const config = mcpConfig.parse({ servers: [{ id: input.serverId, transport: 'http', url: input.url, tools: input.tools.map(tool => ({ ...tool, readOnly: true, description: `Reviewed MCP read tool: ${tool.name}` })) }] });
     const allowedTools = input.tools.map(tool => `mcp.${input.serverId}.${tool.alias}`);
-    return { filename: `mcp-${input.serverId}.local.yaml`, yaml: '# Save under backend/examples/. Review read grants, then restart with AGENT_PLUGINS_FILE=examples/<filename> bun run dev\n' + stringify({ apiVersion: '1.0', plugins: [
+    return { filename: `mcp-${input.serverId}${input.includePersonalWorkspace ? '.personal' : ''}.local.yaml`, yaml: '# Save under backend/examples/. Review read grants, then restart from the repository root with AGENT_PLUGINS_FILE=examples/<filename> bun run local\n' + stringify({ apiVersion: '1.0', ...(input.includePersonalWorkspace ? { base: 'personal' } : {}), plugins: [
         { module: '../src/connectors/mcp/plugin.ts', config },
         { module: '../src/connectors/mcp-workbench/runner.ts', config: { allowedTools } },
-        { module: '../src/connectors/mcp-workbench/plugin.ts' },
+        ...(input.includePersonalWorkspace ? [] : [{ module: '../src/connectors/mcp-workbench/plugin.ts' }]),
     ] }) };
 }
 

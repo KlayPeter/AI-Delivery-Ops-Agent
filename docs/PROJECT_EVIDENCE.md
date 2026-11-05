@@ -349,6 +349,22 @@ skills.setup / skills.prompt 1.2.0 的导出可以显式保留个人工作台：
 
 本轮修正入口文档遗漏的 base: personal 组合说明，并在文档中心加入 Skill、研究、配方、运行控制与评测指南。新安装依赖下，启动/组合回归 13 项与前端 27 项通过，前后端类型、前端 lint/build 通过；文档功能索引另有 3 项通过。保留 163 项既有 lint 警告及大包提示。未改运行代码；未执行真实模型生成、外部业务写入、Windows 安装或独立用户试用。
 
+## MCP / OpenAPI 与个人工作台组合验证
+
+mcp.setup / openapi.setup 1.1.0 的导出新增显式个人基底选择，页面默认勾选；切换选项清除旧配置并要求重新生成。true 保留本机个人知识、研究、资料库、配方及模型设置，false/缺省保持原独立模式；不自动合并其他自定义附加插件。默认十四插件九 Agent 保持。
+
+使用独立 SQLite、数据目录和本批源码，通过浏览器实际发现 Context7 4.5.0（服务自报），运行 `c8e88f38-5634-4476-99af-f5fec448cddb`；固定 Open-Meteo 规范发现为 `695ff6ca-1795-4e6b-83f9-f4ddd429983b`，来源 SHA 与既有固定提交一致。审查后分别实际下载 mcp-context7.personal.local.yaml 和 openapi-open-meteo.personal.local.yaml，原样保存并重启：MCP 为十六插件十 Agent、接入助手唯一；OpenAPI 为十六插件十一 Agent。两者均保留可编辑知识来源与个人入口，没有模型配置。
+
+在各自下载组合内，Open-Meteo 真实 GET `f5406dda-163f-4cc6-9c7c-1ccd434497dc` 返回 325 字节 JSON；知识检索 `b615c1e2-1992-48a5-83d1-c09da4a47a66` 命中虚构示例。Context7 工具运行 `078719b2-568f-47d9-b73a-6a747b4454c6` 实际返回 React 文档库候选。工具运行均保存 Agent/路由 Tool/上游 Tool 三步，零模型调用；服务内容、自报版本和排名不作为本项目质量指标。
+
+另按作者规范，把两份导出的四个追加模块明确合并为一份 base: personal 配置，十八插件十二 Agent 同 Host 装配成功。该组合再次执行 MCP `97561272-f581-4f5b-b438-81112616dbdb`、OpenAPI `21b6a864-46e8-4912-8773-981a67ba3cf3` 和知识检索 `e86b9af1-e0a3-4e3c-a7a1-b3b6a66a6bb0`，全部成功，模型仍为零。切换前五条根运行的原步骤和产物逐项保持一致；这是显式文件组合验证，不是新增自动合并功能。
+
+![个人知识与 MCP / OpenAPI 同时装配后的真实执行结果](images/tool-personal-combined.png)
+
+两类接入表单在 375px 下文档宽度均为 375px，组合选项可读，无页面横向溢出。天气查询使用固定公开地点柏林，非用户定位；数据由 [Open-Meteo](https://open-meteo.com/) 提供，按 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 标注。Context7 仅发送公开的 React 查询，没有私人笔记或凭据。
+
+本批后端 **727 通过、1 项真实 TAPD 跳过**，前端 **27 通过**，前后端类型、前端 lint/build 通过；保留 163 项既有 lint 警告与大包提示。专项验证真实导出 YAML 经工作台组合加载器执行、MCP setup 唯一、知识与工具共存、旧请求兼容及原授权/Scope/预算边界。本批预览复用现有依赖；未调用真实模型、未验证自动工具选择、未部署或扩大第三方工具权限。
+
 ## 仍需完成与验证
 
 完整的基础服务插件化、认证 MCP/HTTP Agent 接入助手、已有笔记替换与通用历史环境

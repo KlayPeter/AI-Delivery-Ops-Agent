@@ -16,7 +16,7 @@ const manifest: AgentManifest = {
 };
 export function createMcpSetupPlugin(network?: McpHttpNetwork): FeaturePlugin {
     return {
-        manifest: { apiVersion: '1.0', id: 'mcp.setup', name: manifest.name, version: '1.0.0', description: manifest.description }, agents: [{ manifest, installationId: 'install-mcp-inspector' }],
+        manifest: { apiVersion: '1.0', id: 'mcp.setup', name: manifest.name, version: '1.1.0', description: manifest.description }, agents: [{ manifest, installationId: 'install-mcp-inspector' }],
         apply(ctx) {
             ctx.delivery.web.register({ id: 'mcp.setup', pages: [{ path: '/mcp-setup', label: '接入工具', section: 'workspace', view: { kind: 'builtin', id: 'mcp-setup', capability: MCP_SETUP_CAPABILITY } }],
                 api: { prefix: '/api/mcp-setup', routes: [{ method: 'POST', path: '/api/mcp-setup/profile' }], async handle(request) {
