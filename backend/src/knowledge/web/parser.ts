@@ -1,3 +1,6 @@
+/// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
+// LinkeDOM and Readability require DOM types even in a server-only installation.
 import { Readability } from '@mozilla/readability';
 import { parseHTML } from 'linkedom';
 import { contentHash, parseNote } from '../markdown/parser';
