@@ -93,6 +93,8 @@ flowchart TD
 
 知识库页面与描述 API 由 knowledge.workspace 所有；卸载界面不删除运行记录或底层来源能力。页面明确选择来源并核对回答插件依赖，描述错误时不使用缓存来源发起新任务。知识请求仍复用原 Run/Artifact，无新状态机；专项覆盖来源并存、生命周期与只读 API 边界。
 
+群成员后台同步在单群失败、无成员变化时仍记录带失败结果的 group_members_sync，不把静默无更新当作读取成功；原成员保留。验证见 backend/test/groupMembers.test.ts。
+
 ## 核心规则
 
 Native 插件可以使用宿主 Orchestrator/Tool Gateway 组合执行；RAG 回答把检索、模型步骤与带版本证据的 Artifact 归入同一 Run。引用核验只证明身份和精确引文存在，不代表结论语义已验证。模型步骤失败时不发布答案。

@@ -31,6 +31,7 @@ flowchart TD
     A["Config Page / API"] --> B["Schema 校验与持久化"]
     C["飞书通讯录与群"] --> D["带页数/时长/总请求预算的成员同步"]
     D --> B
+    D -- 单群读取失败且无成员变更 --> MSFAIL[保留原成员并记录 group_members_sync 失败结果]
     B --> E["Scheduler 重载并合并重叠 tick"]
     E --> F["按时区计算到期计划"]
     F --> HC{"群日期策略与指定日期允许?"}
@@ -198,6 +199,8 @@ Debug 与 /api/jobs 统一使用 PluginWebRegistry 的 manualJobs。站会声明
 - `backend/test/groupMembers.test.ts`、`companyMembers.test.ts`：成员同步、完整目录快照和离职停用。
 
 本批验证：`backend/test/projectVisibilityApi.test.ts` 覆盖插件关闭后的读写拒绝、文件边界、计划校验和审计；`frontend/src/pages/workspace/pages.test.mjs` 覆盖旧看板链接的所有权。配合后端全量回归、前端门禁和桌面/移动端浏览器验收。
+
+后台 syncAll/syncGroup 即使没有成员变更，只要包含单群失败也记录 group_members_sync，避免 scheduler 模式静默丢失失败。失败不覆盖现有成员，专项覆盖两个入口。
 
 ## 变更记录
 

@@ -69,7 +69,7 @@ export class GroupMemberSyncService {
         const result = await this.syncConfig(currentConfig, dynamicConfig);
         const hasError = result.results.some(r => r.error);
 
-        if (result.changed || trigger !== "scheduler") {
+        if (result.changed || hasError || trigger !== "scheduler") {
             await this.store.appendAuditLog("group_members_sync", {
                 trigger,
                 changed: result.changed,
@@ -105,7 +105,7 @@ export class GroupMemberSyncService {
         const result = await this.syncConfig(scopedConfig, dynamicConfig);
         const hasError = result.results.some(r => r.error);
 
-        if (result.changed || trigger !== "scheduler") {
+        if (result.changed || hasError || trigger !== "scheduler") {
             await this.store.appendAuditLog("group_members_sync", {
                 trigger,
                 changed: result.changed,

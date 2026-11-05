@@ -95,3 +95,17 @@ describe("Group member synchronization", () => {
         });
     });
 });
+
+for (const method of ['syncAll', 'syncGroup'] as const) test(`scheduled ${method} failures are audited without replacing existing members`, async () => {
+    const logs: any[] = [];
+    const raw = { groups: [{ chat_id: 'oc_existing', name: 'Group', members: [{ open_id: 'ou_kept', name: 'Existing member', is_active: true }], schedule: {} }] };
+    const store: any = { getDynamicConfig: async () => raw,
+        saveDynamicConfig: async () => { throw new Error('A failed fetch must not replace members'); },
+        appendAuditLog: async (event: string, payload: any) => { logs.push({ event, payload }); },
+    };
+    const service = new GroupMemberSyncService(store, { listGroupMembers: async () => { throw new Error('fixture access failure'); } } as any);
+    const result = method === 'syncAll' ? await service.syncAll('scheduler') : await service.syncGroup('oc_existing', 'scheduler');
+    expect(result.changed).toBe(false); expect(result.results[0].error).toBe('fixture access failure');
+    expect(raw.groups[0].members[0].open_id).toBe('ou_kept');
+    expect(logs).toHaveLength(1); expect(logs[0]).toMatchObject({ event: 'group_members_sync', payload: { changed: false, trigger: 'scheduler' } });
+});
