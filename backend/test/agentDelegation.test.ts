@@ -42,6 +42,58 @@ function trigger(trustedContext?: Record<string, unknown>) {
 }
 
 describe('Agent-to-Agent delegation', () => {
+    for (const timing of ['before-child', 'during-child', 'pending-child', 'during-save', 'parent-timeout'] as const) {
+        test(`does not publish child success after parent cancellation: ${timing}`, async () => {
+            const parentManifest = manifest('main-agent', 'main.run', ['child.run']);
+            if (timing === 'parent-timeout') parentManifest.limits.timeoutSeconds = 1;
+            const childManifest = manifest('child-agent', 'child.run');
+            const registry = new AgentRegistry();
+            for (const definition of [parentManifest, childManifest]) {
+                registry.register(definition);
+                registry.install({ id: `install-${definition.id}`, workspaceId: 'workspace-default', agentId: definition.id, version: definition.version, status: 'active', config: {}, secretRefs: {} });
+                registry.bind({ id: `bind-${definition.id}`, botInstanceId: 'bot-default', agentInstallationId: `install-${definition.id}`, enabled: true, priority: 1, capabilities: definition.capabilities, routingConfig: {}, configOverride: {} });
+            }
+            const runs = new InMemoryAgentRunStore(), adapter = new NativeAgentAdapter();
+            const runtime = new AgentRuntime(registry, new BotRegistry([{
+                id: 'bot-default', workspaceId: 'workspace-default', platform: 'feishu', name: 'bot', appId: 'app', secretRef: 'config://secret', status: 'active', config: {},
+            }]), runs, [adapter]);
+            const cancellation = new AbortController();
+            if (timing === 'during-save') {
+                const saveArtifacts = runs.saveArtifacts.bind(runs);
+                runs.saveArtifacts = artifacts => {
+                    saveArtifacts(artifacts);
+                    if (artifacts.length) cancellation.abort();
+                };
+            }
+            let calls = 0, childExecution: ReturnType<typeof runtime.delegate> | undefined;
+            adapter.register(childManifest.id, childManifest.version, async (_request, _resolved, signal) => {
+                calls++;
+                const result = { status: 'succeeded' as const, artifacts: [{ type: 'markdown' as const, mediaType: 'text/markdown', schemaVersion: '1.0', content: 'late child output' }] };
+                if (timing === 'parent-timeout') return new Promise(resolve => signal.addEventListener('abort', () => resolve(result), { once: true }));
+                if (timing !== 'during-save') cancellation.abort();
+                if (timing === 'pending-child') return new Promise<never>(() => {});
+                return result;
+            });
+            adapter.register(parentManifest.id, parentManifest.version, async (request, resolved, signal) => {
+                if (timing === 'before-child') cancellation.abort();
+                childExecution = runtime.delegate(request, resolved.manifest, 'child.run', {}, timing === 'parent-timeout' ? signal : cancellation.signal);
+                await childExecution;
+                return { status: 'succeeded', artifacts: [] };
+            });
+            const parent = await runtime.execute(trigger(), 'main.run', {});
+            const child = await childExecution!;
+            expect(child.run.status).toBe('failed');
+            expect(child.run.error).toMatchObject({ code: 'PARENT_ABORTED', retryable: false });
+            expect(calls).toBe(timing === 'before-child' ? 0 : 1);
+            expect(runs.listArtifacts(child.run.id)).toHaveLength(timing === 'during-save' ? 1 : 0);
+            expect(runs.listSteps(child.run.id)).toHaveLength(1);
+            expect(runs.listSteps(child.run.id)[0]?.status).toBe('failed');
+            expect(runs.listSteps(parent.run.id).find(step => step.name === 'delegate:child.run')?.status).toBe('failed');
+            if (timing === 'parent-timeout') expect(parent.run.error).toMatchObject({ code: 'TIMEOUT', retryable: true });
+            else expect(parent.run.status).toBe('succeeded');
+        });
+    }
+
     test('creates a bounded child Run with parent, root and correlation traceability', async () => {
         const parentManifest = manifest('main-agent', 'main.run', ['child.run']);
         const childManifest = manifest('child-agent', 'child.run');

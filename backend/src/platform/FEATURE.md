@@ -62,6 +62,8 @@ flowchart TD
     E -- HTTP --> H["受限外部 Agent"]
     F --> I["Tool Gateway"]
     F -. 委派 .-> C
+    D --> AB[父信号或自身截止时间中止执行；停止等待并拒绝迟到成功]
+    AB --> FAIL[失败 Run / Step；不向调用者返回成功产物]
     I --> SV[标准 JSON Schema 校验；同 ID 契约隔离]
     SV --> J["Domain Service / Adapter"]
     X --> MCP[可选 MCP stdio 连接插件]
@@ -103,7 +105,7 @@ flowchart TD
 
 ## 本地工作台
 
-HTTP 应用首页提供任务、运行详情、Agent/插件清单和连接表单，复用现有 Host；本地请求固定默认 workspace/bot，最终结果不投递会话。HTTP 入口在团队组合之外默认装配示例知识来源、回答与复核插件（12 个插件、10 个 Agent）；团队 SDK 组合保持九个插件、七个 Agent。管理 API 校验回环 Host/Origin；这不是多人认证。站会、看板、甘特、周报与隐藏纪要页面/API 已按插件装配；旧根查询和 HTML 链接同样核对所有者，甘特计划继续由 TaskService 保存。详见 [工作台功能卡](workspace/FEATURE.md)。
+HTTP 应用首页提供任务、运行详情、Agent/插件清单和连接表单，复用现有 Host；本地请求固定默认 workspace/bot，最终结果不投递会话。HTTP 默认组合数量见[工作台功能卡](workspace/FEATURE.md)与[首页装配表](../../../README.md#能力与插件)，首页数量由回归对照实际声明校验；团队 SDK 组合保持九个插件、七个 Agent。管理 API 校验回环 Host/Origin；这不是多人认证。站会、看板、甘特、周报与隐藏纪要页面/API 已按插件装配；旧根查询和 HTML 链接同样核对所有者，甘特计划继续由 TaskService 保存。
 
 ## 核心规则
 
@@ -112,6 +114,8 @@ HTTP 应用首页提供任务、运行详情、Agent/插件清单和连接表单
 原生插件现在可调用宿主 Orchestrator 和 Tool Gateway 组合受治理管线。知识回答用一个检索 Tool 和一次无 Tool 的模型生成，在发布前核验引用；两个个人知识插件均不进入默认团队组合。`allowHumanInput: false` 关闭模型执行器的默认人工输入函数，其他 Agent 保持原有默认暂停恢复行为。
 
 Tool Gateway 在预取消和领取账本期间取消时拒绝进入 Handler；已领取调用记录失败，预取消不领取。超时将同一个 TOOL_TIMEOUT 原因传给 Handler 与等待方，避免协作取消把超时混成未知错误。已经发出的外部操作仍需业务幂等和结果核验。
+
+Agent Runtime 在进入 Adapter 前核对父信号，并让父中止与自身截止时间参与等待；忽略信号或中止后返回成功的 Adapter 不能把迟到结果变成成功 Run。接收结果及持久化成功状态前再次检查信号。自身超时保留 TIMEOUT/可重试，父中止记录 PARENT_ABORTED/不可重试，Agent/委派 Step 同步失败并保留执行快照；不将其标成用户主动取消。已持久化的事实保留，失败返回不交付成功产物。原生代码不构成可强杀沙箱，已发出的业务副作用不自动回滚。
 
 1. **Manifest 是运行契约。** Agent 只能声明并使用自己的 Capability、Tool、Skill 和可委派子 Agent；运行时不接受 Prompt 临时扩大权限。
 2. **Registry 负责发现，Binding 负责使用。** 安装 Agent 不等于所有机器人自动可用；Bot Binding 决定某个机器人可路由哪些 Capability，以及优先级和覆盖配置。
@@ -280,7 +284,7 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 - `backend/test/modelLoopAgent.test.ts`、`domainAgents.test.ts`：Agent 执行。
 - `backend/test/toolSkillRuntime.test.ts`：Tool 与 Skill 治理。
 - `backend/test/sessionRuntime.test.ts`、`persistentAgentKernel.test.ts`：恢复和持久化。
-- `backend/test/agentDelegation.test.ts`：委派边界。
+- `backend/test/agentDelegation.test.ts`：委派边界；预中止、执行中止、忽略信号、持久化期间中止及真实父超时，拒绝假成功并保留原记录。
 - `backend/test/externalAgent.test.ts`：HTTP Agent。
 - `backend/test/agentControlPlane.test.ts`、`platformScope.test.ts`：控制面与隔离。
 - `backend/test/multiBotIngress.test.ts`、`aiNewsRadar.test.ts`：多 Bot 入站和专用 Native Agent。
@@ -291,6 +295,7 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 父中止参与实际等待；拒绝预取消执行和迟到成功，区分父中止与自身超时 | 委派五种中止回归、Runtime/Trigger/模型/Tool 专项、类型及后端全量回归 |
 | 2026-11-05 | Host 跟踪插件 HTTP 和手动任务，拒绝已移除插件的旧入口 | 插件 Web/站会 API 专项、后端回归、前端检查及默认/空配置/MCP 浏览器验收 |
 | 2026-11-05 | 接入可选 MCP 工具插件，升级标准 JSON Schema 校验，保持 Agent/Tool/Skill 共用参数边界 | MCP/Schema 专项、后端全量回归与官方文件服务实际读取/越界拒绝 |
 | 2026-11-05 | Host 支持受 Scope 与生命周期约束的插件动作，复用现有 Capability 与 Runtime | 插件动作/API 专项、后端回归、前端检查与桌面/375px 浏览器验收 |

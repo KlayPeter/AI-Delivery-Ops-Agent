@@ -37,6 +37,8 @@ flowchart TD
     EMAIL --> UNCERTAIN[接受后保存失败显式返回；当前进程不重发]
     WOWN --> B["Trigger / Job Execution"]
     B --> C["Agent Run / 业务服务"]
+    C --> AB[父中止或自身超时：停止等待并拒绝迟到成功]
+    AB --> AFAIL[失败 Run / Agent Step / 委派 Step；无成功返回产物]
     C --> SC[Agent / Tool / Skill 标准 JSON Schema 校验]
     SC --> C7[标准 Skill 与社区 MCP 工具调用]
     C7 --> TC
@@ -108,6 +110,8 @@ flowchart TD
 Native 插件可以使用宿主 Orchestrator/Tool Gateway 组合执行；RAG 回答把检索、模型步骤与带版本证据的 Artifact 归入同一 Run。引用核验只证明身份和精确引文存在，不代表结论语义已验证。模型步骤失败时不发布答案。
 
 Tool 在已取消请求或领取账本期间收到取消时不进入 Handler；领取过的调用写入失败状态。超时和协作取消共享 TOOL_TIMEOUT 原因，不把取消当作成功，也不能据此声称外部副作用已回滚。
+
+Agent 的父中止同样是实际执行边界：预中止不进入 Adapter，执行中即使 Adapter 不响应也停止等待，接收结果及成功状态写入前再次核对。父中止为 PARENT_ABORTED/不可重试，自身截止为 TIMEOUT/可重试；Run、Agent Step 与委派 Step 记录失败并保留执行快照。失败返回不向上层交付成功产物；已持久化事实仍保留，不声称回滚原生代码或已经发出的外部操作。验证：backend/test/agentDelegation.test.ts 五种中止情形及 agentRuntime.test.ts。
 
 Host 关闭时先停止消息注册表接受新执行，等待在途确定性消息、调度轮次与 Agent Run、投递收敛后再释放插件。停用功能删除其内存消息贡献，不删除历史来源消息、引用、运行和业务数据；历史引用本身不会重新启用功能。
 
