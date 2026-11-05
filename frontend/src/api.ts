@@ -58,6 +58,8 @@ export const api = {
   fetchLibrary: () => request(client.get('/library')),
   fetchKnowledgeReviews: (runIds: string[]) => request(client.get('/knowledge-impact/reviews?' + new URLSearchParams(runIds.map(id => ['runId', id])).toString())),
   fetchRunCheckContracts: () => request(client.get('/checks/contracts')),
+  fetchOpenApiTools: () => request(client.get('/openapi-runner/tools')),
+  exportOpenApiProfile: (input: { inspectionRunId: string; reviewedReadOnly: boolean; selections: { key: string; serverUrl: string }[] }) => request(client.post('/openapi-setup/profile', input)),
   fetchMcpTools: () => request(client.get('/mcp-runner/tools')),
   exportMcpProfile: (input: Record<string, unknown>) => request(client.post('/mcp-setup/profile', input)),
   uploadDocument: (file: File) => request(client.post('/documents/uploads', file, { headers: { 'Content-Type': 'application/octet-stream', 'X-Document-Name': encodeURIComponent(file.name) } })),

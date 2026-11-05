@@ -54,8 +54,10 @@ are deferred while the local product is being validated.
 - [x] Add anonymous public HTTPS MCP discovery, explicit read review, downloadable
   local configuration and a generic governed runner; verify the downloaded profile
   against the real Context7 service without a custom adapter or model.
-- [ ] Extend onboarding to reviewed HTTP/OpenAPI adapters and accurately report
-  unsupported repositories; authenticated MCP discovery still needs a separate design.
+- [x] Add explicitly selected public OpenAPI 3.0/3.1 discovery, visible unsupported
+  operations, successful-run-bound review/export and pinned anonymous GET execution.
+  This is a bounded subset, not arbitrary repository execution or full OpenAPI support.
+- [ ] Design authenticated MCP/OpenAPI onboarding and credential destination grants.
 - [x] Add versioned plugin result contracts, sample checks and recorded execution
   receipts. Checks cover structure and required steps, not semantic correctness.
 - [x] Deliver GitHub fact collection and release preparation with linked knowledge

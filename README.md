@@ -160,3 +160,5 @@ SQLite 与资料库要求同一数据目录只有一个后端写实例。不要�
 [项目演示与验证证据](docs/PROJECT_EVIDENCE.md)提供可复现流程、实际截图、简历描述和待完成事项。
 项目采用 [Apache License 2.0](LICENSE)；外部服务、内容源和依赖见
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+可选 [OpenAPI 接入](docs/OPENAPI_TOOLS.md)：从公开规范审查并导出固定 GET 工具，运行保留来源和响应指纹；不需要第三方提供 MCP。

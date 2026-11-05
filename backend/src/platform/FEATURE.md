@@ -383,3 +383,18 @@ flowchart LR
     MIX_MD --> MIX_RESULT[保留原引用与独立版本]
     MIX_WEB --> MIX_RESULT
 ```
+
+## 显式 OpenAPI 接入与运行
+
+openapi.setup 与 connector.openapi 通过既有 Cordis 注册独立 Agent、Tool、页面/API，不改变默认十四插件九 Agent。发现不调用接口；导出先核对成功根 Run 的默认 workspace/bot 和带角色目录，仅接受该次可用接口及服务器选择，固定输入契约后重启生效。运行沿用 Scope、共享两次预算、取消与 Run/Step/Artifact；卸载释放入口而保留历史。workspace/request.ts 提供 MCP/OpenAPI 共用的 16 KiB/5 秒取消感知正文读取，原 MCP 导出语义保持。
+
+```mermaid
+flowchart LR
+    OA_UI[插件接入页面] --> OA_RUN[成功发现 Run 与私有目录]
+    OA_RUN --> OA_EXPORT[归属核验、选择审查与固定配置导出]
+    OA_EXPORT --> OA_START[用户保存并重启]
+    OA_START --> OA_GATE[Native Runner 与白名单 Tool]
+    OA_GATE --> OA_HISTORY[真实 JSON 与来源、响应指纹]
+```
+
+边界与代码地图见[OpenAPI 功能卡](../connectors/openapi/FEATURE.md)。验证：backend/test/openApiConnector.test.ts、mcpWorkbench.test.ts、knowledgeWeb.test.ts；前端类型/lint/build 与桌面/375px 验收。不提供认证、私网、写入或完整输出 Schema 验证。

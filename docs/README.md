@@ -6,6 +6,7 @@
 ## 使用者
 
 - [本地运行与工作台](LOCAL_DEVELOPMENT.md)：无需部署的启动步骤、连接表单与实际 Agent 运行。
+- [OpenAPI 工具](OPENAPI_TOOLS.md)：读取公开规范、审查接口与服务器、导出配置并运行固定 GET。
 - [MCP 工具](MCP_TOOLS.md)：连接本地 stdio 或公开 HTTPS 服务、明确授权范围并查看运行证据。
 - [Context7 与标准 Skill](COMMUNITY_PLUGINS.md)：真实社区工具、SKILL.md 导入和独立配置档。
 - [网页与文档收集](DOCUMENT_IMPORT.md)：安装 MarkItDown、导入资料、明确收录及资料库来源切换。

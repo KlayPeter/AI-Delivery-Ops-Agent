@@ -16,6 +16,8 @@ const DocumentsPage = lazy(() => import('./DocumentsPage'));
 const LibraryPage = lazy(() => import('./LibraryPage'));
 const KnowledgeReviewsPage = lazy(() => import('./KnowledgeReviewsPage'));
 const ChecksPage = lazy(() => import('./ChecksPage'));
+const OpenApiSetupPage = lazy(() => import('./OpenApiSetupPage'));
+const OpenApiRunnerPage = lazy(() => import('./OpenApiRunnerPage'));
 const McpSetupPage = lazy(() => import('./McpSetupPage'));
 const McpRunnerPage = lazy(() => import('./McpRunnerPage'));
 const ResearchPage = lazy(() => import('./ResearchPage'));
@@ -40,6 +42,8 @@ export default function PluginPage() {
   if (page?.view.kind === 'builtin' && page.view.id === 'knowledge-library') return <LibraryPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'knowledge-reviews') return <KnowledgeReviewsPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'plugin-checks') return <ChecksPage />;
+  if (page?.view.kind === 'builtin' && page.view.id === 'openapi-setup') return <OpenApiSetupPage />;
+  if (page?.view.kind === 'builtin' && page.view.id === 'openapi-runner') return <OpenApiRunnerPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'mcp-setup') return <McpSetupPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'mcp-runner') return <McpRunnerPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'personal-research') return <ResearchPage />;

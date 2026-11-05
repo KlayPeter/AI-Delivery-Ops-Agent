@@ -5,7 +5,7 @@ status: active
 agent_mapping:
   - native.mcp-inspector
   - native.mcp-runner
-last_reviewed: 2026-11-05
+last_reviewed: 2026-11-06
 ---
 
 # MCP 接入与通用运行
@@ -135,3 +135,7 @@ flowchart TD
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
 | 2026-11-05 | 新增独立接入助手与通用运行插件；明确读取授权与可执行本地配置 | TCP/SDK 专项、类型/前端检查、全量回归与在线浏览器验收，结果见提交说明 |
+
+## 共用有界输入读取
+
+profileRequest 委托 backend/src/platform/workspace/request.ts 的 readSmallJsonBody，保留 16 KiB、5 秒、AbortSignal 和流取消；前端 mcpInput.ts 兼容导出 toolInput.ts 的原 JSON 对象/32 KiB 校验。无 MCP 协议或导出字段变化。验证：mcpWorkbench.test.ts、openApiConnector.test.ts、mcpInput.test.mjs。

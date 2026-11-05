@@ -33,19 +33,19 @@ export interface PublicPage { url: string; body: Buffer; contentType: string }
 interface PageResponse { status: number; headers: http.IncomingHttpHeaders; body: Buffer }
 export interface WebTransport {
     resolve(host: string): Promise<Array<{ address: string; family: number }>>;
-    request(url: URL, address: string, maxBytes: number, signal: AbortSignal): Promise<PageResponse>;
+    request(url: URL, address: string, maxBytes: number, signal: AbortSignal, accept?: string): Promise<PageResponse>;
 }
 
 export const publicWebTransport: WebTransport = {
     resolve: host => lookup(host, { all: true, verbatim: true }),
-    request(url, address, maxBytes, signal) {
+    request(url, address, maxBytes, signal, accept = 'text/html, text/markdown, text/plain') {
         return new Promise((resolve, reject) => {
             const request = (url.protocol === 'https:' ? https : http).request({
                 protocol: url.protocol, hostname: address, port: url.port || (url.protocol === 'https:' ? 443 : 80),
                 // Pin the vetted IP; preserve the original hostname for TLS identity and HTTP routing.
                 servername: isIP(url.hostname.replace(/^\[|\]$/g, '')) ? undefined : url.hostname,
                 method: 'GET', path: `${url.pathname}${url.search}`, agent: false, signal, maxHeaderSize: 16 * 1024,
-                headers: { host: url.host, accept: 'text/html, text/markdown, text/plain', 'accept-encoding': 'identity', 'user-agent': 'DeliveryOpsKnowledge/1.0' },
+                headers: { host: url.host, accept, 'accept-encoding': 'identity', 'user-agent': 'DeliveryOpsKnowledge/1.0' },
             }, response => {
                 void (async () => {
                     const status = response.statusCode || 0;

@@ -32,3 +32,10 @@ shipped with dependencies.
 Backend and frontend dependencies are declared in `backend/package.json` and
 `frontend/package.json`, with resolved versions in their lockfiles. Each
 dependency remains subject to its own license and copyright notices.
+
+## Open-Meteo
+
+- Project: <https://github.com/open-meteo/open-meteo>
+- Definition: `openapi/forecast.yml` at commit `ecd65b64d966224046aaebbcda33a216f0ebd731`.
+- Use here: an optional public OpenAPI URL and a read-only integration demonstration; no server implementation or forecast dataset is bundled.
+- Attribution: weather data by [Open-Meteo](https://open-meteo.com/), under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Consult the upstream API [terms](https://open-meteo.com/en/terms) and [license](https://open-meteo.com/en/license) before using the hosted service; this example does not grant commercial service access.

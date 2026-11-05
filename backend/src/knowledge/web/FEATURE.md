@@ -191,3 +191,7 @@ flowchart LR
 ## 可选混合组合
 
 本来源保持独立读取与权限边界；knowledge.mixed 可通过原 search/versions Tool 与另一来源组合，保留各自身份和版本。它不扩大本来源的目录或 URL 范围，不自动启用；实现与测试见 [混合知识功能卡](../mixed/FEATURE.md) 及 backend/test/knowledgeMixed.test.ts。
+
+## 公网传输复用
+
+WebTransport.request 可选第五个 Accept 参数供独立 OpenAPI 读取使用，网页默认仍为 text/html、text/markdown、text/plain；DNS/IP、Host/TLS、有界读取、网页重定向和正文处理不变。OpenAPI 自行禁止重定向，不扩大知识来源权限。验证：backend/test/knowledgeWeb.test.ts、openApiConnector.test.ts。

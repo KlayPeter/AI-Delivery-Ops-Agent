@@ -293,3 +293,7 @@ knowledge.mixed 是固定两源组合的实际例子，依赖 knowledge.markdown
 createKnowledgeAnswerPlugin 和 createReleasePlugin 的可信 source port 可声明 toolCalls（默认 1），代表一次检索含路由的总成本；混合为 3。该参数由宿主代码提供，不来自问题、模型输出或页面输入。消费者的 Manifest 和共享预算要覆盖实际嵌套调用，metrics 记录 budget.used。当前混合仅支持笔记与公开网页，不是任意来源/权限的自动发现器。
 
 retrievalEvidence.source 可选 sources 覆盖数组（最多两项，markdown/web、available/unavailable、indexed、partial、可选 version）。原每条引用身份与文档版本仍是事实凭证，合并版本不能替代它们。partial/全部不可读、取消、预算耗尽和单源版本失败要分别表达；不把未读到当作知识不存在。实现、可运行配置与专项见[混合知识功能卡](../backend/src/knowledge/mixed/FEATURE.md)。
+
+## 无 MCP 的公开 REST 项目
+
+提供 OpenAPI 3.0/3.1 JSON/YAML 的服务可选择内置 openapi.setup / connector.openapi，经过目录发现、成功原记录绑定授权导出和固定 GET 运行；无需执行仓库代码或编写专属 Agent。支持边界、参数序列化、配置与复现见 [OpenAPI 工具](OPENAPI_TOOLS.md)。这是原生插件中的受控适配方式，不承诺兼容任意 OpenAPI 或仓库。
