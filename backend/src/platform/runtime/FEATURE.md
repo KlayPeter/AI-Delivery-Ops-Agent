@@ -3,7 +3,7 @@ feature_id: operations-observability
 name: 运行控制与可观测性
 status: active
 agent_mapping: []
-last_reviewed: 2026-08-04
+last_reviewed: 2026-11-05
 ---
 
 # 运行控制与可观测性
@@ -24,7 +24,8 @@ flowchart TD
     R --> Q["/healthz 进程存活"]
     R --> OAPI["/api/swagger API 文档"]
     S --> P["Cordis 插件装配与配置恢复"]
-    P --> Z["/readyz 数据库 + Agent Host 就绪"]
+    P --> MR["装配可释放消息贡献"]
+    MR --> Z["/readyz 数据库 + Agent Host 就绪"]
     S --> A["消息 / Scheduler / API"]
     A --> B["Trigger / Job Execution"]
     B --> C["Agent Run / 业务服务"]
@@ -62,6 +63,8 @@ flowchart TD
 - 可观测性不是独立 Agent；它是所有 Agent 和确定性流程共享的平台能力。
 
 ## 核心规则
+
+Host 关闭时先停止消息注册表接受新执行，等待在途确定性消息与 Agent Run、投递收敛后再释放插件。停用功能删除其内存消息贡献，不删除历史来源消息、引用、运行和业务数据；历史引用本身不会重新启用功能。
 
 1. **记录事实并执行有界保留。** Run、Step、Tool Call 采用追加式记录；Audit Event 默认保留 90 天，过期记录由每日维护任务分批删除，修复动作仍产生新事件而不覆盖原始证据。
 2. **不同状态机分别保存。** Job Execution 表示调度尝试，Agent Run 表示执行，Artifact 表示产物，Outbox 表示外部投递；它们用关联 ID 串联。
@@ -176,6 +179,8 @@ flowchart TD
 
 ### 主要测试
 
+- `backend/test/messagePlugins.test.ts`：在途确定性消息收敛、停机拒绝新执行与历史上下文禁用。
+
 - `backend/test/deliveryOutbox.test.ts`、`routedFeishuDelivery.test.ts`：投递、供应商退避、底层取消和 Bot 路由。
 - `backend/test/externalApiHealth.test.ts`：接口归一化、应用隔离、指标和熔断分类。
 - `backend/test/persistentAgentKernel.test.ts`、`triggerRuntime.test.ts`：运行持久化。
@@ -192,6 +197,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 消息贡献随插件回滚与释放；停机等待在途确定性消息并保留持久化事实 | 消息插件/Host 回归、后端 422 通过 / 1 TAPD 跳过、类型检查 |
 | 2026-11-05 | 增加可信 YAML Agent 插件选择与本地/已安装包加载；未启用模块不导入，消息 AI/新闻分流检查实际 Capability | 配置加载、插件/Host 测试与后端全量回归 |
 | 2026-11-05 | Host 改为选择插件组合后接入 Runtime；启动失败释放贡献，停止先等待在途 Run 与 Worker，再释放插件，持久化历史保留 | 插件/Host 测试、后端全量回归 |
 | 2026-11-05 | 修复通用 `logs/` 忽略规则误排除前端日志组件的问题；将筛选与表格源码纳入公开仓库，确保干净检出能构建 | 干净 Git 归档的前端类型检查、测试与构建；GitHub CI |

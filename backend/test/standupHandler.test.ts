@@ -1,3 +1,4 @@
+import { teamMessageRoutes } from "./helpers/messageRoutes";
 import { describe, expect, test } from "bun:test";
 import { StandupHandler } from "@/services/messageHandler/handlers/StandupHandler";
 import { ContextRouter } from "@/services/messageHandler/ContextRouter";
@@ -664,6 +665,7 @@ describe("StandupHandler", () => {
             feishu: { sendPrivateText: async () => ({ ok: true }) },
         };
 
+        ctx.messageRoutes = teamMessageRoutes();
         const result = await ContextRouter.maybeHandle(ctx, {} as any, {
             id: "om_standup_in_task_thread",
             sender_open_id: "ou_user",
@@ -679,6 +681,7 @@ describe("StandupHandler", () => {
     test("should reject a structured standup posted in a group instead of treating it as a task update", async () => {
         const replies: string[] = [];
         const result = await MessageRouter.handleGroup({
+            messageRoutes: teamMessageRoutes(),
             store: { appendAuditLog: async () => 1 },
             feishu: {
                 sendReplyText: async (_messageId: string, text: string) => {

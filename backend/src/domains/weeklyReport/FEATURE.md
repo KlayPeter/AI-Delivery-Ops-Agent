@@ -4,7 +4,7 @@ name: 项目周报
 status: active
 agent_mapping:
   - native.weekly-report
-last_reviewed: 2026-07-31
+last_reviewed: 2026-11-05
 ---
 
 # 项目周报
@@ -20,6 +20,8 @@ last_reviewed: 2026-07-31
 ```mermaid
 flowchart TD
     PL["Cordis: builtin.weekly-report"] --> A
+    PL --> MR["插件消息路由与帮助"]
+    MR --> A
     U["@机器人生成本周/上周周报"] --> H["WeeklyReportHandler"]
     S["周五配置时间"] --> HC{"群日期策略与指定日期允许?"}
     HC -- "是" --> G{"群已开启日报站会?"}
@@ -61,7 +63,7 @@ flowchart TD
 
 ## 核心规则
 
-运行时装配由 `builtin.weekly-report` 插件负责，拥有周报 Native Agent的注册与清理。Agent/Capability/安装 ID 和领域行为保持原契约；确定性 Handler、页面与调度入口尚未全部迁为插件贡献。
+运行时装配由 `builtin.weekly-report` 插件负责，拥有 周报 Native Agent 与群聊周报指令和能力提示的注册和清理。移除插件后历史引用与帮助不会重新开放消息入口；Agent/Capability/安装 ID 和领域行为保持原契约。页面、业务 API、调度与基础服务尚未全部迁为插件贡献。
 
 自动调度统一通过 `backend/src/core/scheduleCalendar.ts` 判断群级 `schedule.calendar`。指定日期的触发/暂停优先于基础策略；`workdays` 使用中国工作日（含调休），`every_day` 不限制节假日，`selected_dates` 仅执行指定触发日。日期放行不绕过模块开关、任务开关或原定时刻，手动触发不受该日历限制。未配置或 `legacy` 保留原有 `workdays_only` 规则及周报、承诺到期提醒的例外；无效日期与非布尔覆盖值在读取配置时丢弃。
 
@@ -121,6 +123,8 @@ flowchart TD
 
 ### 主要实现
 
+- `backend/src/agents/plugins/weeklyReport.ts`：Agent 与功能消息贡献的独立装配。
+
 - `backend/src/domains/weeklyReport/period.ts`：周范围和时区口径。
 - `backend/src/domains/weeklyReport/facts.ts`：站会、任务、变更事实聚合。
 - `backend/src/domains/weeklyReport/narrative.ts`：受约束的 LLM 归纳和确定性降级。
@@ -135,6 +139,8 @@ flowchart TD
 
 ### 主要测试
 
+- `backend/test/messagePlugins.test.ts`：插件禁用、历史引用、帮助与生命周期；原业务 Handler 测试继续验证默认行为。
+
 - `backend/test/weeklyReport.test.ts`：周期、事实、降级、HTML、失败关闭、命令和 TAPD 变更证据。
 - `backend/test/scheduler.test.ts`：周五时区调度和 Agent 派发。
 - `backend/test/dashboardData.test.ts`：TAPD 全分页同步回归。
@@ -143,6 +149,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 将群聊周报指令和能力提示归属 `builtin.weekly-report`，移除后同步关闭消息入口；业务服务契约保留 | 消息插件及原业务回归、后端 422 通过 / 1 TAPD 跳过、类型检查 |
 | 2026-11-05 | 将周报 Native Agent装配移入 `builtin.weekly-report`，保留业务与持久化契约 | 插件/Host 测试、后端全量回归 |
 | 2026-10-05 | 自动调度增加群级节假日策略与日历日期覆盖，保留旧配置兼容 | `scheduleCalendar.test.ts`、`scheduler.test.ts`、`config.test.ts`、前后端类型检查 |
 | 2026-08-03 | 周报前置 TAPD 同步增加 50 页/30 秒预算，预算错误穿透 Agent 调度且不再整轮重试 | `dashboardData.test.ts`、`weeklyReport.test.ts`、`scheduler.test.ts` |

@@ -4,7 +4,7 @@ name: 任务创建与跟踪
 status: active
 agent_mapping:
   - built-in.task-agent
-last_reviewed: 2026-08-12
+last_reviewed: 2026-11-05
 ---
 
 # 任务创建与跟踪
@@ -22,6 +22,8 @@ Task Agent 负责理解“用户想做什么”，`TaskService` 负责决定“�
 ```mermaid
 flowchart TD
     PL["Cordis: builtin.task"] --> B
+    PL --> MR["插件消息路由与帮助"]
+    MR --> B
     A["任务命令 / 主 Agent 委派"] --> B["Task Agent 或确定性 Handler"]
     B --> AI{"任务命令 AI 前置解析成功?"}
     AI -- "是" --> C["Task Tool Gateway"]
@@ -73,7 +75,7 @@ flowchart TD
 
 ## 核心规则
 
-运行时装配由 `builtin.task` 插件负责，拥有Task Agent、三个 Task Tool 与 task-management Skill的注册与清理。Agent/Capability/安装 ID 和领域行为保持原契约；确定性 Handler、页面与调度入口尚未全部迁为插件贡献。
+运行时装配由 `builtin.task` 插件负责，拥有 Task Agent、三个 Task Tool 与 task-management Skill 与任务命令、状态更新、任务引用上下文和追问文本恢复的注册和清理。移除插件后历史引用与帮助不会重新开放消息入口；Agent/Capability/安装 ID 和领域行为保持原契约。页面、业务 API、调度与基础服务尚未全部迁为插件贡献。
 
 自动调度统一通过 `backend/src/core/scheduleCalendar.ts` 判断群级 `schedule.calendar`。指定日期的触发/暂停优先于基础策略；`workdays` 使用中国工作日（含调休），`every_day` 不限制节假日，`selected_dates` 仅执行指定触发日。日期放行不绕过模块开关、任务开关或原定时刻，手动触发不受该日历限制。未配置或 `legacy` 保留原有 `workdays_only` 规则及周报、承诺到期提醒的例外；无效日期与非布尔覆盖值在读取配置时丢弃。
 
@@ -160,6 +162,8 @@ flowchart TD
 
 ### 主要实现
 
+- `backend/src/agents/plugins/task.ts`：Agent 与功能消息贡献的独立装配。
+
 - `backend/src/services/taskService.ts`：稳定的任务域服务入口和兼容门面。
 - `backend/src/domains/task/projectSync.ts`：TAPD 全量同步、人员映射、快照差异与幂等变更证据。
 - `backend/src/adapters/tapd.ts`：TAPD Story、工作项类型和状态历史读取接口。
@@ -177,6 +181,8 @@ flowchart TD
 
 ### 主要测试
 
+- `backend/test/messagePlugins.test.ts`：插件禁用、历史引用、帮助与生命周期；原业务 Handler 测试继续验证默认行为。
+
 - `backend/test/taskWorkflow.test.ts`、`taskActionPolicy.test.ts`、`taskMutationPolicy.test.ts`：领域规则。
 - `backend/test/taskTapdPolicy.test.ts`：TAPD 约束。
 - `backend/test/adapters.test.ts`：TAPD 需求类别和写入接口请求契约。
@@ -192,6 +198,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 将任务命令、状态更新、任务引用上下文和追问文本恢复归属 `builtin.task`，移除后同步关闭消息入口；业务服务契约保留 | 消息插件及原业务回归、后端 422 通过 / 1 TAPD 跳过、类型检查 |
 | 2026-11-05 | 将Task Agent、三个 Task Tool 与 task-management Skill装配移入 `builtin.task`，保留业务与持久化契约 | 插件/Host 测试、后端全量回归 |
 | 2026-11-05 | 迁移公司版通用修复与任务型站会；甘特历史查询移除依赖当前日期的三个月截断，保留按查询区间投影 | 后端全量回归、前端门禁 |
 | 2026-07-29 | 移除特定公司团队名的角色映射，改用产品、设计、研发、开发和内容等通用关键词识别团队职责 | `statusUpdates.test.ts`、`taskWorkflow.test.ts`、后端类型检查 |

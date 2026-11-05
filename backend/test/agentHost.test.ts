@@ -47,6 +47,7 @@ describe('AgentHost lifecycle', () => {
         const host = new AgentHost(() => context(new InMemoryPersistentKeyValueStore()));
         await host.initialize();
         expect(await host.listAgents()).toEqual([]);
+        expect(host.messageRoutes.list()).toEqual([]);
         expect(host.health()).toMatchObject({ initialized: true, tools: 0, skills: 0, bindings: 0 });
         await host.stop();
     });

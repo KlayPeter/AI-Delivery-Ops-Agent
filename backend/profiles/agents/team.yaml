@@ -7,3 +7,4 @@ plugins:
   - module: builtin.task
   - module: builtin.standup
   - module: builtin.orchestrator
+  - module: builtin.meeting-summary

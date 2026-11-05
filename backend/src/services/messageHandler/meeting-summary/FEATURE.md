@@ -3,7 +3,7 @@ feature_id: meeting-summary
 name: 会议纪要
 status: dormant
 agent_mapping: []
-last_reviewed: 2026-07-22
+last_reviewed: 2026-11-05
 ---
 
 # 会议纪要
@@ -20,6 +20,7 @@ last_reviewed: 2026-07-22
 
 ```mermaid
 flowchart TD
+    PL["Cordis: builtin.meeting-summary"] --> A
     A["模块开关启用"] --> B["飞书会议内容 / 引用上下文"]
     B --> C["Meeting Summary Handler"]
     C --> D["结构化摘要"]
@@ -43,6 +44,8 @@ flowchart TD
 - 暂不定义 Meeting Agent；现有 Handler/Service 足以承载确定性入口。
 
 ## 核心规则
+
+消息贡献归 `builtin.meeting-summary`，不注册独立 Agent。默认组合保留该插件及原有 dormant 模块开关；移除插件后不尝试会议 Handler，历史记录与隐藏页面仍保留。业务 API、页面和调度尚未全部随插件关闭。
 
 1. **功能开关是第一道入口。** 关闭时 `MeetingSummaryHandler` 不生成内容，隐藏页面也不能被描述为正式产品能力。
 2. **否定和讨论语句不触发生成。** “不要整理会议纪要”或“讨论纪要模板”不属于执行请求。
@@ -99,6 +102,8 @@ flowchart TD
 
 ### 主要实现
 
+- `backend/src/agents/plugins/meetingSummary.ts`：会议消息路由的装配与清理。
+
 - `backend/src/services/messageHandler/handlers/MeetingSummaryHandler.ts`：消息入口。
 - `backend/src/adapters/email.ts`：邮件发送 Adapter。
 - `frontend/src/pages/MeetingSummariesPage.tsx`：隐藏后台页面。
@@ -113,6 +118,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 会议消息入口独立为无 Agent 的功能插件，默认模块开关与 dormant 状态保留 | 消息路由回归、插件配置测试、后端全量回归 |
 | 2026-11-05 | 同步公开版外部 API 预算、幂等投递和报告降级基础设施，业务开关与能力入口保持原语义 | 后端全量回归、类型检查 |
 | 2026-07-22 | 补充 dormant 状态、摘要事实和邮件外发规则，精简文档结构 | CodeGraph 与消息路由测试 |
 | 2026-07-22 | 建立 dormant 功能卡并记录重新启用边界 | CodeGraph 架构审查 |

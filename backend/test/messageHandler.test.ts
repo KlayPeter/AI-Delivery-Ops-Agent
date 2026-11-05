@@ -1,6 +1,7 @@
+import { teamMessageRoutes } from "./helpers/messageRoutes";
 import { describe, expect, test } from "bun:test";
 import { MessageHandler } from "@/services/messageHandler";
-import { MESSAGE_ROUTE_POLICY, MessageRouter } from "@/services/messageHandler/MessageRouter";
+import { MessageRouter } from "@/services/messageHandler/MessageRouter";
 import { ContextResolver } from "@/services/messageHandler/ContextResolver";
 import { DashboardHandler } from "@/services/messageHandler/handlers/DashboardHandler";
 import { MeetingSummaryHandler } from "@/services/messageHandler/handlers/MeetingSummaryHandler";
@@ -11,6 +12,7 @@ import { createSingleTask, taskDescription } from "@/services/messageHandler/tas
 
 function makeHandler() {
     return new MessageHandler({
+        messageRoutes: teamMessageRoutes(),
         config: {
             feishu: { bot_open_id: "", bot_name: "AI 交付助理" },
             email: { enabled: false },
@@ -22,31 +24,22 @@ function makeHandler() {
 
 describe("MessageRouter policy", () => {
     test("declares deterministic route priority for group and private messages", () => {
-        const orderFor = (source: "group" | "private") => MESSAGE_ROUTE_POLICY
-            .filter(route => route.sources.includes(source))
-            .sort((left, right) => right.priority - left.priority)
-            .map(route => route.id);
-
+        const registry = teamMessageRoutes();
+        const orderFor = (source: "group" | "private") => registry.list(source, 'message').map(route => route.id);
         expect(orderFor("group")).toEqual([
-            "context",
-            "standup",
-            "weekly_report",
-            "daily_summary",
-            "dashboard",
-            "meeting_summary",
-            "status_update",
-            "task_command",
-            "agent_fallback",
+            'builtin.standup', 'builtin.weekly-report', 'builtin.daily-summary', 'builtin.dashboard',
+            'builtin.meeting-summary', 'builtin.task.status', 'builtin.task.command', 'builtin.orchestrator',
         ]);
         expect(orderFor("private")).toEqual([
-            "context",
-            "standup",
-            "meeting_summary",
-            "status_update",
-            "task_command",
-            "agent_fallback",
+            'builtin.standup', 'builtin.meeting-summary', 'builtin.task.status', 'builtin.task.command', 'builtin.orchestrator',
         ]);
-        expect(new Set(MESSAGE_ROUTE_POLICY.map(route => route.priority)).size).toBe(MESSAGE_ROUTE_POLICY.length);
+        expect(registry.list('group', 'context').map(route => route.id)).toEqual([
+            'builtin.orchestrator.context', 'builtin.standup.context', 'builtin.task.context',
+        ]);
+        for (const phase of ['message', 'context'] as const) {
+            const routes = registry.list(undefined, phase);
+            expect(new Set(routes.map(route => route.priority)).size).toBe(routes.length);
+        }
     });
 });
 
@@ -85,6 +78,7 @@ describe("MessageHandler bot mention detection", () => {
             mentions: [{ open_id: "ou_bot", name: "AI 交付助理" }],
         };
         const handler = new MessageHandler({
+            messageRoutes: teamMessageRoutes(),
             config: { feishu: { bot_open_id: "ou_bot", bot_name: "AI 交付助理" }, email: { enabled: false } },
             store: {
                 saveSourceMessage: async () => {},
@@ -125,6 +119,7 @@ describe("MessageHandler bot mention detection", () => {
             root_id: "om_task_template",
         };
         const handler = new MessageHandler({
+            messageRoutes: teamMessageRoutes(),
             config: { feishu: { bot_open_id: "ou_bot", bot_name: "机器人" }, email: { enabled: false } },
             store: {
                 saveSourceMessage: async () => {},
@@ -280,6 +275,7 @@ describe("MessageHandler context routing", () => {
             tapd: {},
             dashboard: {},
         } as any;
+        ctx.messageRoutes = teamMessageRoutes();
         const handler = new MessageHandler(ctx) as any;
 
         const result = await handler.handleGroupMessage({
@@ -843,6 +839,7 @@ describe("Task creation quality", () => {
             contextualTask: async (): Promise<any> => null,
         } as any;
 
+        ctx.messageRoutes = teamMessageRoutes();
         const result = await MessageRouter.handleGroup(ctx, resolver, {
             id: "om_create",
             chat_id: "oc_group",
@@ -941,6 +938,7 @@ describe("Task creation quality", () => {
             contextualTask: async (): Promise<any> => null,
         } as any;
 
+        ctx.messageRoutes = teamMessageRoutes();
         const result = await MessageRouter.handleGroup(ctx, resolver, {
             id: "om_card_categories",
             chat_id: "oc_group",

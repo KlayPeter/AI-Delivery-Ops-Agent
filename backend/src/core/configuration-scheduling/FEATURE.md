@@ -3,7 +3,7 @@ feature_id: configuration-scheduling
 name: 配置、通讯录与定时调度
 status: active
 agent_mapping: []
-last_reviewed: 2026-08-19
+last_reviewed: 2026-11-05
 ---
 
 # 配置、通讯录与定时调度
@@ -20,6 +20,7 @@ last_reviewed: 2026-08-19
 
 ```mermaid
 flowchart TD
+    PC["可信插件配置 / 重启生效"] --> PH["Agent、Tool、Skill 与消息路由装配"]
     A["Config Page / API"] --> B["Schema 校验与持久化"]
     C["飞书通讯录与群"] --> D["带页数/时长/总请求预算的成员同步"]
     D --> B
@@ -68,6 +69,8 @@ flowchart TD
 - 配置页面不是 Agent，不需要模型参与确定性管理操作。
 
 ## 核心规则
+
+`AGENT_PLUGINS_FILE` 属于重启生效的可信代码装配配置，选择 Agent、Tool、Skill 与确定性消息贡献。默认八个功能插件提供七个 Agent；移除插件关闭其指令、引用和帮助，但现有业务 API、Scheduler、Web 页面与飞书连接尚未全部跟随。动态业务配置重载复用同一个消息注册表，不重复装配路由。
 
 自动调度统一通过 `backend/src/core/scheduleCalendar.ts` 判断群级 `schedule.calendar`。指定日期的触发/暂停优先于基础策略；`workdays` 使用中国工作日（含调休），`every_day` 不限制节假日，`selected_dates` 仅执行指定触发日。日期放行不绕过模块开关、任务开关或原定时刻，手动触发不受该日历限制。未配置或 `legacy` 保留原有 `workdays_only` 规则及周报、承诺到期提醒的例外；无效日期与非布尔覆盖值在读取配置时丢弃。
 
@@ -175,6 +178,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 插件组合扩展到消息指令、引用与帮助；动态配置重载复用共享注册表，业务调度边界保留 | 插件配置、消息与调度全量回归、类型检查 |
 | 2026-11-05 | 增加可信 YAML Agent 插件选择与本地/已安装包加载；未启用模块不导入，消息 AI/新闻分流检查实际 Capability | 配置加载、插件/Host 测试与后端全量回归 |
 | 2026-07-29 | 公开版移除真实项目默认值，TAPD Workspace 与 Workitem Type 改为安全空值，并统一公开项目与机器人名称 | `config.test.ts` |
 | 2026-10-05 | 自动调度增加群级节假日策略与日历日期覆盖，保留旧配置兼容 | `scheduleCalendar.test.ts`、`scheduler.test.ts`、`config.test.ts`、前后端类型检查 |

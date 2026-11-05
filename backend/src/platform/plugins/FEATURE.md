@@ -14,7 +14,7 @@ last_reviewed: 2026-11-05
 
 插件拥有能力定义与装配逻辑；Host 提供受治理的 Agent、Tool、Skill 和持久化执行服务。当前七个内置 Agent 均由独立插件注册，应用默认组合放在 `agents/plugins/builtins.ts`，Host 不导入具体业务 Agent。
 
-当前阶段覆盖 Agent、Tool、Skill 和新闻机器人配置装配。确定性消息 Handler、Scheduler、业务 API、页面和基础服务还未全部改为插件贡献；不能把本阶段描述为“整个产品已完全插件化”。
+当前阶段覆盖 Agent、Tool、Skill、消息路由和新闻机器人配置装配。默认组合为八个功能插件、七个 Agent；会议纪要插件没有独立 Agent，保留 dormant 开关。Scheduler、业务 API、页面和基础服务还未全部改为插件贡献；不能把本阶段描述为“整个产品已完全插件化”。
 
 ## 实现流程图
 
@@ -25,13 +25,15 @@ flowchart TD
     B --> C[Cordis 按依赖顺序装配]
     C --> D[注册 Agent 定义、安装、绑定与自有 Skill]
     D --> E[apply 注册受作用域管理的 Tool 和 Adapter]
+    D --> MR[注册插件拥有的消息路由、上下文与帮助]
+    MR --> E
     E --> F[恢复外部 Agent 与持久化 Bot Binding]
     F --> G[delivery/restored 配置事件]
     G --> H[停用缺少入口能力的 Bot 内存投影]
     H --> I[Host 就绪并接受 Trigger]
     C -- 失败 --> X[Cordis 释放已装配贡献]
     G -- 失败 --> X
-    I --> J[停止接入并等待在途 Run]
+    I --> J[停止接入并等待在途消息与 Run]
     J --> K[停止投递 Worker 并释放插件]
     K --> L[保留持久化运行历史和绑定配置]
 ```
@@ -41,25 +43,26 @@ flowchart TD
 ### 目标
 
 - 同一标准支持内置和受信任的第三方 TypeScript 功能插件。
-- 空插件列表不隐式注册业务 Agent、Tool 或 Skill。
+- 空插件列表不隐式注册业务 Agent、Tool、Skill 或消息路由。
 - 插件启动、配置恢复失败及停止时清理注册和自有资源。
 
 ### 非目标
 
 - 原生插件属于宿主代码，本接口不提供 JavaScript 沙箱。
 - 本阶段不自动下载或执行远程仓库，也未承诺 DeepSeek Harness 插件的服务接口兼容。
-- 业务 Handler、页面与 Scheduler 的完整插件化见路线图后续节点。
+- 页面、业务 API、Scheduler 和基础服务的完整插件化见路线图后续节点。
 
 ## 核心规则
 
 1. `manifest.apiVersion` 必须为 `1.0`；ID 唯一，版本采用 SemVer 形式，名称与说明不能为空。配置可使用 Cordis Standard Schema 接口，如 Zod。
 2. `requires` 声明插件依赖；缺失、重复或循环在调用任何 `apply` 前拒绝。Cordis 注入对应的就绪服务。
 3. Agent ID、安装 ID、Capability、默认 Binding ID 和领域行为在迁移中保留；默认应用组合继续提供七个 Agent。
-4. `ctx.delivery.tools`、`nativeAgents`、`modelAgents` 和 `skills` 的注册返回 disposer，并自动归属当前插件的 Cordis effect。连接、定时器等自有资源显式使用 `ctx.effect`。
+4. `ctx.delivery.tools`、`nativeAgents`、`modelAgents`、`skills` 和 `messageRoutes` 的注册返回 disposer，并自动归属当前插件的 Cordis effect。连接、定时器等自有资源显式使用 `ctx.effect`。
 5. 插件声明的 Skill 包必须存在。路径限定为 Skill 根目录的直接子包名，指令引用继续执行原有目录边界校验。
 6. `delivery/restored` 在外部 Agent 和持久化 Bot 配置恢复后触发。新闻机器人配置由新闻插件维护，Host 不包含新闻业务规则。
-7. 移除插件后，它的 Agent/Tool/Skill 不装配；引用缺失安装的持久化 Binding 保留在数据库、暂不投影。缺少可用入口 Capability 的 Bot 在本次内存投影中停用，不删除用户配置。
-8. `AgentHost.stop` 停止接入、等待在途执行和投递、释放插件；停止后的对象不能重新启动，应创建新 Host。运行、Artifact、Session 与用户绑定数据保留。
+7. 移除插件后，它的 Agent/Tool/Skill/消息路由不装配；历史引用、免 @ 回复和帮助也不会恢复该功能。引用缺失安装的持久化 Binding 保留在数据库、暂不投影。缺少可用入口 Capability 的 Bot 在本次内存投影中停用，不删除用户配置。
+8. `AgentHost.stop` 拒绝新的路由请求，等待在途确定性消息、Agent 执行和投递，再释放插件；停止后的 Host 和路由注册表不能重新启动，应创建新实例。运行、Artifact、Session 与用户绑定数据保留。
+9. `messageRoutes` 可声明静态贡献或通过受作用域管理的注册函数按配置添加。上下文阶段只选择首个匹配者，普通消息按唯一优先级执行；业务判断留在插件与 Handler，Router 不导入内置功能。
 
 ## 用户能力
 
@@ -70,7 +73,7 @@ flowchart TD
 | 入口 | 输入 | 输出 |
 | --- | --- | --- |
 | PluginRuntime | 插件列表、宿主服务与按插件 ID 的配置 | 完成装配或明确失败 |
-| FeaturePlugin.apply | Cordis Context 与验证后的配置 | Agent/Tool/Skill 等贡献 |
+| FeaturePlugin.apply | Cordis Context 与验证后的配置 | Agent/Tool/Skill/消息等贡献 |
 | delivery/restored | 持久化控制面恢复完成 | 插件拥有的配置协调 |
 | AgentHost.stop | 宿主停止请求 | 在途执行收敛、资源释放 |
 
@@ -94,14 +97,15 @@ flowchart TD
 
 ## 数据与状态
 
-插件清理只删除内存定义、安装、绑定、Skill 和 Adapter 注册。持久化运行与业务记录继续归原 Store 所有。本地原生插件使用受信任代码模型；外部 HTTP Agent 仍受已有 Secret、网络与输出约束。
+插件清理只删除内存定义、安装、绑定、Skill、消息路由和 Adapter 注册。持久化运行与业务记录继续归原 Store 所有。本地原生插件使用受信任代码模型；外部 HTTP Agent 仍受已有 Secret、网络与输出约束。
 
 ## 失败、安全与降级
 
 - 错误的 API 版本、配置、依赖和 Skill 包使启动失败，不进入就绪状态。
 - 资源必须通过 effect 或受作用域管理的注册入口获得，防止泄漏连接或定时器。
 - 新插件使用 FeaturePlugin；旧 AgentHostExtension 暂时保留兼容，其原始注册 API 不具备新插件的 effect 管理保证。
-- 全产品插件禁用仍需后续迁移 Handler、Scheduler、API 和页面；当前空 Agent 插件列表仅约束运行时注册。
+- 全产品插件禁用仍需后续迁移 Scheduler、API 和页面；当前空插件列表约束运行时注册与消息路由，不关闭这些其他入口。
+- 私聊成员识别按组合保留：有要求项目成员的私聊路由时仍先校验身份；纯个人插件组合可以不依赖项目成员。这不构成逐路由访问控制。
 
 ## 代码地图
 
@@ -110,7 +114,8 @@ flowchart TD
 - `backend/src/platform/plugins/configuration.ts`、`backend/profiles/agents/`：可信配置加载与 Agent 组合示例。
 
 - `backend/src/platform/plugins/contracts.ts`、`runtime.ts`：插件协议、依赖检查与 Cordis 生命周期。
-- `backend/src/agents/plugins/`：七个业务 Agent 插件及默认组合。
+- `backend/src/agents/plugins/`：七个业务 Agent 插件、无 Agent 的会议纪要插件及默认组合。
+- `backend/src/services/messageHandler/routes.ts`：消息贡献协议、唯一优先级和在途消息等待。
 - `backend/src/agents/host.ts`：保持原应用能力的组合工厂。
 - `backend/src/platform/bootstrap/agentHost.ts`：通用 Host 与在途执行收敛。
 - `backend/src/platform/agents/registry.ts`、`nativeAdapter.ts`、`modelLoopAdapter.ts`：可释放的 Agent 注册。
@@ -123,6 +128,7 @@ flowchart TD
 
 - `backend/test/pluginRuntime.test.ts`：依赖、版本、配置、Skill、失败回滚、恢复事件与资源释放。
 - `backend/test/agentHost.test.ts`：默认兼容、空插件、第三方执行、在途停止、绑定保留与新闻 Bot。
+- `backend/test/messagePlugins.test.ts`：关闭功能后的历史上下文与帮助、第三方私聊、确定性消息在途停止。
 - `backend/test/agentControlPlane.test.ts`：持久化控制面兼容。
 - 现有 Agent、Tool、Skill、调度和业务测试：迁移行为回归。
 
@@ -130,5 +136,6 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 将确定性消息、引用上下文、免 @ 回复和帮助归属功能插件；默认新增无 Agent 的会议纪要插件；停机等待在途消息 | 消息插件与现有路由回归、后端 422 通过 / 1 TAPD 跳过、类型检查 |
 | 2026-11-05 | 增加可信 YAML Agent 插件选择与本地/已安装包加载；未启用模块不导入，消息 AI/新闻分流检查实际 Capability | 配置加载、插件/Host 测试与后端全量回归 |
 | 2026-11-05 | 引入 Cordis 4.1.0 与版本化插件协议，拆出七个 Agent 插件，提供贡献回滚、释放和在途停止 | 插件与 Host 测试、后端类型及全量回归 |

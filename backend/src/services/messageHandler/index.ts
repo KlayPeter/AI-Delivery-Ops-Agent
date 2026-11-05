@@ -5,11 +5,6 @@ import { MessageRouter } from './MessageRouter';
 import { isSystemNoise } from './utils';
 import { EmailAdapter } from '@/adapters/email';
 
-const TASK_STANDUP_REPLY_CONTEXT_TYPES = new Set([
-    "task_standup_template",
-    "standup_commitment_prompt",
-]);
-
 export class MessageHandler {
     private ctx: HandlerContext;
     private resolver: ContextResolver;
@@ -29,7 +24,8 @@ export class MessageHandler {
         const botMentioned = this.isBotMentioned(message);
         const replyContext = await this.resolver.resolveReplyContext(message);
 
-        if (isGroup && !botMentioned && !TASK_STANDUP_REPLY_CONTEXT_TYPES.has(replyContext?.context_type)) {
+        const acceptsReply = isGroup && !botMentioned && this.ctx.messageRoutes?.list('group').some(route => route.acceptsUnmentionedReply?.(replyContext));
+        if (isGroup && !botMentioned && !acceptsReply) {
             return { handled: false, reason: "not_directed_at_bot" };
         }
 
@@ -104,34 +100,24 @@ export class MessageHandler {
     }
 
     private async handleGroupMessage(message: SourceMessage, replyContext: any): Promise<any> {
-        // Strict group chat filter already applied in handleEvent, so botMentioned is guaranteed true here.
-
-        if (replyContext && replyContext.context_type === "missing_task_field") {
-            const originalText = replyContext.metadata?.original_text || "";
-            if (originalText) message.text = `${originalText} ${message.text}`;
-        }
-
         return MessageRouter.handleGroup(this.ctx, this.resolver, message, replyContext);
     }
 
     private async handlePrivateMessage(message: SourceMessage, replyContext: any): Promise<any> {
-        const { resolvePrivateSender } = require('./utils');
-        const sender = await resolvePrivateSender(message, this.ctx);
-        if (sender) {
-            message.sender_open_id = sender.open_id;
-            message.sender_name = sender.name;
-            await this.ctx.store.saveSourceMessage(message);
-        } else if (message.sender_open_id) {
-            const fetchedName = await this.ctx.feishu.getUserName(message.sender_open_id);
-            const nameDisplay = fetchedName ? `姓名：${fetchedName}，` : "";
-            await this.ctx.feishu.sendPrivateText(message.sender_open_id, `无法识别您的身份（${nameDisplay}OpenID: ${message.sender_open_id}）。请联系管理员在系统中台将该 ID 绑定到对应项目成员中。`);
-            await this.ctx.store.appendAuditLog("unknown_user", { open_id: message.sender_open_id, chat_id: message.chat_id, fetched_name: fetchedName });
-            return { handled: true, action: "unknown_user" };
-        }
-
-        if (replyContext && replyContext.context_type === "missing_task_field") {
-            const originalText = replyContext.metadata?.original_text || "";
-            if (originalText) message.text = `${originalText} ${message.text}`;
+        if (this.ctx.messageRoutes?.list('private').some(route => route.requiresProjectMember)) {
+            const { resolvePrivateSender } = require('./utils');
+            const sender = await resolvePrivateSender(message, this.ctx);
+            if (sender) {
+                message.sender_open_id = sender.open_id;
+                message.sender_name = sender.name;
+                await this.ctx.store.saveSourceMessage(message);
+            } else if (message.sender_open_id) {
+                const fetchedName = await this.ctx.feishu.getUserName(message.sender_open_id);
+                const nameDisplay = fetchedName ? `姓名：${fetchedName}，` : "";
+                await this.ctx.feishu.sendPrivateText(message.sender_open_id, `无法识别您的身份（${nameDisplay}OpenID: ${message.sender_open_id}）。请联系管理员在系统中台将该 ID 绑定到对应项目成员中。`);
+                await this.ctx.store.appendAuditLog("unknown_user", { open_id: message.sender_open_id, chat_id: message.chat_id, fetched_name: fetchedName });
+                return { handled: true, action: "unknown_user" };
+            }
         }
 
         return MessageRouter.handlePrivate(this.ctx, this.resolver, message, replyContext);

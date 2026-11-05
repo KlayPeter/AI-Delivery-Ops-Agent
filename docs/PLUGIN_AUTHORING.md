@@ -1,6 +1,6 @@
 # 功能插件规范 v1
 
-当前 SDK 面向本仓库内或由部署者审查的 TypeScript 原生插件。使用 Cordis 4.1.0，协议版本为 `1.0`。现阶段提供 Agent、Tool、Skill 的独立装配、依赖校验和资源清理；页面、确定性消息 Handler、Scheduler 与基础服务的完整插件化继续按路线图迁移。
+当前 SDK 面向本仓库内或由部署者审查的 TypeScript 原生插件。使用 Cordis 4.1.0，协议版本为 `1.0`。现阶段提供 Agent、Tool、Skill 和消息路由的独立装配、依赖校验和资源清理；页面、Scheduler、业务 API 与基础服务的完整插件化继续按路线图迁移。
 
 ## 包结构
 
@@ -41,7 +41,7 @@ await host.stop();
 AGENT_PLUGINS_FILE=profiles/agents/team.yaml bun run dev
 ```
 
-未设置变量时保留原七个 Agent。示例还包括 `profiles/agents/native-demo.yaml` 和 `profiles/agents/empty.yaml`，分别选择 Echo 模板和零业务 Agent。这些是 Agent 层配置，尚不关闭原 Web、飞书连接、确定性 Handler 或业务定时任务，也不等同完整的最小产品部署配置档。
+未设置变量时默认组合为八个功能插件、七个 Agent；会议纪要插件没有独立 Agent，仍受原有模块开关控制。示例还包括 `profiles/agents/native-demo.yaml` 和 `profiles/agents/empty.yaml`，分别选择 Echo 模板和零业务插件。所选插件同时决定消息指令、引用上下文和能力提示；这些配置尚不关闭原 Web、飞书连接、业务 API 或业务定时任务，也不等同完整的最小产品部署配置档。
 
 ```yaml
 apiVersion: '1.0'
@@ -54,7 +54,7 @@ plugins:
     enabled: false
 ```
 
-`module` 可以是内置插件 ID、本地文件路径或已安装的 npm 包。相对文件路径以 YAML 文件所在目录解析；外部模块导出 `default FeaturePlugin`，或具名导出 `manifest` 与 `apply`。配置按声明的依赖排序，YAML 行顺序不决定初始化顺序。未启用的模块不导入；依赖仍然要求显式选择，缺失时拒绝启动。
+`module` 可以是内置插件 ID、本地文件路径或已安装的 npm 包。相对文件路径以 YAML 文件所在目录解析；外部模块导出 `default FeaturePlugin`，或具名导出 `manifest` 与 `apply`。配置按声明的依赖排序，YAML 行顺序不决定初始化顺序。未启用的外部模块不导入，未选择的内置插件不执行装配；依赖仍然要求显式选择，缺失时拒绝启动。例如删除任务插件时，也要删除依赖它的主编排插件，或选择不依赖任务的编排实现。
 
 配置文件属于部署者的受信任代码装配入口，修改后重启生效。模块导入会执行其顶层代码，因此只选择已审查的本地文件或依赖；HTTP、Git 和其他 URL 不直接执行，也不会自动安装包。新插件的 Secret 仍应使用引用。
 
@@ -69,16 +69,29 @@ plugins:
 | `manifest.requires` | 插件 ID 列表；缺失、重复 ID 和循环依赖在执行插件代码前拒绝 |
 | `agents` | Agent Manifest 与安装 ID；Capability、输入输出、资源预算和可使用 Tool 继续由 Agent Manifest 声明 |
 | `skillPackages` | Skill 根目录下的直接子包名；声明但缺失时拒绝启动 |
+| `messageRoutes` | 可选消息路由贡献；由宿主自动注册并随插件释放 |
 | `Config` | 可选 Standard Schema 校验器，例如 `z.object(...)`；配置从 `pluginConfig[manifest.id]` 传入 |
 | `apply(ctx, config)` | 声明能力，配置已经过 `Config` 校验 |
 
 ## 注册与清理
 
-通过 `ctx.delivery.nativeAgents.register`、`modelAgents.register`、`tools.register`、`skills.register` 注册。它们自动将 disposer 加入当前 Cordis 插件作用域；启动失败或 Host 停止时释放。
+通过 `ctx.delivery.nativeAgents.register`、`modelAgents.register`、`tools.register`、`skills.register`、`messageRoutes.register` 注册。它们自动将 disposer 加入当前 Cordis 插件作用域；启动失败或 Host 停止时释放。静态消息路由优先声明在 `messageRoutes`，依赖配置的路由也可在 `apply` 中注册。
 
 连接、监听器和计时器使用 `ctx.effect` / `ctx.on`。插件需要在持久化控制面恢复后协调配置时，监听 `delivery/restored`；该回调失败同样使 Host 启动失败并释放插件。
 
-业务数据不随卸载删除。Host 停止前等待在途 Run 和投递结束；停止后的 Host 对象不能重新启动，应创建新实例。尚未提供运行中单插件热卸载。
+业务数据不随卸载删除。Host 停止时拒绝新路由请求，等待在途确定性消息、Run 和投递结束，再释放插件；停止后的 Host 与消息注册表不能重新启动，应创建新实例。尚未提供运行中单插件热卸载。
+
+## 消息路由贡献
+
+协议见 `backend/src/services/messageHandler/routes.ts`。每条路由声明全局唯一 ID、数值 `priority`、`sources` 和异步 `handle(request)`。同一阶段的优先级不能重复，注册顺序不决定执行顺序。请求包括当前 `ctx`、`resolver`、消息、来源和引用上下文。
+
+- `phase: 'context'` 必须提供纯判断 `matches`；引用上下文存在时只选择第一条匹配路由。它返回空结果后进入普通消息阶段，不能继续尝试其他上下文路由，防止结构化站会被任务引用吞掉。
+- 默认 `phase: 'message'` 按优先级逐条尝试，首个非空结果结束路由；可用 `matches` 做额外筛选。Handler 通过领域服务维护状态。
+- `prepare` 在上下文仲裁前对本次消息副本执行一次，适合恢复任务追问的原始文本；不可产生外部副作用。`help` 只对本条路由支持的消息来源展示。
+- `acceptsUnmentionedReply` 声明可免去再次 @机器人的群引用类型；默认不放行。站会插件仅开放原有两类任务站会引用。
+- `requiresProjectMember` 保留团队组合原有的私聊身份门槛：只要所选私聊路由有一条要求成员识别，整个默认私聊链路先做成员绑定检查。这不是逐路由授权或 RBAC；纯个人插件组合不声明此项时不查询项目成员。
+
+应用组合层创建一个 `MessageRouteRegistry`，同时传给 `HandlerContext.messageRoutes` 和 `AgentHostOptions.messageRoutes`。参考 `backend/src/index.ts`。注册表缺失或为空时没有隐式业务默认项；测试通过显式选择插件贡献构造所需路由。
 
 ## 权限与数据边界
 
@@ -92,9 +105,9 @@ plugins:
 
 1. 在真实 Host 中执行至少一个合法输入，检查结果和 Artifact。
 2. 非法配置和不兼容契约必须明确失败。
-3. 模拟初始化或配置恢复失败，确认没有残留 Tool、Agent Handler、安装或绑定。
+3. 模拟初始化或配置恢复失败，确认没有残留 Tool、Agent Handler、消息路由、安装或绑定。
 4. 停止时释放自己的资源；已完成运行和用户配置仍可从持久化存储读取。
 5. 有外部写入时验证幂等、重试与结果不确定的处理，不把网络成功等同于业务成功。
 6. 同步功能卡、代码与测试地图，运行受影响回归和 `git diff --check`。
 
-当前规范的运行证据见 `backend/test/pluginRuntime.test.ts` 和 `backend/test/agentHost.test.ts`。面向业务结果的插件验收契约与版本回放实验室仍在产品路线图中。
+当前规范的运行证据见 `backend/test/pluginRuntime.test.ts`、`backend/test/agentHost.test.ts` 和 `backend/test/messagePlugins.test.ts`。面向业务结果的插件验收契约与版本回放实验室仍在产品路线图中。

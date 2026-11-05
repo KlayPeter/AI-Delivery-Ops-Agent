@@ -31,6 +31,7 @@ import { PersistentToolCallStore } from '@/platform/tools/callStore';
 import { ToolGateway } from '@/platform/tools/gateway';
 import { ToolRegistry } from '@/platform/tools/registry';
 import type { HandlerContext } from '@/services/messageHandler/types';
+import { MessageRouteRegistry } from '@/services/messageHandler/routes';
 
 export interface AgentConversationOutcome {
     runId: string;
@@ -64,12 +65,14 @@ export interface AgentHostExtension {
 }
 
 export interface AgentHostOptions {
+    messageRoutes?: MessageRouteRegistry;
     plugins?: readonly FeaturePlugin[];
     pluginConfig?: Readonly<Record<string, Record<string, unknown>>>;
     conversationCapability?: string;
 }
 
 export class AgentHost {
+    readonly messageRoutes: MessageRouteRegistry;
     readonly registry = new AgentRegistry();
     readonly nativeAdapter = new NativeAgentAdapter();
     readonly bots = new BotRegistry();
@@ -98,7 +101,9 @@ export class AgentHost {
         private readonly skillRoot: string = `${import.meta.dir}/../../../skills`,
         private readonly extensions: readonly AgentHostExtension[] = [],
         private readonly options: AgentHostOptions = {},
-    ) {}
+    ) {
+        this.messageRoutes = options.messageRoutes || new MessageRouteRegistry();
+    }
 
     initialize(): Promise<void> {
         if (this.stopped) return Promise.reject(new Error('Agent Host is stopped; create a new host to restart'));
@@ -124,7 +129,9 @@ export class AgentHost {
     async stop(): Promise<void> {
         this.started = false;
         this.stopped = true;
+        const messagesStopped = this.messageRoutes.stop();
         await this.initializePromise?.catch(() => {});
+        await messagesStopped;
         await Promise.allSettled(this.inFlight);
         await this.deliveryWorker?.stop();
         await this.pluginRuntime?.dispose();
@@ -423,6 +430,7 @@ export class AgentHost {
             modelAgents: this.modelLoopAdapter,
             tools: this.toolRegistry,
             skills: this.skillRegistry,
+            messageRoutes: this.messageRoutes,
             bots: this.bots,
             botCatalog: this.controlCatalog,
             skillRoot: this.skillRoot,

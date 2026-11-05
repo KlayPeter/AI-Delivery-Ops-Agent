@@ -8,6 +8,7 @@ import type { BotRegistry } from '@/platform/bots/registry';
 import type { ToolRegistry } from '@/platform/tools/registry';
 import type { SkillRegistry } from '@/platform/skills/registry';
 import type { HandlerContext } from '@/services/messageHandler/types';
+import type { MessageRoute, MessageRouteRegistry } from '@/services/messageHandler/routes';
 
 export interface PluginManifest {
     apiVersion: '1.0';
@@ -30,6 +31,7 @@ export interface PluginHostServices {
     modelAgents: Pick<ModelLoopAgentAdapter, 'register'>;
     tools: Pick<ToolRegistry, 'register'>;
     skills: Pick<SkillRegistry, 'register'>;
+    messageRoutes: Pick<MessageRouteRegistry, 'register'>;
     bots: BotRegistry;
     botCatalog: PersistentBotControlCatalog;
     skillRoot: string;
@@ -39,6 +41,7 @@ export interface FeaturePlugin {
     manifest: PluginManifest;
     agents?: readonly PluginAgent[];
     skillPackages?: readonly string[];
+    messageRoutes?: readonly MessageRoute[];
     Config?: Plugin.Object<Record<string, unknown>>['Config'];
     apply: (ctx: Context, config: Record<string, unknown>) => void | Promise<void>;
 }

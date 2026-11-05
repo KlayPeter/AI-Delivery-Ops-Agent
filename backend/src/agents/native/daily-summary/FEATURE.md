@@ -4,7 +4,7 @@ name: 群聊日报
 status: active
 agent_mapping:
   - native.daily-summary
-last_reviewed: 2026-08-12
+last_reviewed: 2026-11-05
 ---
 
 # 群聊日报
@@ -24,6 +24,8 @@ last_reviewed: 2026-08-12
 ```mermaid
 flowchart TD
     PL["Cordis: builtin.daily-summary"] --> C
+    PL --> MR["插件消息路由与帮助"]
+    MR --> C
     SC["Scheduler"] --> HC{"群日期策略与指定日期允许?"}
     HC -- "是" --> B["Trigger Runtime"]
     A["手动触发 / 主 Agent"] --> B
@@ -76,7 +78,7 @@ flowchart TD
 
 ## 核心规则
 
-运行时装配由 `builtin.daily-summary` 插件负责，拥有日报 Native Agent的注册与清理。Agent/Capability/安装 ID 和领域行为保持原契约；确定性 Handler、页面与调度入口尚未全部迁为插件贡献。
+运行时装配由 `builtin.daily-summary` 插件负责，拥有 日报 Native Agent 与群聊日报指令和能力提示的注册和清理。移除插件后历史引用与帮助不会重新开放消息入口；Agent/Capability/安装 ID 和领域行为保持原契约。页面、业务 API、调度与基础服务尚未全部迁为插件贡献。
 
 自动调度统一通过 `backend/src/core/scheduleCalendar.ts` 判断群级 `schedule.calendar`。指定日期的触发/暂停优先于基础策略；`workdays` 使用中国工作日（含调休），`every_day` 不限制节假日，`selected_dates` 仅执行指定触发日。日期放行不绕过模块开关、任务开关或原定时刻，手动触发不受该日历限制。未配置或 `legacy` 保留原有 `workdays_only` 规则及周报、承诺到期提醒的例外；无效日期与非布尔覆盖值在读取配置时丢弃。
 
@@ -146,6 +148,8 @@ flowchart TD
 
 ### 主要实现
 
+- `backend/src/agents/plugins/dailySummary.ts`：Agent 与功能消息贡献的独立装配。
+
 - `backend/src/agents/native/dailySummaryAgent.ts`：日报 Native Agent。
 - `backend/src/services/jobs.ts`：定时生成、同步和历史补齐。
 - `backend/src/core/storage.ts`：按群和时间段读取本地最新消息水位。
@@ -158,6 +162,8 @@ flowchart TD
 
 ### 主要测试
 
+- `backend/test/messagePlugins.test.ts`：插件禁用、历史引用、帮助与生命周期；原业务 Handler 测试继续验证默认行为。
+
 - `backend/test/nativeDailySummary.test.ts`：Native Agent 契约。
 - `backend/test/summaries.test.ts`：日报聚合。
 - `backend/test/overduePolicy.test.ts`：未写入超期状态时仍纳入日报及分档展示。
@@ -168,6 +174,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 将群聊日报指令和能力提示归属 `builtin.daily-summary`，移除后同步关闭消息入口；业务服务契约保留 | 消息插件及原业务回归、后端 422 通过 / 1 TAPD 跳过、类型检查 |
 | 2026-11-05 | 将日报 Native Agent装配移入 `builtin.daily-summary`，保留业务与持久化契约 | 插件/Host 测试、后端全量回归 |
 | 2026-10-05 | 自动调度增加群级节假日策略与日历日期覆盖，保留旧配置兼容 | `scheduleCalendar.test.ts`、`scheduler.test.ts`、`config.test.ts`、前后端类型检查 |
 | 2026-08-13 | 任务型站会到点未引用回复时，日报将 `standup_unreported` 显示为“未完成（未汇报）”，后续负责人回复覆盖旧记录 | `summaries.test.ts`、`jobs.test.ts` |

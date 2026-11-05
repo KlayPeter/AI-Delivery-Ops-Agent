@@ -18,6 +18,8 @@ complete; they are not current product claims or release-date promises.
 - [x] Use Cordis lifecycle and dependency composition, following DeepSeek Harness.
 - [x] Publish a versioned plugin contract and one tested authoring template.
 - [x] Split the seven built-in Agent registrations into independently composed plugins.
+- [x] Register deterministic message routes, reply contexts and help through feature plugins;
+  drain in-flight messages before plugin teardown.
 - [ ] Move remaining business entrypoints, integrations, runtime services, triggers and UI
   contributions behind plugin registration, preserving current behavior.
 - [ ] Provide minimal, personal-knowledge, GitHub-team and Feishu-team composition profiles.

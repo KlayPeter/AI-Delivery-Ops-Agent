@@ -7,6 +7,7 @@ import { DashboardService } from '@/services/dashboard';
 import { ProjectDashboardService } from '@/services/projectDashboard';
 import { MessageIntentParser } from '@/services/messageIntent';
 import type { SourceMessage } from '@/models/types';
+import type { MessageRouteRegistry } from './routes';
 
 export interface AgentMessageOrchestrator {
     isAvailable(): boolean;
@@ -30,6 +31,7 @@ export interface HandlerContext {
     intentParser?: MessageIntentParser;
     agentOrchestrator?: AgentMessageOrchestrator;
     agentDispatcher?: AgentCapabilityDispatcher;
+    messageRoutes?: MessageRouteRegistry;
 }
 
 export const TAPD_STATUS_REQUIREMENT = "status_2";

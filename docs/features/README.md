@@ -19,6 +19,8 @@ flowchart LR
     D --> DS["日报构建与投递"]
     W --> WS["周报事实快照与 HTML"]
     P --> PS["看板快照与图片"]
+    FP["Cordis 所选功能插件"] --> MC["消息路由、上下文与帮助贡献"]
+    MC --> R
     R --> C["确定性 Handler 与配置调度"]
     C --> TS
     C --> SS
@@ -43,7 +45,7 @@ flowchart LR
 | `ai-news-radar` | 飞书私聊查询、续页、搜索与多源 AI 信号，可选独立机器人 | active | `native.ai-news-radar` | [查看](../../backend/src/agents/native/ai-news-radar/FEATURE.md) |
 | `meeting-summary` | 会议纪要生成、归档、查看与邮件分发 | dormant | 无 | [查看](../../backend/src/services/messageHandler/meeting-summary/FEATURE.md) |
 | `configuration-scheduling` | 群组、成员、通讯录、模块开关与定时任务 | active | 无 | [查看](../../backend/src/core/configuration-scheduling/FEATURE.md) |
-| `plugin-runtime` | Cordis 功能插件、依赖与资源生命周期 | active | 无独立业务 Agent | [查看](../../backend/src/platform/plugins/FEATURE.md) |
+| `plugin-runtime` | Cordis 功能插件、消息贡献、依赖与资源生命周期 | active | 无独立业务 Agent | [查看](../../backend/src/platform/plugins/FEATURE.md) |
 | `agent-platform` | Agent、Tool、Skill、会话、外部 Agent 与多机器人控制面 | active | Agent Host 及全部 Agent | [查看](../../backend/src/platform/FEATURE.md) |
 | `operations-observability` | 审计日志、上下文、手动触发、Run 与可靠投递 | active | 无独立业务 Agent | [查看](../../backend/src/platform/runtime/FEATURE.md) |
 

@@ -11,7 +11,7 @@ agent_mapping:
   - native.project-dashboard
   - native.ai-news-radar
   - external.ai-hot
-last_reviewed: 2026-08-03
+last_reviewed: 2026-11-05
 ---
 
 # Agent 平台与多机器人控制面
@@ -36,6 +36,8 @@ flowchart TD
     B --> C["Agent Registry 按 ID 或 Capability 解析"]
     X["Cordis FeaturePlugin / 兼容扩展"] --> C
     X --> I["Tool / Skill / Adapter 注册"]
+    X --> MR["消息路由、引用上下文与帮助贡献"]
+    MR --> Q
     C --> D["Trigger / Session / Run Runtime"]
     D --> E{"Adapter 类型"}
     E -- Model Loop --> F["主 Agent / 专业 Agent"]
@@ -68,6 +70,8 @@ flowchart TD
 - Agent Registry 不是任意远程代码执行器；外部 Agent 必须通过协议和 allowlist 接入。
 
 ## 核心规则
+
+默认组合为八个功能插件、七个 Agent。各插件拥有自己的消息指令与引用贡献；Router 无业务默认项，空组合无消息功能。私聊组合中的成员门槛继续保留，不表示已提供逐路由授权或 RBAC。
 
 1. **Manifest 是运行契约。** Agent 只能声明并使用自己的 Capability、Tool、Skill 和可委派子 Agent；运行时不接受 Prompt 临时扩大权限。
 2. **Registry 负责发现，Binding 负责使用。** 安装 Agent 不等于所有机器人自动可用；Bot Binding 决定某个机器人可路由哪些 Capability，以及优先级和覆盖配置。
@@ -105,7 +109,7 @@ flowchart TD
 ## 运行逻辑
 
 1. Bootstrap 注册 Agent、Tool、Skill、Bot、Adapter 和持久化组件。
-   先由 Cordis 装配插件拥有的 Agent、Tool、Skill 与 Adapter，再恢复持久化控制面并发送 `delivery/restored`；兼容扩展在 Runtime 创建前执行。
+   先由 Cordis 装配插件拥有的 Agent、Tool、Skill、消息路由与 Adapter，再恢复持久化控制面并发送 `delivery/restored`；兼容扩展在 Runtime 创建前执行。
 2. 入口创建带 tenant/group/bot/user 的 Scope，并按 ID 或 capability 解析 Agent。
 3. Runtime 建立 Trigger、Session、Checkpoint 和 Run。
 4. Adapter 执行 Model Loop、Native 函数或受限 HTTP 调用。
@@ -173,6 +177,8 @@ flowchart TD
 
 ### 主要测试
 
+- `backend/test/messagePlugins.test.ts`：共享消息注册表、插件禁用、第三方私聊与确定性消息在途停止。
+
 - `backend/test/pluginRuntime.test.ts`：版本、依赖、配置、恢复、失败回滚与清理。
 
 - `backend/test/agentHost.test.ts`、`agentRuntime.test.ts`：Host 与 Runtime。
@@ -188,6 +194,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 插件扩展消息路由贡献；Host 停止先拒绝并等待在途确定性消息，再清理插件 | 消息插件、Host 和原业务回归；类型检查 |
 | 2026-11-05 | 增加可信 YAML Agent 插件选择与本地/已安装包加载；未启用模块不导入，消息 AI/新闻分流检查实际 Capability | 配置加载、插件/Host 测试与后端全量回归 |
 | 2026-11-05 | 用 Cordis 装配七个 Agent 插件，Host 去除业务 Agent 直接依赖；停止前等待在途执行，清理注册且保留运行数据 | 插件/Host 测试、后端全量回归 |
 | 2026-08-03 | 飞书事件增加数据库跨实例原子去重；投递链路传递取消信号、供应商重试时间和按 App ID 隔离的额度错误 | `multiBotIngress.test.ts`、`deliveryOutbox.test.ts`、`externalApiHealth.test.ts` |
