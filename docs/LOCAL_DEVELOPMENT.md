@@ -38,6 +38,8 @@ pnpm dev --host 127.0.0.1
 
 页面初始没有团队业务数据。项目看板需要配置群组与 TAPD 后生成；CLI 体验可按 [Markdown / Obsidian 与公开链接用法](PERSONAL_KNOWLEDGE.md) 在 CLI 中体验。CLI 的检索不需要模型，生成回答需要显式配置模型；持久化与历史引用复核见 [知识变更复核](KNOWLEDGE_IMPACT.md)。
 
+默认「接入工具」可发现匿名公开 HTTPS MCP，审查并勾选读取工具，导出可审查的本地配置。保存到 backend/examples 并按页面命令重启后，在「运行工具」使用已授权能力；无需专用适配页面或模型。
+
 接入已有开源 MCP 工具可按 [MCP 本地连接](MCP_TOOLS.md)选择独立配置档；提供无需模型的文件读取示例，默认工作台不自动启用外部进程。
 
 页面与手动任务会按已装配插件变化：移除插件后，对应导航、页面与 API 同时不可用，历史数据保留。知识界面由 knowledge.workspace 独立贡献；显式 AGENT_PLUGINS_FILE 完全管理组合，不自动叠加页面来源设置。团队业务和基础服务的具体边界以[功能卡](features/README.md)为准。

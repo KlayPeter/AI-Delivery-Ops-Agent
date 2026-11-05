@@ -45,7 +45,7 @@ await host.stop();
 AGENT_PLUGINS_FILE=profiles/agents/team.yaml bun run dev
 ```
 
-团队 SDK 未指定插件时默认组合为九个功能插件、七个 Agent；HTTP 工作台额外装配选定知识来源、回答、复核、知识界面、网页收集、文档导入、资料库与结果验收，共 17 个插件、14 个 Agent；配置 GitHub 发布组合后为 19 个插件、15 个 Agent。会议纪要和外部 AI Hot 调度插件没有独立 Agent。会议纪要仍受原有模块开关控制，外部 AI Hot 能力仍需另行安装。示例还包括 `profiles/agents/native-demo.yaml`、`profiles/agents/empty.yaml` 和 `backend/examples/plugins.collectors.yaml`，分别选择 Echo 模板、零业务插件和采集/资料库三个插件。显式插件文件完全决定组合；未装配的插件页面和 API 不开放，基础服务仍由应用拥有。
+团队 SDK 未指定插件时默认组合为九个功能插件、七个 Agent；HTTP 工作台额外装配选定知识来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收与 MCP 接入助手，共 18 个插件、15 个 Agent；配置 GitHub 发布组合后为 20 个插件、16 个 Agent。会议纪要和外部 AI Hot 调度插件没有独立 Agent。会议纪要仍受原有模块开关控制，外部 AI Hot 能力仍需另行安装。示例还包括 `profiles/agents/native-demo.yaml`、`profiles/agents/empty.yaml` 和 `backend/examples/plugins.collectors.yaml`，分别选择 Echo 模板、零业务插件和采集/资料库三个插件。显式插件文件完全决定组合；未装配的插件页面和 API 不开放，基础服务仍由应用拥有。
 
 ```yaml
 apiVersion: '1.0'
@@ -215,3 +215,9 @@ Runtime 新步骤保存 execution 1.0，包括 Agent ID/版本、Manifest 及可
 已有 MCP 服务可选择 stdio 或公开 HTTPS Streamable HTTP，connector.mcp 1.1.0 共用显式工具白名单与执行契约；HTTP 固定端点、校验 DNS/IP/TLS、拒绝重定向、限制流大小，凭据只用可选 Bearer 环境引用。不安装上游代码的真实例子见 backend/examples/plugins.context7-http.yaml；配置和边界见 [MCP 指南](MCP_TOOLS.md)。OAuth、私网地址、写工具和任意仓库自动安装仍需各自适配，不能由协议握手推断支持。
 
 现在可显式使用 readAgentSkill 读取第三方 SKILL.md，再以宿主确定的 allowedTools、compatibleAgents、Schema 和预算注册。不是自动继承上游执行权限，也不自动执行脚本或安装任意仓库。Context7 已实际接入：上游 MCP 两个工具、官方原文 Skill、原生查询和可选模型研究。完整配置、固定来源及接入分类见 [社区插件说明](COMMUNITY_PLUGINS.md)。
+
+## 工具元数据与受控转调
+
+`ctx.delivery.tools.list()` 返回隔离副本的 ToolDefinition，不含 Handler；可用于展示已授权工具的当前契约。`ToolExecutionContext.budget` 传入当前调用的共享预算。受信 Native Tool 需要转调其他 Tool 时，必须沿用同一 runId/agentId/scope/signal/budget，不能新建额度；权限来源必须是明确的可信配置，不能采用工具描述或模型输入。示例见 `backend/src/connectors/mcp-workbench/runner.ts`：固定路由权限与上游配置白名单分开，两层合计两次调用，缺少预算拒绝，实际 Tool 还须存在且声明 read。此扩展不构成原生代码沙箱。
+
+MCP 接入助手只生成固定模块配置，不执行上游代码；标准 Skills 和原生插件仍按各自授权入口接入，不能因为发现了 MCP 目录就自动取得权限。

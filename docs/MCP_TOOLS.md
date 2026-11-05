@@ -4,6 +4,22 @@
 
 MCP 插件不在默认组合中。它不提供在线安装、任意仓库分析、OAuth、写工具或 OS 沙箱。工具的 readOnlyHint 仅是上游提示，不能作为授权证明；配置者需要审查所选工具与服务权限。
 
+## 在工作台发现并接入
+
+默认工作台的「接入工具」输入匿名公开 HTTPS 地址和本地服务标识；预填 Context7 官方地址。点击「发现工具」只执行握手和目录发现，不运行目录内工具或读取宿主凭据。展开参数契约，审查并勾选最多 50 个读取工具，明确确认后生成配置。上游 readOnlyHint 只是未受信提示，不能代替审查；这与 [MCP 工具规范](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)的信任边界一致。
+
+下载 `mcp-<服务标识>.local.yaml`，保存到项目 **backend/examples/**。在 backend 目录按页面命令重启，例如：
+
+```sh
+AGENT_PLUGINS_FILE=examples/mcp-context7.local.yaml bun run dev
+```
+
+该文件选择连接器、通用运行器和接入助手三个插件，两位 Native Agent；不会叠加原默认组合。重启后在「运行工具」选择已授权工具，按当前 Schema 填写 JSON 对象参数并执行。结果保留 Agent、授权路由 Tool 和上游 Tool 三个步骤，共享两次工具预算，零模型调用；协议资源链接仅保存在结果中，不自动下载。
+
+生成配置尚未修改当前 Host 或安装工具。相对模块路径要求文件放在 examples；其他能力需要在可信 YAML 中明确组合。目录限制八页/200 项/512 KiB，不兼容或超过 16 KiB 的 Schema 项不能在页面勾选；运行参数最多 32 KiB。服务名称和版本是自报信息，不能作为锁定版本。生成配置启动时会重新校验工具是否存在及其当前 Schema。
+
+发现助手只支持匿名公开 HTTPS；认证服务的 Bearer 引用仍须在可信本地 YAML 中手动配置，不通过运行输入选取 Secret。stdio、OAuth、私网服务与在线热安装不在助手范围内。完整边界与可复现测试见 [接入与运行功能卡](../backend/src/connectors/mcp-workbench/FEATURE.md)。
+
 ## 直接连接在线 MCP
 
 从已初始化的 backend 目录运行以下配置，即可在「开发文档」查询 Context7，无需安装上游进程或配置模型：
@@ -89,7 +105,7 @@ envRefs:
 
 Secret 不写入 YAML 或命令参数。缺少引用时在启动进程前失败。子进程仍继承 SDK 的基础环境（如 PATH/HOME），并具备本机账户权限；这不是阻止恶意进程读取磁盘或联网的沙箱。只连接已审查的服务，并在服务自身配置中限制允许的文件/数据范围。
 
-本地 *.local.yaml 配置被 Git 忽略。保存后重启生效；本阶段没有 MCP 浏览器配置表单或运行中启停。
+本地 *.local.yaml 配置被 Git 忽略。浏览器助手导出配置后保存并重启生效；当前没有运行中启停。
 
 ## 失败与验证范围
 

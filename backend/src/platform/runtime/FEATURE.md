@@ -80,6 +80,8 @@ flowchart TD
     D --> QVS[每次实际调用的执行版本与序列化指纹]
     QVS --> QCR[保存记录结构验收；独立报告]
     E --> QCR
+    MCPSETUP[匿名 MCP 发现与审查导出] --> MCPRUN[重启后的可信白名单运行；共享预算与证据]
+    MCPRUN --> TC
 ```
 
 ## 能力边界
@@ -183,6 +185,11 @@ CLI 可选 --state 保存 Run/Step/Tool/Artifact；默认仍为内存。知识�
 knowledge.collect 只固定当前成功采集 Run ID，经 knowledge.library.manage 执行同 Scope 的一次 Tool；先校验原 Run，再读取唯一私有 Markdown。状态读取不创建 Run，保存结果单独记录，不改源 Artifact。重复、容量、文件安全与中断暂存恢复由资料库服务负责；原文检索及选择资料库后的回答/引用复核复用现有管线。验证：backend/test/knowledgeLibrary.test.ts。
 
 每次 Agent 调用的运行中/成功/失败步骤均带独立 execution 1.0 快照，保留声明的身份与版本、Manifest/可序列化输入指纹；这不是完整执行环境快照，新增字段不保存原始输入。新 quality.checks 插件先验证全部目标归属和终态，再读取原记录做结构验收，报告与新增失败项单独持久化，不修改原证据或重执行任务。结构结果与验收 Run 状态分开；旧版本凭证缺失不可显示绿色通过。验证：backend/test/pluginChecks.test.ts 与 agentRuntime.test.ts。
+
+
+## MCP 接入与通用运行
+
+HTTP 默认加入独立 mcp.setup 接入助手，公开 HTTPS 匿名发现、审查勾选与 local.yaml 导出；不调用目录内工具或读取 Secret。保存并重启明确组合后，mcp.runner 按可信 allowedTools 转调已注册读取工具，实时 Schema 校验、同一 Scope/信号与共享两次 Tool 预算，记录 Agent/路由/上游三步。ctx.delivery.tools.list 只返回契约副本，ToolExecutionContext.budget 沿用既有预算，不给旧调用新增额度。移除插件释放页面/API/Agent/Tool，历史保留；无在线安装或 OS 沙箱。实现与测试见 [接入功能卡](../../connectors/mcp-workbench/FEATURE.md)。
 
 ## 用户能力
 

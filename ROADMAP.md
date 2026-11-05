@@ -6,6 +6,10 @@ See the [design proposal](docs/PROJECT_DIRECTION.md) for users, evidence,
 plugin boundaries and acceptance criteria. Items below are planned unless marked
 complete; they are not current product claims or release-date promises.
 
+Prioritize personal knowledge, plugin onboarding and visible execution evidence.
+Existing team workflows remain compatibility features; deployment and Docker work
+are deferred while the local product is being validated.
+
 ## A. Public migration baseline
 
 - [x] Import sanitized delivery workflows and public CI.
@@ -44,8 +48,11 @@ complete; they are not current product claims or release-date promises.
   is not automatically verified; integration tests use a local mock model endpoint.
 - [x] Handle source changes and deletions with content versions; restrict retrieval
   to explicitly selected sources. Change tracking is rebuilt in memory, not a Vault backup.
-- [ ] Add an onboarding assistant for existing MCP and HTTP/OpenAPI capabilities;
-  produce reviewable adapters and report unsupported repositories accurately.
+- [x] Add anonymous public HTTPS MCP discovery, explicit read review, downloadable
+  local configuration and a generic governed runner; verify the downloaded profile
+  against the real Context7 service without a custom adapter or model.
+- [ ] Extend onboarding to reviewed HTTP/OpenAPI adapters and accurately report
+  unsupported repositories; authenticated MCP discovery still needs a separate design.
 - [x] Add versioned plugin result contracts, sample checks and recorded execution
   receipts. Checks cover structure and required steps, not semantic correctness.
 - [x] Deliver GitHub fact collection and release preparation with linked knowledge

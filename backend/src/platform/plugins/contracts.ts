@@ -35,7 +35,7 @@ export interface PluginHostServices {
     agents: AgentRegistry;
     nativeAgents: Pick<NativeAgentAdapter, 'register'>;
     modelAgents: Pick<ModelLoopAgentAdapter, 'register'>;
-    tools: Pick<ToolRegistry, 'register'>;
+    tools: Pick<ToolRegistry, 'register' | 'list'>;
     skills: Pick<SkillRegistry, 'register'>;
     messageRoutes: Pick<MessageRouteRegistry, 'register'>;
     schedules: Pick<ScheduleRegistry, 'register'>;

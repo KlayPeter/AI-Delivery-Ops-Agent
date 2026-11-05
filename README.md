@@ -30,7 +30,7 @@ Obsidian、公开网页或本地文档开始，检索原文、生成带引用的
 | 个人知识 | 只读 Markdown/Obsidian 与公开 URL，关键词检索、版本、原文定位；可选模型生成引用回答 |
 | 资料收集 | 单篇公开网页；微软 MarkItDown 0.1.9 转换 PDF、DOCX、PPTX、XLSX 等本地文件 |
 | 本地资料库 | 明确收录、去重、来源凭证、检索与知识来源切换 |
-| 开源能力接入 | MCP stdio/HTTPS、HTTP/OpenAPI 适配、标准 SKILL.md 显式导入；真实 Context7 示例 |
+| 开源能力接入 | MCP 工具发现、明确授权与配置导出、通用运行器；stdio/HTTPS 与标准 SKILL.md，真实 Context7 示例 |
 | 插件契约 | Manifest、依赖、权限、页面/API/动作、结果规则与 Cordis 资源释放 |
 | 可靠执行 | Agent/Tool/Skill 预算、委派、Session/Checkpoint、Run/Artifact 与 Outbox |
 | 可选团队能力 | GitHub 发布准备、飞书任务与报告、TAPD 同步、多机器人路由 |
@@ -39,11 +39,12 @@ Obsidian、公开网页或本地文档开始，检索原文、生成带引用的
 
 | 组合 | 插件数 | Agent 数 |
 | --- | --- | --- |
-| 默认 HTTP 工作台 | 17 | 14 |
-| 配置 GitHub 后 | 19 | 15 |
+| 默认 HTTP 工作台 | 18 | 15 |
+| 配置 GitHub 后 | 20 | 16 |
 | 团队 SDK | 9 | 7 |
 
 [插件规范与作者模板](docs/PLUGIN_AUTHORING.md)描述当前支持的接口。
+默认「接入工具」可发现公开 HTTPS MCP、勾选读取工具并导出本地配置；重启所选组合后可直接运行，无需另写适配页面。详见 [MCP 接入流程](docs/MCP_TOOLS.md)。
 第三方仓库需要明确适配与授权；当前没有任意仓库自动安装或在线插件市场。
 
 ## 本地快速开始

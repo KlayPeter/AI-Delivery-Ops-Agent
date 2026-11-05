@@ -24,6 +24,7 @@ export interface ToolExecutionContext {
     signal: AbortSignal;
     skillId?: string;
     idempotencyKey?: string;
+    budget?: ToolCallBudget;
 }
 
 export type ToolHandler = (input: unknown, context: ToolExecutionContext) => Promise<unknown>;

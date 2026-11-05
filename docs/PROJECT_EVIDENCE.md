@@ -49,6 +49,31 @@
 该配置只选择 MCP 与 Context7。查询发送给 Context7，匿名可用性及限额由上游
 决定；配置、凭据引用和固定地址边界见[MCP 指南](MCP_TOOLS.md)。
 
+### 从服务地址接入通用工具
+
+默认「接入工具」发现官方 Context7 的匿名 HTTPS 工具目录，展开契约并只勾选
+query-docs，明确审查读取授权后下载配置。将下载的 local.yaml 放入
+backend/examples，按页面命令重启；在「运行工具」提交：
+
+```json
+{"libraryId":"/websites/react_dev","query":"React useEffect cleanup function example","language":"TypeScript"}
+```
+
+![发现、单工具读取授权与本地配置导出](images/mcp-setup-profile.jpg)
+
+实际使用页面下载的配置重启后，三插件/两 Agent 组合返回了 React 来源正文；
+同一运行内 Agent、授权路由和 MCP Tool 三步成功，2 次工具调用、0 次模型调用。
+375px 接入表单和详情均无页面横向溢出。发现阶段只读取元数据，不调用目录内工具；
+没有自动安装或更改当前 Host。认证服务仍需手工可信配置；详见 [MCP 指南](MCP_TOOLS.md)。
+
+![通用运行器实际记录的 Agent、路由与上游工具](images/mcp-runner-steps.jpg)
+
+本轮增加的 [MCP 接入测试](../backend/test/mcpWorkbench.test.ts)用真实 TCP/SDK
+验证配置加载与执行、未授权/参数/Scope/共享预算拒绝、取消和清理。
+当前工作区后端回归 **608 通过、1 项真实 TAPD 跳过**，前端 **18 通过**；
+类型、lint 与构建通过，仍保留 163 项既有 lint 警告和大包提示。本轮浏览器预览
+复用已安装依赖；下方干净安装记录对应原基线，不宣称重新覆盖依赖安装。
+
 ### 资料收集、知识复核与结果验收
 
 - 按[文档导入指南](DOCUMENT_IMPORT.md)安装 MarkItDown，转换自己的可公开样例，

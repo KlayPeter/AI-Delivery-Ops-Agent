@@ -89,6 +89,10 @@ flowchart TD
     K --> QCR[实际执行快照与保存记录验收]
     X --> QRULE[随插件释放的结果规则]
     QRULE --> QCR
+    UI --> MCPSETUP[匿名 MCP 发现与审查配置导出]
+    MCPSETUP --> MCPRESTART[用户保存并重启独立组合]
+    MCPRESTART --> MCPRUN[通用读取路由与上游 Tool：共享预算及同一 Run]
+    MCPRUN --> I
 ```
 
 ## 能力边界
@@ -171,6 +175,11 @@ Host 提供 PluginWebRegistry，由 Cordis 管理页面/API/原有手动任务�
 资料库作为独立 Native 插件复用 Agent/Tool/Artifact 与运行后续动作；收录只接受固定原 Run ID，不把正文或路径视为动作授权。一次预算写入应用私有目录，检索和来源切换复用 Markdown/RAG/impact。没有新的 Agent 协议或共享 Store 表。验证：backend/test/knowledgeLibrary.test.ts，包含保存后重启、真实 MarkItDown、模拟模型引用回答与变更复核。
 
 Agent Runtime 为每次实际 invoke 的 Agent Step 保存 execution 1.0：Agent ID/版本、Manifest 序列化指纹和可用的请求输入指纹；成功/失败都保留，人工继续创建新步骤，原 metrics 不丢失。不可序列化的 SDK 输入不使执行失败，缺失指纹不能作为可比较凭证。quality.checks 通过新规则注册表读取已保存证据，独立验收；历史版本不从当前安装推断。验证：agentRuntime.test.ts、pluginChecks.test.ts。
+
+
+## MCP 接入与通用运行
+
+HTTP 默认加入独立 mcp.setup 接入助手，公开 HTTPS 匿名发现、审查勾选与 local.yaml 导出；不调用目录内工具或读取 Secret。保存并重启明确组合后，mcp.runner 按可信 allowedTools 转调已注册读取工具，实时 Schema 校验、同一 Scope/信号与共享两次 Tool 预算，记录 Agent/路由/上游三步。ctx.delivery.tools.list 只返回契约副本，ToolExecutionContext.budget 沿用既有预算，不给旧调用新增额度。移除插件释放页面/API/Agent/Tool，历史保留；无在线安装或 OS 沙箱。实现与测试见 [接入功能卡](../connectors/mcp-workbench/FEATURE.md)。
 
 ## 用户能力
 

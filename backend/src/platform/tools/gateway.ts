@@ -91,6 +91,7 @@ export class ToolGateway {
                     signal: controller.signal,
                     skillId: options.skillId,
                     idempotencyKey: options.idempotencyKey,
+                    budget: options.budget,
                 }),
                 timeout,
             ]);
