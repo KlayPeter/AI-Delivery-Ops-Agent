@@ -24,28 +24,39 @@ complete; they are not current product claims or release-date promises.
   retry, idempotency and shared project sync; drain active ticks before teardown.
 - [ ] Move remaining business entrypoints, integrations, runtime services, triggers and UI
   contributions behind plugin registration, preserving current behavior.
-- [ ] Provide minimal, personal-knowledge, GitHub-team and Feishu-team composition profiles.
-- [ ] Verify missing dependencies, disabled plugins, setup failure and cleanup.
+- [x] Provide explicit empty, knowledge, release, community-tool and team profiles;
+  the HTTP workspace also has a default no-credential sample composition.
+- [x] Verify missing dependencies, disabled plugins, setup failure and cleanup in
+  plugin lifecycle and workspace tests. In-place plugin replacement is not provided.
 
 ## C. First useful product
 
-- [ ] Provide a GitHub-first onboarding path and an explicitly labeled offline demo.
-- [ ] Connect selected Markdown/Obsidian folders and public webpage URLs as source plugins;
+- [x] Provide local no-credential onboarding with labeled fictional notes, plus
+  optional GitHub connection and release preparation from the workspace.
+- [x] Connect selected Markdown/Obsidian folders and public webpage URLs as source plugins;
   preserve source links, properties and versions. See the
   [personal knowledge design](docs/PERSONAL_KNOWLEDGE_DESIGN.md).
 - [x] Deliver a read-only Markdown/Obsidian plugin and local CLI with versioned keyword
   retrieval, source citations, link status, exclusions and in-memory change tracking.
-  This is the file-source foundation; webpage ingestion remains open.
+  Public webpage retrieval is separately implemented with bounded public-URL fetching.
 - [x] Add an optional RAG answer plugin using governed retrieval and the host model
   service; validate citation IDs and exact quotes before publishing. Semantic support
   is not automatically verified; integration tests use a local mock model endpoint.
-- [ ] Handle source changes and deletions; restrict retrieval to explicitly selected sources.
+- [x] Handle source changes and deletions with content versions; restrict retrieval
+  to explicitly selected sources. Change tracking is rebuilt in memory, not a Vault backup.
 - [ ] Add an onboarding assistant for existing MCP and HTTP/OpenAPI capabilities;
   produce reviewable adapters and report unsupported repositories accurately.
-- [ ] Add plugin acceptance contracts, sample checks and execution receipts.
-- [ ] Deliver project digests and release preparation with linked source evidence.
+- [x] Add versioned plugin result contracts, sample checks and recorded execution
+  receipts. Checks cover structure and required steps, not semantic correctness.
+- [x] Deliver GitHub fact collection and release preparation with linked knowledge
+  evidence; optional model-generated drafts do not publish or write remotely.
 - [x] Add a knowledge retrieval plugin with citations, source versions and Obsidian links.
-- [ ] Track source-to-artifact references and flag drafts affected by knowledge changes.
+- [x] Track actual source-to-artifact citations and explicitly check historical
+  results for changed, missing or unavailable knowledge; retain the original result.
+- [x] Capture public pages and convert local documents through pinned Microsoft
+  MarkItDown; explicitly collect results into a private searchable application library.
+- [x] Integrate the real Context7 MCP service and import its standard SKILL.md with
+  separately granted tools. This does not install arbitrary repositories.
 - [ ] Add application authentication, project access checks, secret handling and
   concrete write approval before opening external trials.
 

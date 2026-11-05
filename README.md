@@ -1,201 +1,124 @@
 <div align="center">
   <img src="frontend/src/assets/logo.svg" width="88" height="88" alt="AI Delivery Ops Agent logo">
   <h1>AI Delivery Ops Agent</h1>
-  <p>连接飞书、TAPD 和 AI 模型的研发交付 ChatOps 与 Agent Host。</p>
+  <p>用自己的知识和开源插件，完成有来源、可追踪、可复核的 Agent 任务。</p>
 </div>
 
-AI Delivery Ops Agent 把任务流转、站会、日报、周报、项目看板和 AI
-资讯接入同一套可审计的执行链路。业务状态由领域服务维护；Agent 负责多步
-决策、内容生成和能力编排。
+本地优先的 Agent 插件工作台，面向开发者和个人知识使用者。从 Markdown、
+Obsidian、公开网页或本地文档开始，检索原文、生成带引用的回答、准备发布草稿，
+并在同一个界面查看实际执行步骤与结果。飞书和 TAPD 是可选的团队集成。
 
-> [!IMPORTANT]
-> 当前版本定位为 `v0.1.0-alpha`。接口、配置项和部署方式仍可能调整，建议先在
-> 测试飞书应用与测试 TAPD Workspace 中验证。
+当前为 `v0.1.0-alpha`。无需飞书、TAPD 或模型密钥即可启动并体验示例知识检索；
+调用外部服务或生成回答时，再配置自己的连接。
 
-> [!WARNING]
-> 项目尚未提供应用层登录和 RBAC。请只在可信网络中运行，或放在具备身份验证、
-> TLS、限流和访问审计的反向代理之后。不要把管理端或控制面 API 直接暴露到公网。
+## 三个值得试的流程
 
-## 能力概览
+- **资料成为任务输入**：网页正文或 PDF/Office 转为带来源指纹的 Markdown，
+  检查后明确收录到本地资料库；可将资料库选作后续检索和 RAG 的来源。
+- **知识变化后复核旧结果**：回答保留实际引用与版本；来源变更后，独立检查记录
+  标出变化、缺失或不可访问的引用，保留原回答与证据。
+- **插件结果可检查**：插件声明版本化结果规则，用同一规则检查两次已完成运行，
+  展示结构、步骤及执行版本的差异。它不自动重跑任务，也不判断回答的语义正确性。
 
-| 能力 | 说明 |
+## 能力与插件
+
+| 能力 | 当前实现 |
 | --- | --- |
-| 飞书 ChatOps | 从群聊或私聊创建任务、更新进度、提交站会和触发报告 |
-| TAPD 集成 | 创建与同步 Story、映射任务状态并保留外部系统事实 |
-| Agent Host | 注册、安装、绑定和运行 Native、Model Loop 与外部 HTTP Agent |
-| 可靠执行 | 持久化 Trigger、Run、Step、Session、Checkpoint、Artifact 和 Outbox |
-| 管理控制台 | 管理群组、成员、调度配置，查看日志、上下文、站会、周报和甘特图 |
-| AI News Radar | 查询公共 AI 资讯，支持时间范围、关键词、来源、分类和分页 |
-| 多机器人路由 | 按 Workspace、Bot Instance、Agent Installation 和 Capability 隔离 |
+| Agent 工作台 | 任务发起、运行历史、步骤、产物、错误及人工补充后继续 |
+| 个人知识 | 只读 Markdown/Obsidian 与公开 URL，关键词检索、版本、原文定位；可选模型生成引用回答 |
+| 资料收集 | 单篇公开网页；微软 MarkItDown 0.1.9 转换 PDF、DOCX、PPTX、XLSX 等本地文件 |
+| 本地资料库 | 明确收录、去重、来源凭证、检索与知识来源切换 |
+| 开源能力接入 | MCP stdio、HTTP/OpenAPI 适配、标准 SKILL.md 显式导入；真实 Context7 示例 |
+| 插件契约 | Manifest、依赖、权限、页面/API/动作、结果规则与 Cordis 资源释放 |
+| 可靠执行 | Agent/Tool/Skill 预算、委派、Session/Checkpoint、Run/Artifact 与 Outbox |
+| 可选团队能力 | GitHub 发布准备、飞书任务与报告、TAPD 同步、多机器人路由 |
 
-系统内置七个 Agent：
+默认装配与团队 SDK 分开；显式 `AGENT_PLUGINS_FILE` 完全控制组合，不自动叠加默认插件。
 
-1. Delivery Ops Agent
-2. Task Agent
-3. Standup Agent
-4. Daily Summary Agent
-5. Weekly Report Agent
-6. Project Dashboard Agent
-7. AI News Radar Agent
+| 组合 | 插件数 | Agent 数 |
+| --- | --- | --- |
+| 默认 HTTP 工作台 | 17 | 14 |
+| 配置 GitHub 后 | 19 | 15 |
+| 团队 SDK | 9 | 7 |
 
-## 适用边界
+[插件规范与作者模板](docs/PLUGIN_AUTHORING.md)描述当前支持的接口。
+第三方仓库需要明确适配与授权；当前没有任意仓库自动安装或在线插件市场。
 
-本项目适合需要飞书协作、TAPD 任务管理和单后端实例部署的研发团队。当前
-SQLite 架构要求只有一个后端写实例。
+## 本地快速开始
 
-以下场景需要先补充工程能力：
-
-- 对公网开放管理端或控制面 API；
-- 多个后端实例并发写入；
-- 多租户或严格租户隔离；
-- 对身份认证、RBAC、合规审计或高可用有生产级要求。
-
-相关规划见 [ROADMAP.md](ROADMAP.md)。
-
-## 架构
-
-```text
-飞书消息 / 定时任务 / 管理 API
-               │
-               ▼
-    MessageRouter / TriggerRuntime
-        │                     │
-        ▼                     ▼
-领域 Handler 与 Service    Delivery Ops Agent
-        │                     │
-        │              Agent / Tool / Skill
-        └──────────┬──────────┘
-                   ▼
-       Run → Step → Artifact → Outbox
-                   │
-                   ▼
-          Bot Registry → 飞书
-```
-
-- [后端](backend/README.md)：Bun、Elysia、Prisma、SQLite、飞书/TAPD Adapter
-  和 Agent Runtime。
-- [前端](frontend/README.md)：React、TypeScript、Vite、Ant Design。
-- 领域服务负责强一致写入；模型和 Agent 不能绕过领域规则直接修改业务状态。
-- 外部 Agent 通过 Manifest、网络白名单、Secret 引用和输出类型约束接入。
-
-详细说明见 [文档中心](docs/README.md)。
-
-## 快速开始
-
-### 1. 准备环境
-
-- Bun 1.3.x
-- Node.js 22 与 pnpm 10
-- 一个用于测试的飞书企业自建应用
-- 可选：测试 TAPD Workspace
-- 可选：OpenAI 兼容模型接口
-
-克隆仓库：
+需要 Bun 1.3.x、Node.js 22 与 pnpm 10。不需要 Docker、服务器或外部账号。
 
 ```bash
 git clone https://github.com/KlayPeter/AI-Delivery-Ops-Agent.git
-cd AI-Delivery-Ops-Agent
-```
-
-### 2. 启动后端
-
-```bash
-cd backend
+cd AI-Delivery-Ops-Agent/backend
 bun install --frozen-lockfile
 cp .env.example .env
-```
-
-至少为测试飞书应用填写：
-
-```dotenv
-FEISHU_APP_ID=cli_xxx
-FEISHU_APP_SECRET=replace_with_test_secret
-FEISHU_BOT_OPEN_ID=ou_xxx
-```
-
-TAPD 和模型配置可以稍后补充；未配置时，对应能力不可用。公开版默认
-`TAPD_WORKSPACE_ID=0`、`AI_MODEL=`，不会自动连接真实项目或模型。
-
-初始化数据库并启动开发服务：
-
-```bash
 bunx prisma generate
 bun run setup
 ```
 
-如果还不知道 Bot Open ID，可以先填写 App ID 和 App Secret，再执行：
+复制 `.env` 只用于首次初始化，已有配置请保留。示例凭据留空即可，后端默认
+监听 `http://127.0.0.1:8090`。`setup` 安全同步 SQLite schema 并启动开发服务。
 
-```bash
-bun run get-bot-info
-```
-
-后端默认监听 `http://localhost:8090`。
-
-### 3. 启动前端
-
-打开另一个终端：
+另开终端，从仓库根目录启动前端：
 
 ```bash
 cd frontend
 pnpm install --frozen-lockfile
 cp .env.example .env
-pnpm dev
+pnpm dev --host 127.0.0.1
 ```
 
-开发服务器默认使用 `http://localhost:8090/api` 作为后端地址，并在终端输出
-前端访问地址。
-
-### 4. 验证
+打开 [本地工作台](http://127.0.0.1:15173/)，进入「知识库」检索 **API 迁移说明**。
+结果来自仓库里的虚构示例笔记，无需模型。端口被占用时以终端实际地址为准。
 
 ```bash
-curl http://localhost:8090/healthz
-curl http://localhost:8090/readyz
-curl http://localhost:8090/api/agents
+curl http://127.0.0.1:8090/healthz
+curl http://127.0.0.1:8090/readyz
 ```
 
-- `/healthz` 表示进程仍能响应。
-- `/readyz` 同时检查数据库、Agent Host 和所需机器人连接。
-- `/api/agents` 应列出七个内置 Agent。
+`readyz` 的 `status: "ready"` 表示数据库、Host 和所需机器人已就绪；没有配置
+飞书时，`required: 0` 是正常状态。完整说明见[本地运行](docs/LOCAL_DEVELOPMENT.md)。
 
-这些 API 没有内置鉴权，只能在受控环境中调用。
+## 接入自己的资料与能力
 
-### 5. 配置飞书
+- 「知识库 → 配置来源」选择 Markdown/Obsidian 目录、公开链接或应用资料库；
+  [来源指南](docs/PERSONAL_KNOWLEDGE.md)说明范围、排除项和引用。
+- 「网页收集」可直接使用；「文档导入」需先安装
+  [MarkItDown 转换环境](docs/DOCUMENT_IMPORT.md)，未安装时页面显示状态。
+- 「连接与模型」可填写自己的模型、飞书、TAPD 与 GitHub 设置，保存后重启后端。
+  设置保存在本机 `connections.json`，权限 0600，密钥不回显；本机文件未加密。
+- 体验 [Context7 与标准 Skill](docs/COMMUNITY_PLUGINS.md)，或按
+  [MCP 指南](docs/MCP_TOOLS.md)连接经审查的本地工具。独立配置档需显式选择。
+- 配置 GitHub 后可使用[发布准备](docs/RELEASE_PREPARATION.md)，结合仓库事实与
+  个人规则收集证据；生成草稿需要模型，不自动创建发布或发送消息。
+- 团队接入见[第三方配置指南](docs/第三方平台接入配置指南.md)。飞书 App ID 与
+  Secret 均留空时不连接；只填一项会拒绝启动。
 
-1. 在飞书开放平台为应用添加机器人能力。
-2. 在事件订阅中选择长连接，并订阅 `im.message.receive_v1`。
-3. 发布测试版本，把机器人加入测试群。
-4. 在管理台添加群组并同步成员。
+## 架构
 
-权限、TAPD、模型和外部 Agent 的详细配置见
-[第三方平台接入配置指南](docs/第三方平台接入配置指南.md)。
-
-## Docker
-
-从仓库根目录执行：
-
-```bash
-mkdir -p data
-cp backend/.env.example backend/.env
-# 编辑 backend/.env，只填写你自己的测试或运行环境凭证
-docker compose -f docker/docker-compose.yml up -d --build
+```text
+本地工作台 / CLI / 飞书 / 定时触发
+                 │
+      Cordis 插件装配与能力注册
+                 │
+     Agent Host → Agent / Tool / Skill
+                 │
+     Run → Step → Artifact → Outbox
+                 │
+      来源版本 / 检查记录 / 可选投递
 ```
 
-默认地址：
-
-- 前端：`http://localhost:8080`
-- 后端：`http://localhost:8090`
-
-Compose 端口只绑定 `127.0.0.1`。SQLite 和动态配置保存在宿主机 `data/`
-目录。停止服务不会删除该目录。
-
-Kubernetes 模板和手动部署步骤见
-[deploy/k8s/README.md](deploy/k8s/README.md) 与
-[deploy/k8s/DEPLOY.md](deploy/k8s/DEPLOY.md)。公共 CI 不推送镜像，也不
-连接任何集群。
+- [后端](backend/README.md)：Bun、Elysia、Prisma、SQLite、Cordis 与 Agent Runtime。
+- [前端](frontend/README.md)：React、TypeScript、Vite、Ant Design。
+- 确定性状态由领域服务维护；Agent 和模型通过受治理工具调用业务能力。
+- 插件可贡献业务入口，部分基础服务仍由宿主拥有；当前边界见
+  [功能卡索引](docs/features/README.md)和[路线图](ROADMAP.md)。
 
 ## 开发与验证
 
-后端：
+后端全量测试包含真实文档转换，先在 `backend` 安装
+[固定版本 Python 转换环境](docs/DOCUMENT_IMPORT.md)，再执行：
 
 ```bash
 cd backend
@@ -219,22 +142,20 @@ bun test
 pnpm build
 ```
 
-行为变化必须更新对应 `FEATURE.md`。完整贡献流程见
-[CONTRIBUTING.md](CONTRIBUTING.md)。
+行为变化与对应 `FEATURE.md` 同步提交，流程见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-## 数据与安全
+## 使用边界
 
-- 不要提交 `.env`、真实凭据、数据库、日志、备份或生成报告。
-- 使用独立测试飞书应用和测试 TAPD Workspace 开发。
-- SQLite 只能由一个后端实例写入，并且必须挂载持久化目录。
-- 生产凭据应由环境变量、Secret Manager 或 Kubernetes Secret 注入。
-- 提交安全问题前请阅读 [SECURITY.md](SECURITY.md)。
+管理 API 没有登录或 RBAC，使用回环地址运行；当前 Host/Origin 检查不等于身份认证。
+SQLite 与资料库要求同一数据目录只有一个后端写实例。不要提交 `.env`、凭据、
+个人知识、数据库、日志或生成报告。文档转换不提供 OCR，也不是公开上传沙箱。
 
-## 文档
+本轮以本地运行验证为准。现有部署模板见[部署文档](docs/项目部署与开发协作流程.md)，
+不影响本地使用。安全问题见 [SECURITY.md](SECURITY.md)，产品后续计划见
+[ROADMAP.md](ROADMAP.md)；独立用户采用与长期运行数据仍待验证。
 
-[docs/README.md](docs/README.md) 按使用者、部署者和维护者整理了全部公开文档。
+## 文档与许可
 
-## 许可证
-
-项目采用 [Apache License 2.0](LICENSE)。外部服务、内容源和依赖的说明见
+[文档中心](docs/README.md)包含使用、插件开发与架构指南。
+项目采用 [Apache License 2.0](LICENSE)；外部服务、内容源和依赖见
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

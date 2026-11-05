@@ -7,8 +7,12 @@
 
 - [本地运行与工作台](LOCAL_DEVELOPMENT.md)：无需部署的启动步骤、连接表单与实际 Agent 运行。
 - [本地 MCP 工具](MCP_TOOLS.md)：使用已有开源 stdio 工具、明确授权范围并查看运行证据。
-
+- [Context7 与标准 Skill](COMMUNITY_PLUGINS.md)：真实社区工具、SKILL.md 导入和独立配置档。
+- [网页与文档收集](DOCUMENT_IMPORT.md)：安装 MarkItDown、导入资料、明确收录及资料库来源切换。
 - [本地个人知识库](PERSONAL_KNOWLEDGE.md)：只读连接 Markdown/Obsidian 目录；本地关键词检索或显式配置模型后生成带引用的 RAG 回答。
+- [知识变更复核](KNOWLEDGE_IMPACT.md)：检查历史引用，保留原结果和独立评估。
+- [发布准备](RELEASE_PREPARATION.md)：仓库事实、个人规则与可核查草稿。
+- [结果验收功能卡](../backend/src/quality/FEATURE.md)：插件声明的规则、执行版本和两次运行的结构对比。
 - [用户指南](AI-Delivery-Ops-Agent-用户使用指南.md)：在飞书中创建任务、
   更新进度、提交站会和触发报告。
 - [第三方平台接入配置指南](第三方平台接入配置指南.md)：配置飞书、TAPD、

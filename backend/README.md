@@ -1,7 +1,7 @@
 # 后端
 
-后端负责飞书长连接、TAPD 集成、领域规则、定时任务、Agent Runtime、可靠
-投递和管理 API。
+后端提供 Agent 插件宿主、个人知识与资料收集、运行记录、结果验收和本地工作台
+API。飞书长连接、TAPD、团队领域规则与可靠投递按需配置。
 
 ## 技术栈
 
@@ -13,7 +13,7 @@
 
 ## 本地启动
 
-需要 Bun 1.3.x。先复制示例配置，并使用测试环境凭据：
+需要 Bun 1.3.x，在 backend 目录执行。仅首次复制 .env，保留已有配置：
 
 ```bash
 bun install --frozen-lockfile
@@ -23,10 +23,12 @@ bun run setup
 ```
 
 `bun run setup` 会同步 SQLite schema，然后以 watch 模式启动服务。后端默认
-监听 `http://localhost:8090`。
+监听 `http://127.0.0.1:8090`。
 
-公开版不会提供可直接使用的集成凭据。至少需要配置有效的飞书 App ID、
-App Secret 和 Bot Open ID；TAPD 与模型参数只在启用相应能力时需要。
+无需凭据即可启动、检索虚构示例知识和收集公开网页。飞书 App ID 和 Secret
+均留空时不连接，只填一项会拒绝启动；TAPD 与模型参数仅在调用相应能力时需要。
+前端与自己的资料接入见[本地运行](../docs/LOCAL_DEVELOPMENT.md)。文档导入需另外
+安装[固定版本 MarkItDown 环境](../docs/DOCUMENT_IMPORT.md)。
 
 常用命令：
 
@@ -46,11 +48,12 @@ curl http://localhost:8090/readyz
 ```
 
 `/healthz` 只检查进程存活；`/readyz` 还检查数据库、Agent Host 和所需机器人
-连接。
+连接；没有配置飞书时 required: 0 是正常状态。
 
 ## 测试
 
-测试必须使用独立数据库：
+全量测试包含实际文档转换，先按[转换环境说明](../docs/DOCUMENT_IMPORT.md)安装
+Python 与 MarkItDown。测试必须使用独立数据库：
 
 ```bash
 bunx prisma generate
@@ -66,11 +69,13 @@ DATABASE_URL="file:${TEST_DATABASE_PATH}" bun test
 - `src/domains/`：任务、站会和周报等业务规则。
 - `src/services/`：应用服务、消息路由和报告生成。
 - `src/platform/`：Agent、Tool、Skill、Session、Trigger、Bot 与 Outbox。
+- `src/knowledge/`：Markdown/Obsidian、网页、回答、引用复核、资料收集和资料库插件。
+- `src/connectors/`：GitHub、Context7 与 MarkItDown 等明确适配的开源能力。
+- `src/quality/`：插件声明规则的结果验收与执行凭证对比。
 - `src/adapters/`：飞书、TAPD、模型和邮件适配器。
 - `src/core/`：配置、调度、健康检查、存储与数据保留。
 
 领域状态只能通过领域服务写入。Agent、模型、Handler 和外部 Adapter 不应
 绕过该边界。
 
-部署入口统一放在仓库根目录的 `docker/` 和 `deploy/`。详细步骤见
-[根 README](../README.md)。
+插件契约、组合与清理约定见[插件作者指南](../docs/PLUGIN_AUTHORING.md)。
