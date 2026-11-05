@@ -74,6 +74,9 @@ flowchart TD
     Z1 -- "是" --> I
     Z1 -- "否" --> K
     COL --> KLIB[明确收录原产物；私有资料与后续检索]
+    D --> QVS[每次实际调用的执行版本与序列化指纹]
+    QVS --> QCR[保存记录结构验收；独立报告]
+    E --> QCR
 ```
 
 ## 能力边界
@@ -167,6 +170,8 @@ CLI 可选 --state 保存 Run/Step/Tool/Artifact；默认仍为内存。知识�
 验证：backend/test/context7Plugin.test.ts 覆盖格式/边界、权限不继承、受控 Prompt Skill 执行及插件装配；本地实际 MCP 与工作台验收覆盖公开文档检索。真实付费模型未调用。
 
 knowledge.collect 只固定当前成功采集 Run ID，经 knowledge.library.manage 执行同 Scope 的一次 Tool；先校验原 Run，再读取唯一私有 Markdown。状态读取不创建 Run，保存结果单独记录，不改源 Artifact。重复、容量、文件安全与中断暂存恢复由资料库服务负责；原文检索及选择资料库后的回答/引用复核复用现有管线。验证：backend/test/knowledgeLibrary.test.ts。
+
+每次 Agent 调用的运行中/成功/失败步骤均带独立 execution 1.0 快照，保留声明的身份与版本、Manifest/可序列化输入指纹；这不是完整执行环境快照，新增字段不保存原始输入。新 quality.checks 插件先验证全部目标归属和终态，再读取原记录做结构验收，报告与新增失败项单独持久化，不修改原证据或重执行任务。结构结果与验收 Run 状态分开；旧版本凭证缺失不可显示绿色通过。验证：backend/test/pluginChecks.test.ts 与 agentRuntime.test.ts。
 
 ## 用户能力
 

@@ -103,6 +103,7 @@ export class PluginRuntime {
                         };
                         for (const route of plugin.messageRoutes || []) scoped.messageRoutes.register(route);
                         for (const schedule of plugin.schedules || []) scoped.schedules.register(schedule);
+                        for (const check of plugin.checks || []) ctx.effect(() => services.checks.register(plugin, check));
                         for (const agent of plugin.agents || []) {
                             ctx.effect(() => services.agents.register(agent.manifest));
                             ctx.effect(() => services.agents.install({

@@ -45,7 +45,7 @@ await host.stop();
 AGENT_PLUGINS_FILE=profiles/agents/team.yaml bun run dev
 ```
 
-团队 SDK 未指定插件时默认组合为九个功能插件、七个 Agent；HTTP 工作台额外装配选定知识来源、回答、复核、知识界面、网页收集、文档导入与资料库，共 16 个插件、13 个 Agent；配置 GitHub 发布组合后为 18 个插件、14 个 Agent。会议纪要和外部 AI Hot 调度插件没有独立 Agent。会议纪要仍受原有模块开关控制，外部 AI Hot 能力仍需另行安装。示例还包括 `profiles/agents/native-demo.yaml`、`profiles/agents/empty.yaml` 和 `backend/examples/plugins.collectors.yaml`，分别选择 Echo 模板、零业务插件和采集/资料库三个插件。显式插件文件完全决定组合；未装配的插件页面和 API 不开放，基础服务仍由应用拥有。
+团队 SDK 未指定插件时默认组合为九个功能插件、七个 Agent；HTTP 工作台额外装配选定知识来源、回答、复核、知识界面、网页收集、文档导入、资料库与结果验收，共 17 个插件、14 个 Agent；配置 GitHub 发布组合后为 19 个插件、15 个 Agent。会议纪要和外部 AI Hot 调度插件没有独立 Agent。会议纪要仍受原有模块开关控制，外部 AI Hot 能力仍需另行安装。示例还包括 `profiles/agents/native-demo.yaml`、`profiles/agents/empty.yaml` 和 `backend/examples/plugins.collectors.yaml`，分别选择 Echo 模板、零业务插件和采集/资料库三个插件。显式插件文件完全决定组合；未装配的插件页面和 API 不开放，基础服务仍由应用拥有。
 
 ```yaml
 apiVersion: '1.0'
@@ -157,7 +157,7 @@ ctx.delivery.web.register({
 });
 ```
 
-页面只能使用站内静态路径；label 最长 80 字符，section 为 workspace/team。view.kind=agent 打开指定 Capability 的现有工作台；kind=builtin 使用已打包 renderer ID（包括团队页面，以及 knowledge、release-preparation、web-capture、documents、knowledge-library）。builtin view 可声明可选的 capability，让 Agent 卡片和任务选择进入所属结构化表单；网页收集和文档导入是实际例子。未知 renderer 显示恢复入口，不执行远程 HTML、JS 或 React 包。已保留的核心/旧页面不能覆盖，路径与贡献 ID 不得重复；Agent 导航跳转后保持当前项选中。
+页面只能使用站内静态路径；label 最长 80 字符，section 为 workspace/team。view.kind=agent 打开指定 Capability 的现有工作台；kind=builtin 使用已打包 renderer ID（包括团队页面，以及 knowledge、release-preparation、web-capture、documents、knowledge-library、plugin-checks）。builtin view 可声明可选的 capability，让 Agent 卡片和任务选择进入所属结构化表单；网页收集和文档导入是实际例子。未知 renderer 显示恢复入口，不执行远程 HTML、JS 或 React 包。已保留的核心/旧页面不能覆盖，路径与贡献 ID 不得重复；Agent 导航跳转后保持当前项选中。
 
 API 声明 prefix、routes（method/path）与接收标准 Request、返回 Response 的 handle。每条声明必须位于所属前缀，前缀不可重叠或覆盖保留 API。应用在 Host 初始化后核对已有 API 命名空间，冲突时拒绝装配，不覆盖旧接口；随后装配声明路由，因此 OpenAPI 保留路径；请求体由所属 Fetch handler 解析，代理不会先消耗 body。`builtin.standup` 和 `backend/src/domains/standup/api.ts` 是真实例子。通过 Host.handlePluginRequest 进入本机来源校验与在途跟踪，停止时先等待请求，再释放资源。
 
@@ -168,6 +168,34 @@ manualJobs 声明现有 Legacy Job 名称的所有者，不添加任意命令或
 ## 标准 JSON Schema
 
 Agent、Tool 和 Skill 的输入输出共用标准 JSON Schema 校验，支持联合类型、引用、额外字段与边界约束；不自动下载远端引用。校验错误使用标准实现文案，调用方应按错误 code 判断，避免依赖完整错误句子。不同 Schema 即使使用同一 $id 也隔离校验。MCP 工具的原始 inputSchema 保留，structuredContent 另按上游 outputSchema 核验。
+
+## 声明保存记录的验收规则
+
+FeaturePlugin 可在顶层声明 checks，绑定自身 Agent/Capability；规则 ID 以插件 ID 开头，声明自身规则版本。以下展示网页插件的最小结构，完整规则见 backend/src/knowledge/capture/plugin.ts：
+
+```ts
+checks: [{
+  id: 'knowledge.capture.result', title: '网页正文与来源凭证', version: '1.0.0',
+  agentId: 'native.web-capture', capability: 'knowledge.page.capture',
+  artifacts: [{ id: 'source', type: 'json', schema: {
+    type: 'object', required: ['content', 'mediaType', 'metadata'], properties: {
+      mediaType: { const: 'application/json' },
+      metadata: { type: 'object', required: ['privateKnowledge'],
+        properties: { privateKnowledge: { const: true } } },
+      content: { type: 'object', required: ['text', 'documentVersion'],
+        properties: { text: { type: 'string', minLength: 1 },
+          documentVersion: { type: 'string', pattern: '^[a-f0-9]{64}$' } } },
+    },
+  } }],
+  steps: [{ id: 'capture', kind: 'tool', name: 'web.page.capture' }],
+}]
+```
+
+规则仅包含标准 JSON Schema 和步骤声明，不接受回调脚本。Schema 作用于完整 Artifact，正文放在 content 属性；可同时检查媒体类型及隐私标志。每项产物规则要求一个对应类型的产物；必要字段缺失、同类多个产物或步骤状态不符会失败。最多 8 项产物与 16 项步骤，规则最多 64 KiB；重复 ID、来源 Agent 不属于提供者或 Schema 无法编译会拒绝装配并回滚。
+
+quality.checks 插件提供 /checks 和 quality.runs.check，输入 contractId/runId/可选 baselineRunId。最小组合见 backend/examples/plugins.checks.yaml；它检查已保存的记录，始终不重执行来源任务或调用模型。报告保留规则完整快照/哈希与当前规则提供者版本，另列历史执行步骤中记录的 Agent 版本。两次记录按同一当前规则判断；差异不自动归因升级，原始记录不改写。
+
+Runtime 新步骤保存 execution 1.0，包括 Agent ID/版本、Manifest 及可用的输入序列化指纹。旧步骤缺少凭证时无法完整核验，不能用当前插件版本填补。多次恢复的请求不作单一输入比较；相同请求指纹也不代表完整上下文或环境相同。结构通过不代表语义质量、事实正确或代码安全，作者需要为关键结果写有意义的规则及功能测试。真实 MarkItDown 和网页记录、故意移除字段的跨版本回归已纳入 backend/test/pluginChecks.test.ts。
 
 ## 插件提交验收
 

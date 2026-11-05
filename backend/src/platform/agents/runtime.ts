@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { BotRegistry } from '@/platform/bots/registry';
 import { createExecutionScope, createTriggerEnvelope, createTriggerScope, type TriggerEnvelope } from '@/platform/runtime/scope';
 import type { AgentError, AgentManifest, AgentRequest, AgentResult, AgentRun, AgentRuntimeAdapter, Artifact, JsonSchema, ResolvedAgent } from './contracts';
@@ -13,6 +13,10 @@ export interface AgentExecutionOutcome {
 }
 
 const errorResult = (error: AgentError): AgentResult => ({ status: 'failed', artifacts: [], error });
+function jsonFingerprint(value: unknown): string | undefined {
+    try { const json = JSON.stringify(value); return json === undefined ? undefined : createHash('sha256').update(json).digest('hex'); }
+    catch { return undefined; }
+}
 
 export class AgentRuntime {
     private readonly adapters = new Map<string, AgentRuntimeAdapter>();
@@ -202,7 +206,8 @@ export class AgentRuntime {
         else parentSignal?.addEventListener('abort', abortFromParent, { once: true });
         const stepId = randomUUID();
         const startedAt = new Date().toISOString();
-        await this.runs.saveStep({ id: stepId, runId, kind: 'agent', name: resolved.manifest.id, status: 'running', startedAt });
+        const execution = { schemaVersion: '1.0', agentId: resolved.manifest.id, agentVersion: resolved.manifest.version, manifestHash: jsonFingerprint(resolved.manifest), inputHash: jsonFingerprint(input) };
+        await this.runs.saveStep({ id: stepId, runId, kind: 'agent', name: resolved.manifest.id, status: 'running', startedAt, metadata: { execution } });
         let timer: ReturnType<typeof setTimeout> | undefined;
         try {
             const request: AgentRequest<T> = {
@@ -234,7 +239,7 @@ export class AgentRuntime {
                 startedAt,
                 completedAt: new Date().toISOString(),
                 error: result.error,
-                metadata: result.metrics,
+                metadata: { ...result.metrics, execution },
             });
             if (result.status === 'failed') return this.fail(runId, result.error || { code: 'AGENT_FAILED', message: 'Agent failed', retryable: false });
             const status = result.status === 'needs_human' ? 'waiting_human' : 'succeeded';
@@ -246,7 +251,7 @@ export class AgentRuntime {
                 message: error?.message || String(error),
                 retryable: controller.signal.aborted || error?.retryable === true,
             };
-            await this.runs.saveStep({ id: stepId, runId, kind: 'agent', name: resolved.manifest.id, status: 'failed', startedAt, completedAt: new Date().toISOString(), error: failure });
+            await this.runs.saveStep({ id: stepId, runId, kind: 'agent', name: resolved.manifest.id, status: 'failed', startedAt, completedAt: new Date().toISOString(), error: failure, metadata: { execution } });
             return this.fail(runId, failure);
         } finally {
             if (timer) clearTimeout(timer);

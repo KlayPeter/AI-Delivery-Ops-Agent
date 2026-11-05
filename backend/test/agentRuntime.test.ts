@@ -56,9 +56,40 @@ describe('AgentRuntime', () => {
     });
 
     test('preserves adapter error codes and retryability', async () => {
-        const { runtime, adapter, trigger } = fixture();
+        const { runtime, adapter, trigger, runs } = fixture();
         adapter.register('echo', '1.0.0', async () => { throw Object.assign(new Error('upstream unavailable'), { code: 'HTTP_503', retryable: true }); });
         const outcome = await runtime.execute(trigger, 'echo', { text: 'hello' });
         expect(outcome.result.error).toMatchObject({ code: 'HTTP_503', retryable: true, message: 'upstream unavailable' });
+        expect(runs.listSteps(outcome.run.id)[0].metadata?.execution).toMatchObject({ agentId: 'echo', agentVersion: '1.0.0' });
+    });
+
+    test('retains execution snapshots for each human continuation without storing raw inputs or losing metrics', async () => {
+        const { runtime, adapter, runs, trigger } = fixture();
+        let calls = 0;
+        adapter.register('echo', '1.0.0', async request => {
+            const running = runs.listSteps(request.runId).find(step => step.status === 'running');
+            expect(running?.metadata?.execution).toMatchObject({ agentId: 'echo', agentVersion: '1.0.0' });
+            return { status: ++calls === 1 ? 'needs_human' : 'succeeded', data: { reply: 'ok' }, artifacts: [], metrics: { modelCalls: 0, toolCalls: 0 } };
+        });
+        const first = await runtime.execute(trigger, 'echo', { text: 'private-original' });
+        expect(first.run.status).toBe('waiting_human');
+        const original = runs.listSteps(first.run.id)[0];
+        expect((await runtime.resume(trigger, first.run.id, { text: 'private-continuation' })).run.status).toBe('succeeded');
+        const steps = runs.listSteps(first.run.id);
+        expect(steps).toHaveLength(2); expect(steps[0]).toEqual(original);
+        const executions = steps.map(step => step.metadata!.execution as any);
+        expect(executions[0].inputHash).not.toBe(executions[1].inputHash);
+        expect(executions[0].manifestHash).toBe(executions[1].manifestHash);
+        expect(JSON.stringify(steps)).not.toContain('private-original'); expect(JSON.stringify(steps)).not.toContain('private-continuation');
+        expect(steps[1].metadata).toMatchObject({ modelCalls: 0, toolCalls: 0 });
+    });
+
+    test('execution provenance cannot break an otherwise valid SDK call with an unserializable input', async () => {
+        const { runtime, adapter, runs, trigger } = fixture();
+        adapter.register('echo', '1.0.0', async () => ({ status: 'succeeded', data: { reply: 'ok' }, artifacts: [] }));
+        const input: any = { text: 'safe' }; input.self = input;
+        const result = await runtime.execute(trigger, 'echo', input);
+        expect(result.run.status).toBe('succeeded');
+        expect((runs.listSteps(result.run.id)[0].metadata!.execution as any).inputHash).toBeUndefined();
     });
 });

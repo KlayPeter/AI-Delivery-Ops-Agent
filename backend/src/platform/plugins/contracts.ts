@@ -14,6 +14,7 @@ import type { OrchestratorAdapter } from '@/platform/models/contracts';
 import type { ToolGateway } from '@/platform/tools/gateway';
 import type { RunActionRegistry } from './runActions';
 import type { PluginWebRegistry } from './web';
+import type { RunCheckDefinition, RunCheckRegistry } from './checks';
 
 export interface PluginManifest {
     apiVersion: '1.0';
@@ -40,6 +41,7 @@ export interface PluginHostServices {
     schedules: Pick<ScheduleRegistry, 'register'>;
     runActions: Pick<RunActionRegistry, 'register'>;
     web: Pick<PluginWebRegistry, 'register'>;
+    checks: RunCheckRegistry;
     orchestrator: OrchestratorAdapter;
     toolGateway: Pick<ToolGateway, 'execute'>;
     bots: BotRegistry;
@@ -53,6 +55,7 @@ export interface FeaturePlugin {
     skillPackages?: readonly string[];
     messageRoutes?: readonly MessageRoute[];
     schedules?: readonly GroupSchedule[];
+    checks?: readonly RunCheckDefinition[];
     Config?: Plugin.Object<Record<string, unknown>>['Config'];
     apply: (ctx: Context, config: Record<string, unknown>) => void | Promise<void>;
 }

@@ -39,6 +39,17 @@ async function uploadedBody(request: Request) {
 export const markItDownPlugin: FeaturePlugin = {
     manifest: { apiVersion: '1.0', id: 'community.markitdown', name: 'MarkItDown 文档导入', version: '1.0.0', description: manifest.description },
     Config: configuration, agents: [{ manifest, installationId: 'install-document-convert' }],
+    checks: [{ id: 'community.markitdown.result', title: '文档转换与来源凭证', version: '1.0.0', agentId: manifest.id, capability: DOCUMENT_CAPABILITY,
+        artifacts: [{ id: 'document', type: 'json', schema: { type: 'object', required: ['mediaType', 'metadata', 'content'], properties: {
+            mediaType: { const: 'application/json' }, metadata: { type: 'object', required: ['privateKnowledge'], properties: { privateKnowledge: { const: true } } },
+            content: { type: 'object', required: ['markdown', 'version', 'source', 'convertedAt'], properties: {
+            markdown: { type: 'string', minLength: 1 }, version: { const: '0.1.9' }, convertedAt: { type: 'string', format: 'date-time' }, source: { type: 'object', required: ['name', 'size', 'sha256'], properties: {
+                name: { type: 'string', minLength: 1 }, size: { type: 'integer', minimum: 1 }, sha256: { type: 'string', pattern: '^[a-f0-9]{64}$' },
+            } },
+        } } } } }, { id: 'markdown', type: 'markdown', schema: { type: 'object', required: ['mediaType', 'metadata', 'content'], properties: {
+            mediaType: { const: 'text/markdown' }, content: { type: 'string', minLength: 1 }, metadata: { type: 'object', required: ['privateKnowledge'], properties: { privateKnowledge: { const: true } } },
+        } } }], steps: [{ id: 'convert', kind: 'tool', name: tool }],
+    }],
     apply(ctx, value) {
         const config = configuration.parse(value);
         const uploads = new DocumentUploads(path.join(ctx.delivery.getContext().config.data_path, 'document-uploads'));

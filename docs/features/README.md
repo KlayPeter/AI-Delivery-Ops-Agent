@@ -73,12 +73,17 @@ flowchart LR
     FP --> SKIMP[标准 SKILL.md 显式导入；宿主另授工具权限]
     SKIMP --> C7
     C7 --> O
+    FP --> RULES[插件声明的结果规则]
+    RULES --> QC[原记录结构验收与版本比较]
+    O --> QC
+    QC --> O
 ```
 
 ## 1. 当前功能
 
 | Feature ID | 功能 | 状态 | 运行时 Agent 映射 | 功能文档 |
 | --- | --- | --- | --- | --- |
+| `plugin-result-checks` | 插件声明规则、结构验收、执行版本与记录对比 | active | `native.plugin-checks` | [查看](../../backend/src/quality/FEATURE.md) |
 | `personal-knowledge-library` | 明确收录资料、私有保存、检索与 RAG 来源 | active | `native.knowledge-library` | [查看](../../backend/src/knowledge/library/FEATURE.md) |
 | `web-page-capture` | 单篇网页正文、来源版本与 Markdown 导出 | active | `native.web-capture` | [查看](../../backend/src/knowledge/capture/FEATURE.md) |
 | `local-document-import` | 本地 PDF/Office 转 Markdown 与原始指纹 | active | `native.document-convert` | [查看](../../backend/src/connectors/markitdown/FEATURE.md) |
@@ -120,6 +125,7 @@ flowchart LR
 | `native.ai-news-radar` | `knowledge.ai.news.fetch` | Native Agent | AI 热点新闻助手 |
 | `native.knowledge-markdown` | `knowledge.markdown.retrieve` | 可选 Native Agent | 个人 Markdown 知识源；显式安装后生效 |
 | `native.knowledge-web` | `knowledge.web.retrieve` | 可选 Native Agent | 公开网页知识源；显式安装后生效 |
+| `native.plugin-checks` | `quality.runs.check` | 可选 Native Agent | 插件结果验收；HTTP 默认装配 |
 | `native.knowledge-library` | `knowledge.library.manage` | 可选 Native Agent | 明确收录网页/文档与原文检索；HTTP 默认装配 |
 | `native.web-capture` | `knowledge.page.capture` | 可选 Native Agent | 单篇网页正文与来源导出；HTTP 默认装配 |
 | `native.document-convert` | `knowledge.document.convert` | 可选 Native Agent | 本地文档转换与来源指纹；HTTP 默认装配，需安装引擎 |
@@ -150,6 +156,7 @@ flowchart LR
 | `backend/src/connectors/mcp/**`、`backend/examples/plugins/mcp-reader.ts` | `mcp-tool-connector`、`plugin-runtime`、`agent-platform`、`operations-observability` |
 | `backend/src/platform/agents/schema.ts` | `agent-platform`、`plugin-runtime`、`operations-observability`；使用完整外部 Schema 时追加连接功能 |
 | `backend/src/connectors/github/**` | `github-project-facts`；结果协议变化同步使用它的任务功能 |
+| `backend/src/quality/**`、`backend/src/platform/plugins/checks.ts` | `plugin-result-checks`、`plugin-runtime`、`agent-platform`、`operations-observability`、`local-agent-workspace`；规则变化同步提供者 |
 | `backend/src/knowledge/library/**` | `personal-knowledge-library`、`personal-markdown-knowledge`、`personal-knowledge-workspace`、`local-agent-workspace`、`plugin-runtime`、`operations-observability`；来源组合变化同步回答/复核 |
 | `backend/src/knowledge/capture/**` | `web-page-capture`、`personal-web-knowledge`、`local-agent-workspace`、`operations-observability` |
 | `backend/src/connectors/markitdown/**` | `local-document-import`、`plugin-runtime`、`local-agent-workspace`、`operations-observability` |
@@ -195,5 +202,5 @@ flowchart LR
 - **推荐在功能代码 Owner 目录使用 `FEATURE.md`，不推荐再放业务型 `AGENTS.md`。** `FEATURE.md` 面向人和 AI 共同解释产品能力；根目录 `AGENTS.md` 统一约束 AI 的修改流程。这样代码与功能事实相邻，又不会让业务说明和开发规则混在一起。
 - **系统已经是 Agent 系统。** 它具备 Registry、三类 Adapter、Model Loop、Tool/Skill Runtime、委派、Session/Checkpoint、Run/Artifact、Outbox 和 Bot Binding，不只是“调用一次大模型”的普通业务系统。
 - **系统采用混合架构是正确的。** 自主决策和可插拔执行使用 Agent，强一致状态交给 Domain Service，确定性管理和查询保留为服务/控制面。强行把每个页面或函数 Agent 化会增加成本、随机性和数据冲突。
-- **当前功能文档覆盖 25 个能力。** 团队 SDK 组合包含 7 个 Agent；HTTP 工作台默认额外装配知识来源、回答、复核、知识界面、网页收集、文档导入与资料库，共 13 个 Agent；个人 Markdown、公开网页检索、RAG 回答、发布准备与知识变更复核是五个可选 Native Agent，AI Hot 是可选外部 Agent；会议纪要处于 dormant，其余功能通过 Agent、领域服务和控制面协作完成。
+- **当前功能文档覆盖 26 个能力。** 团队 SDK 组合包含 7 个 Agent；HTTP 工作台默认额外装配知识来源、回答、复核、知识界面、网页收集、文档导入、资料库与结果验收，共 14 个 Agent；个人 Markdown、公开网页检索、RAG 回答、发布准备与知识变更复核是五个可选 Native Agent，AI Hot 是可选外部 Agent；会议纪要处于 dormant，其余功能通过 Agent、领域服务和控制面协作完成。
 - **下一步维护重点**是保证功能卡与代码同提交更新，并继续把业务写入口收敛到 `TaskService`、`StandupService` 和受治理 Tool；新增机器人优先增加 Binding，新增自治能力再增加 Agent。

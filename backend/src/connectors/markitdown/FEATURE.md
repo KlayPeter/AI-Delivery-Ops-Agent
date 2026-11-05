@@ -30,6 +30,7 @@ flowchart TD
     LIMIT --> CLEAN[转换后移除原始暂存；失败也清理已接收输入]
     MD --> UI[查看、复制或下载；用户核对后放入知识目录]
     MD --> KLIB[用户明确收录到应用资料库]
+    MD --> QCR[可选转换结果验收；来源与执行版本]
 ```
 
 ## 能力边界
@@ -59,6 +60,8 @@ flowchart TD
 9. 插件独立释放 Agent、Tool、页面和 API，历史 Artifact 保留。Markdown 沿用现有安全展示，不执行 HTML或加载远端图片。
 
 可选 knowledge.library 为成功文档结果提供显式收录动作；转换后的 Markdown 可进入应用资料目录并用于检索。转换器不自动收录，也不写入用户 Vault；收录读取已保留 Artifact，不重新读取原始上传。验证：backend/test/knowledgeLibrary.test.ts 使用真实上游转换结果。
+
+插件声明 community.markitdown.result 规则，核对引擎 0.1.9、文件来源指纹、非空 Markdown、转换时间与实际成功 Tool 步骤。规则还核对 JSON/Markdown 媒体类型和 privateKnowledge 标志。独立 quality.checks 在已保存记录上检查，不重新读取原始上传或执行 Python；结构通过不证明版式/语义正确。backend/test/pluginChecks.test.ts 使用真实上游转换结果验收。
 
 ## 用户能力
 

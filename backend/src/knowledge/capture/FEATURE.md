@@ -27,6 +27,7 @@ flowchart TD
     V --> O[JSON 来源面板与 Markdown Artifact]
     O --> D[复制或下载；用户放入选定知识目录]
     O --> KLIB[用户明确收录；独立资料库拥有写入]
+    O --> QCR[可选声明式结果验收；原记录保留]
 ```
 
 ## 能力边界
@@ -54,6 +55,8 @@ flowchart TD
 7. 移除插件会释放 Agent、Tool、菜单和页面；历史结果保留。页面声明对应 Capability，Agent 卡片和任务选择直接进入结构化表单。
 
 可选 knowledge.library 插件为成功采集结果贡献“收录到资料库”动作；用户点击后由资料库服务写入应用目录。网页采集插件本身依然只读，不修改个人 Vault 或自动收录。采集插件可移除，资料库可继续使用已有成功结果。验证：backend/test/knowledgeLibrary.test.ts。
+
+插件声明 knowledge.capture.result 结果规则，要求来源/时间/正文/版本 JSON、非空 Markdown 和成功的 web.page.capture Tool 步骤。规则还核对 JSON/Markdown 媒体类型和 privateKnowledge 标志。独立 quality.checks 可检查既有记录；运行版本从新 execution 快照取得，旧记录不补造。验收不重新抓取网页、不判断内容语义。验证：backend/test/pluginChecks.test.ts。
 
 ## 用户能力
 

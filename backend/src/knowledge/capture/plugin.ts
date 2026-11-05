@@ -22,6 +22,16 @@ export function createWebCapturePlugin(loadPage = fetchPublicPage): FeaturePlugi
     return {
         manifest: { apiVersion: '1.0', id: 'knowledge.capture', name: '网页资料收集', version: '1.0.0', description: manifest.description },
         agents: [{ manifest, installationId: 'install-web-capture' }],
+        checks: [{ id: 'knowledge.capture.result', title: '网页正文与来源凭证', version: '1.0.0', agentId: manifest.id, capability: CAPTURE_CAPABILITY,
+            artifacts: [{ id: 'source', type: 'json', schema: { type: 'object', required: ['mediaType', 'metadata', 'content'], properties: {
+                mediaType: { const: 'application/json' }, metadata: { type: 'object', required: ['privateKnowledge'], properties: { privateKnowledge: { const: true } } },
+                content: { type: 'object', required: ['url', 'finalUrl', 'title', 'text', 'documentVersion', 'rawVersion', 'fetchedAt', 'markdown'], properties: {
+                url: { type: 'string', minLength: 1 }, finalUrl: { type: 'string', minLength: 1 }, title: { type: 'string', minLength: 1 }, text: { type: 'string', minLength: 1 }, markdown: { type: 'string', minLength: 1 },
+                documentVersion: { type: 'string', pattern: '^[a-f0-9]{64}$' }, rawVersion: { type: 'string', pattern: '^[a-f0-9]{64}$' }, fetchedAt: { type: 'string', format: 'date-time' },
+            } } } } }, { id: 'markdown', type: 'markdown', schema: { type: 'object', required: ['mediaType', 'metadata', 'content'], properties: {
+                mediaType: { const: 'text/markdown' }, content: { type: 'string', minLength: 1 }, metadata: { type: 'object', required: ['privateKnowledge'], properties: { privateKnowledge: { const: true } } },
+            } } }], steps: [{ id: 'capture', kind: 'tool', name: tool }],
+        }],
         apply(ctx) {
             ctx.delivery.web.register({ id: 'knowledge.capture', pages: [{ path: '/capture', label: '网页收集', section: 'workspace', view: { kind: 'builtin', id: 'web-capture', capability: CAPTURE_CAPABILITY } }] });
             ctx.delivery.tools.register({ id: tool, version: '1.0.0', description: 'Read one explicitly requested public webpage with bounded network access and extract its text; no crawling, model calls or private-network access.', inputSchema: schema, outputSchema: { type: 'object' }, sideEffect: 'read', riskLevel: 'low', idempotent: true, timeoutSeconds: 20 }, async (input, execution) => {

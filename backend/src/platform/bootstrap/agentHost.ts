@@ -1,6 +1,7 @@
 import { PluginRuntime } from '@/platform/plugins/runtime';
 import { PluginWebRegistry } from '@/platform/plugins/web';
 import { RunActionRegistry, statusPanelSchema, type StatusPanel } from '@/platform/plugins/runActions';
+import { RunCheckRegistry } from '@/platform/plugins/checks';
 import type { FeaturePlugin } from '@/platform/plugins/contracts';
 import type { SourceMessage } from '@/models/types';
 import type { AgentManifest, AgentRun } from '@/platform/agents/contracts';
@@ -80,6 +81,7 @@ export class AgentHost {
     readonly schedules: ScheduleRegistry;
     readonly runActions = new RunActionRegistry();
     readonly web = new PluginWebRegistry();
+    readonly checks = new RunCheckRegistry();
     readonly registry = new AgentRegistry();
     readonly nativeAdapter = new NativeAgentAdapter();
     readonly bots = new BotRegistry();
@@ -519,6 +521,7 @@ export class AgentHost {
             schedules: this.schedules,
             runActions: this.runActions,
             web: this.web,
+            checks: this.checks,
             orchestrator,
             toolGateway: this.toolGateway,
             bots: this.bots,

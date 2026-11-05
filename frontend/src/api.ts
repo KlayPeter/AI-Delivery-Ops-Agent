@@ -46,6 +46,7 @@ export const api = {
   fetchKnowledgeWorkspace: () => request(client.get('/knowledge-workspace')),
   fetchDocumentStatus: () => request(client.get('/documents/status')),
   fetchLibrary: () => request(client.get('/library')),
+  fetchRunCheckContracts: () => request(client.get('/checks/contracts')),
   uploadDocument: (file: File) => request(client.post('/documents/uploads', file, { headers: { 'Content-Type': 'application/octet-stream', 'X-Document-Name': encodeURIComponent(file.name) } })),
   saveConnections: (values: Record<string, string | null>) => request(client.put('/workspace/connections', values)),
   runAgent: (capability: string, input: Record<string, unknown>, triggerId: string) => request(client.post('/workspace/runs', { capability, input, triggerId })),
