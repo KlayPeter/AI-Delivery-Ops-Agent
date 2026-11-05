@@ -6,6 +6,7 @@ import type { ModelLoopAgentAdapter } from '@/platform/agents/modelLoopAdapter';
 import type { PersistentBotControlCatalog } from '@/platform/bots/catalog';
 import type { BotRegistry } from '@/platform/bots/registry';
 import type { ToolRegistry } from '@/platform/tools/registry';
+import type { SkillRuntime } from '@/platform/skills/runtime';
 import type { SkillRegistry } from '@/platform/skills/registry';
 import type { HandlerContext } from '@/services/messageHandler/types';
 import type { MessageRoute, MessageRouteRegistry } from '@/services/messageHandler/routes';
@@ -39,7 +40,7 @@ export interface PluginHostServices {
     nativeAgents: Pick<NativeAgentAdapter, 'register'>;
     modelAgents: Pick<ModelLoopAgentAdapter, 'register'>;
     tools: Pick<ToolRegistry, 'register' | 'list'>;
-    skills: Pick<SkillRegistry, 'register'>;
+    skills: Pick<SkillRegistry, 'register'> & { execute?: SkillRuntime['execute'] };
     messageRoutes: Pick<MessageRouteRegistry, 'register'>;
     schedules: Pick<ScheduleRegistry, 'register'>;
     runActions: Pick<RunActionRegistry, 'register'>;

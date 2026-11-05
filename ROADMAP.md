@@ -57,6 +57,9 @@ are deferred while the local product is being validated.
 - [x] Add explicitly selected public OpenAPI 3.0/3.1 discovery, visible unsupported
   operations, successful-run-bound review/export and pinned anonymous GET execution.
   This is a bounded subset, not arbitrary repository execution or full OpenAPI support.
+- [x] Add public GitHub SKILL.md inspection, fixed commit/content/license snapshots,
+  reviewed local profile export and actual Prompt Skill Runtime text execution with
+  zero external tools. Scripts and referenced resources require explicit adapters.
 - [ ] Design authenticated MCP/OpenAPI onboarding and credential destination grants.
 - [x] Add versioned plugin result contracts, sample checks and recorded execution
   receipts. Checks cover structure and required steps, not semantic correctness.

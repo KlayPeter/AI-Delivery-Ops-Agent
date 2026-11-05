@@ -49,4 +49,4 @@ export const pluginName = (id: string, fallback: string) => ({
   'builtin.ai-hot-schedule': '外部资讯调度', 'knowledge.markdown': 'Markdown / Obsidian', 'knowledge.web': '公开网页', 'knowledge.answer': '知识问答', 'knowledge.impact': '知识引用复核', 'knowledge.workspace': '个人知识工作台',
 } as Record<string, string>)[id] || fallback;
 export const errorMessage = (error: unknown) => error instanceof Error ? error.message : '操作失败，请重试';
-export const needsModel = (agent?: AgentInfo) => agent?.runtime === 'model-loop' || agent?.capabilities.includes('knowledge.answer');
+export const needsModel = (agent?: AgentInfo) => agent?.runtime === 'model-loop' || agent?.capabilities.includes('knowledge.answer') || agent?.capabilities.includes('skills.prompt.run');

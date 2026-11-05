@@ -524,7 +524,7 @@ export class AgentHost {
             nativeAgents: this.nativeAdapter,
             modelAgents: this.modelLoopAdapter,
             tools: this.toolRegistry,
-            skills: this.skillRegistry,
+            skills: { register: (...args) => this.skillRegistry.register(...args), execute: request => this.skillRuntime!.execute(request) },
             messageRoutes: this.messageRoutes,
             schedules: this.schedules,
             runActions: this.runActions,

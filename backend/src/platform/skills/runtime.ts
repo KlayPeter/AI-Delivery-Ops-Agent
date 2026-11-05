@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { AgentError } from '@/platform/agents/contracts';
 import type { AgentRunStore } from '@/platform/agents/runStore';
 import { validateSchema } from '@/platform/agents/schema';
@@ -15,18 +15,20 @@ export class SkillRuntime {
     ) {}
 
     async execute(request: SkillExecutionRequest): Promise<unknown> {
+        if (request.signal?.aborted) throw this.error('SKILL_CANCELLED', 'Skill execution was cancelled', false);
         const skill = this.registry.resolve(request.skillId, request.agentId, request.version);
         const inputErrors = validateSchema(request.input, skill.manifest.inputSchema);
         if (inputErrors.length) throw this.error('INVALID_SKILL_INPUT', inputErrors.join('; '), false);
 
         const stepId = randomUUID();
         const startedAt = new Date().toISOString();
-        const metadata = { skillId: skill.manifest.id, version: skill.manifest.version, riskLevel: skill.manifest.riskLevel };
+        const metadata = { skillId: skill.manifest.id, version: skill.manifest.version, riskLevel: skill.manifest.riskLevel, instructionsSha256: createHash('sha256').update(skill.instructions).digest('hex') };
         await this.runs?.saveStep({ id: stepId, runId: request.runId, kind: 'skill', name: skill.manifest.id, status: 'running', startedAt, metadata });
 
         const controller = new AbortController();
-        const abort = () => controller.abort();
+        const abort = () => controller.abort(request.signal?.reason);
         request.signal?.addEventListener('abort', abort, { once: true });
+        if (request.signal?.aborted) abort();
         let timer: ReturnType<typeof setTimeout> | undefined;
         let toolCalls = 0;
         const context: SkillHandlerContext = {
@@ -57,16 +59,18 @@ export class SkillRuntime {
         };
 
         try {
+            if (controller.signal.aborted) throw this.error('SKILL_CANCELLED', 'Skill execution was cancelled', false);
             const timeout = new Promise<never>((_, reject) => {
                 timer = setTimeout(() => {
-                    controller.abort();
                     reject(this.error('SKILL_TIMEOUT', `Skill timed out: ${skill.manifest.id}`, true));
+                    controller.abort();
                 }, skill.manifest.timeoutSeconds * 1000);
             });
             const execution = skill.manifest.execution.type === 'native'
                 ? skill.handler!(request.input, context)
                 : this.executePrompt(skill, request.input, context);
             const output = await Promise.race([execution, timeout]);
+            if (controller.signal.aborted) throw this.error('SKILL_CANCELLED', 'Skill execution was cancelled', false);
             const outputErrors = validateSchema(output, skill.manifest.outputSchema);
             if (outputErrors.length) throw this.error('INVALID_SKILL_OUTPUT', outputErrors.join('; '), false);
             await this.runs?.saveStep({

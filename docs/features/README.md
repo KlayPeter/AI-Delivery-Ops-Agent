@@ -110,6 +110,7 @@ HTTP 默认装配个人知识、采集、验收、工具接入、研究、配方
 | `local-launcher` | 首次初始化、前后端启动与本次进程清理 | active | 本地脚本，无独立 Agent | [查看](../../scripts/local/FEATURE.md) |
 | `mixed-knowledge` | 笔记与网页并行检索、跨来源引用与独立版本复核 | active | `native.knowledge-mixed` | [查看](../../backend/src/knowledge/mixed/FEATURE.md) |
 | `model-providers` | 模型提供者插件、配置诊断与无密钥本机 Ollama | active | 宿主模型端口，无独立 Agent | [查看](../../backend/src/platform/models/FEATURE.md) |
+| `github-skill-workbench` | GitHub Skill 固定版本审查、许可快照、配置导出与文本执行 | active（显式安装） | `native.skill-inspector` / `native.imported-skill` | [查看](../../backend/src/connectors/skill-workbench/FEATURE.md) |
 | `rag-evaluation` | 固定虚构题集、隔离 RAG、当前模型确认与逐题规则对比 | active（显式安装） | `native.rag-evaluation` | [查看](../../backend/src/evaluations/FEATURE.md) |
 | `knowledge-note-writeback` | 审查新笔记、来源版本复验、排他创建与回执恢复 | active（显式安装） | `native.knowledge-writeback` | [查看](../../backend/src/knowledge/writeback/FEATURE.md) |
 | `run-recipes` | 原参数/版本核验、审查复用与运行来源关联 | active | 控制面插件，无独立 Agent | [查看](../../backend/src/recipes/FEATURE.md) |
@@ -169,6 +170,8 @@ HTTP 默认装配个人知识、采集、验收、工具接入、研究、配方
 | `native.web-capture` | `knowledge.page.capture` | 可选 Native Agent | 单篇网页正文与来源导出；HTTP 默认装配 |
 | `native.document-convert` | `knowledge.document.convert` | 可选 Native Agent | 本地文档转换与来源指纹；HTTP 默认装配，需安装引擎 |
 | `native.release-prepare` | `release.prepare` | 可选 Native 管线 | 个人知识驱动的只读发布准备 |
+| `native.skill-inspector` | `skills.github.inspect` | 可选 Native Agent | GitHub Skill 来源与指令审查；显式安装 |
+| `native.imported-skill` | `skills.prompt.run` | 可选 Native 管线 | 经原 Prompt Skill Runtime 生成文本；无外部工具 |
 | `native.rag-evaluation` | `quality.rag.evaluate` | 可选 Native 管线 | 六题知识问答规则评测；显式安装 |
 | `native.knowledge-writeback` | `knowledge.note.writeback` | 可选 Native Agent | 人工审查后新建知识笔记；显式收件目录 |
 | `native.knowledge-impact` | `knowledge.impact.check` | 可选 Native 管线 | 指定历史 Run 的知识引用检查 |
@@ -192,7 +195,9 @@ HTTP 默认装配个人知识、采集、验收、工具接入、研究、配方
 | 日报 Builder、Renderer、`native/dailySummaryAgent.ts` | `daily-summary` |
 | `agents/native/ai-news-radar/**` | `ai-news-radar`；涉及 Bot/Outbox 时追加 `agent-platform`、`operations-observability` |
 | `backend/src/domains/release/**`、`backend/src/scripts/release.ts` | `release-preparation` |
+| `backend/src/connectors/skill-workbench/**` | `github-skill-workbench`、`plugin-runtime`、`agent-platform`、`operations-observability`、`local-agent-workspace` |
 | `backend/src/connectors/context7/**` | `community-developer-docs`、`plugin-runtime`、`agent-platform`、`operations-observability` |
+| `backend/src/platform/skills/runtime.ts` | `agent-platform`、`plugin-runtime`、`operations-observability`；同步受影响的 Skill 消费者 |
 | `backend/src/platform/skills/packageLoader.ts` | `agent-platform`、`plugin-runtime`、`operations-observability`；外部 Skill 变化同步对应接入功能 |
 | `backend/src/recipes/**`、`frontend/src/runInputs.*` | `run-recipes`、`plugin-runtime`、`agent-platform`、`operations-observability`、`local-agent-workspace` |
 | `backend/src/agents/personal-research/**` | `personal-research-agent`、`agent-platform`、`plugin-runtime`、`operations-observability`、`local-agent-workspace`、`plugin-result-checks` |
@@ -251,5 +256,5 @@ HTTP 默认装配个人知识、采集、验收、工具接入、研究、配方
 - **推荐在功能代码 Owner 目录使用 `FEATURE.md`，不推荐再放业务型 `AGENTS.md`。** `FEATURE.md` 面向人和 AI 共同解释产品能力；根目录 `AGENTS.md` 统一约束 AI 的修改流程。这样代码与功能事实相邻，又不会让业务说明和开发规则混在一起。
 - **系统已经是 Agent 系统。** 它具备 Registry、三类 Adapter、Model Loop、Tool/Skill Runtime、委派、Session/Checkpoint、Run/Artifact、Outbox 和 Bot Binding，不只是“调用一次大模型”的普通业务系统。
 - **系统采用混合架构是正确的。** 自主决策和可插拔执行使用 Agent，强一致状态交给 Domain Service，确定性管理和查询保留为服务/控制面。强行把每个页面或函数 Agent 化会增加成本、随机性和数据冲突。
-- **当前功能文档覆盖 35 个能力。** 团队 SDK 组合包含 7 个 Agent；HTTP 个人默认十四插件、九个 Agent，包含来源检索、RAG、采集、导入、资料库、验收、MCP 接入、个人研究、任务配方及三个模型提供者。明确配置 GitHub 后为十六插件、十个 Agent；团队组合通过显式文件选择，AI Hot 是可选外部 Agent；会议纪要处于 dormant，其余功能通过 Agent、领域服务和控制面协作完成。
+- **当前功能文档覆盖 36 个能力。** 团队 SDK 组合包含 7 个 Agent；HTTP 个人默认十四插件、九个 Agent，包含来源检索、RAG、采集、导入、资料库、验收、MCP 接入、个人研究、任务配方及三个模型提供者。明确配置 GitHub 后为十六插件、十个 Agent；团队组合通过显式文件选择，AI Hot 是可选外部 Agent；会议纪要处于 dormant，其余功能通过 Agent、领域服务和控制面协作完成。
 - **下一步维护重点**是保证功能卡与代码同提交更新，并继续把业务写入口收敛到 `TaskService`、`StandupService` 和受治理 Tool；新增机器人优先增加 Binding，新增自治能力再增加 Agent。

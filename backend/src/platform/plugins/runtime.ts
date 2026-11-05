@@ -96,7 +96,7 @@ export class PluginRuntime {
                             tools: { register: (...args) => ctx.effect(() => services.tools.register(...args)), list: () => services.tools.list() },
                             nativeAgents: { register: (...args) => ctx.effect(() => services.nativeAgents.register(...args)) },
                             modelAgents: { register: (...args) => ctx.effect(() => services.modelAgents.register(...args)) },
-                            skills: { register: (...args) => ctx.effect(() => services.skills.register(...args)) },
+                            skills: { execute: services.skills.execute, register: (...args) => ctx.effect(() => services.skills.register(...args)) },
                             messageRoutes: { register: (...args) => ctx.effect(() => services.messageRoutes.register(...args)) },
                             schedules: { register: (...args) => ctx.effect(() => services.schedules.register(...args)) },
                             runActions: { register: (...args) => ctx.effect(() => services.runActions.register(...args)) },

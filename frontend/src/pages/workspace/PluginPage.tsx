@@ -22,6 +22,8 @@ const OpenApiRunnerPage = lazy(() => import('./OpenApiRunnerPage'));
 const McpSetupPage = lazy(() => import('./McpSetupPage'));
 const McpRunnerPage = lazy(() => import('./McpRunnerPage'));
 const ResearchPage = lazy(() => import('./ResearchPage'));
+const SkillSetupPage = lazy(() => import('./SkillSetupPage'));
+const SkillRunnerPage = lazy(() => import('./SkillRunnerPage'));
 const EvaluationsPage = lazy(() => import('./EvaluationsPage'));
 const RecipesPage = lazy(() => import('./RecipesPage'));
 
@@ -44,6 +46,8 @@ export default function PluginPage() {
   if (page?.view.kind === 'builtin' && page.view.id === 'knowledge-library') return <LibraryPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'knowledge-writeback') return <KnowledgeWritebackPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'knowledge-reviews') return <KnowledgeReviewsPage />;
+  if (page?.view.kind === 'builtin' && page.view.id === 'skill-setup') return <SkillSetupPage />;
+  if (page?.view.kind === 'builtin' && page.view.id === 'skill-runner') return <SkillRunnerPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'rag-evaluation') return <EvaluationsPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'plugin-checks') return <ChecksPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'openapi-setup') return <OpenApiSetupPage />;

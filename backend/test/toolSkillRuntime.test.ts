@@ -52,6 +52,28 @@ describe('Tool and Skill runtime', () => {
         }
     });
 
+    test('Skill cancellation prevents entry before execution and during step persistence, and rejects late output', async () => {
+        for (const phase of ['before', 'step', 'output']) {
+            const controller = new AbortController(), runs = new InMemoryAgentRunStore(), skills = new SkillRegistry();
+            let invoked = 0;
+            skills.register({ schemaVersion: '1.0', id: 'test.cancel-skill', version: '1.0.0', name: 'Cancellation', description: 'Checks Skill cancellation boundaries', execution: { type: 'native' }, instructionsRef: 'SKILL.md', inputSchema: {}, outputSchema: { type: 'string' }, allowedTools: [], compatibleAgents: ['cancel-agent'], riskLevel: 'low', maxToolCalls: 0, timeoutSeconds: 1 }, 'Return text', async () => { invoked++; if (phase === 'output') controller.abort(); return 'must not be published'; });
+            const save = runs.saveStep.bind(runs);
+            runs.saveStep = async step => { await save(step); if (phase === 'step' && step.status === 'running') controller.abort(); };
+            if (phase === 'before') controller.abort();
+            const runtime = new SkillRuntime(skills, new ToolGateway(new ToolRegistry(), new InMemoryToolCallStore()), runs);
+            await expect(runtime.execute({ runId: 'cancel-skill', agentId: 'cancel-agent', scope: executionScope(), skillId: 'test.cancel-skill', input: {}, signal: controller.signal })).rejects.toMatchObject({ code: 'SKILL_CANCELLED', retryable: false });
+            expect(invoked).toBe(phase === 'output' ? 1 : 0);
+            expect((await runs.listSteps('cancel-skill')).some(step => step.status === 'succeeded')).toBe(false);
+        }
+    });
+
+    test('a timed-out native Skill cannot turn its abort cleanup into successful output', async () => {
+        const skills = new SkillRegistry();
+        skills.register({ schemaVersion: '1.0', id: 'test.timeout', version: '1.0.0', name: 'Timeout', description: 'Resolve during abort cleanup', execution: { type: 'native' }, instructionsRef: 'SKILL.md', inputSchema: {}, outputSchema: { type: 'string' }, allowedTools: [], compatibleAgents: ['test-agent'], riskLevel: 'low', maxToolCalls: 0, timeoutSeconds: 0.01 }, 'Return text', async (_, context) => new Promise(resolve => context.signal.addEventListener('abort', () => resolve('late output'), { once: true })));
+        const runtime = new SkillRuntime(skills, new ToolGateway(new ToolRegistry(), new InMemoryToolCallStore()));
+        await expect(runtime.execute({ runId: 'timed-out', agentId: 'test-agent', scope: executionScope(), skillId: 'test.timeout', input: {} })).rejects.toMatchObject({ code: 'SKILL_TIMEOUT', retryable: true });
+    });
+
     test('validates, traces, and deduplicates an idempotent write Tool', async () => {
         const registry = new ToolRegistry();
         let writes = 0;

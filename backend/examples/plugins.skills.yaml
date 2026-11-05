@@ -1,0 +1,6 @@
+apiVersion: '1.0'
+plugins:
+  - module: ../src/platform/models/providers/openaiPlugin.ts
+  - module: ../src/platform/models/providers/googlePlugin.ts
+  - module: ../src/platform/models/providers/ollamaPlugin.ts
+  - module: ../src/connectors/skill-workbench/setupPlugin.ts

@@ -1,10 +1,10 @@
 # 接入 GitHub 社区插件与 Skill
 
-GitHub 仓库可以通过已有扩展协议接入。仓库本身不必改写成我们的框架；选择它实际提供的入口，再写薄适配器。当前已经用真实 Context7 MCP 服务和其官方 Skill 验证这一点。
+GitHub 仓库可以通过已有扩展协议接入。仓库本身不必改写成我们的框架；选择它实际提供的入口，再写薄适配器。当前已经用真实 Context7 MCP 服务和其官方 Skill 验证这一点；可选[GitHub Skill 接入界面](GITHUB_SKILLS.md)也已支持固定版本审查、许可快照和文本运行。
 
 | 上游提供什么 | 本项目接入方式 | 当前范围 |
 | --- | --- | --- |
-| 标准 `SKILL.md` | `readAgentSkill` 读取 name/description/正文，再交给现有 Prompt Skill Runtime | 显式本地导入，宿主决定工具、预算、模型 Agent 兼容性；不自动运行脚本或展开引用资源 |
+| 标准 `SKILL.md` | `readAgentSkill` 读取 name/description/正文，再交给现有 Prompt Skill Runtime | 本地显式导入，或通过 GitHub 审查导出只执行文本的配置；宿主决定工具/预算/兼容性，不自动运行脚本或展开资源 |
 | MCP 服务 | `connector.mcp` 连接 stdio 或公开 HTTPS Streamable HTTP 并选择工具 | 已审查的读取工具、真实 Schema、取消/超时、Run/Step 与连接清理 |
 | 独立 HTTP Agent | 现有 HTTP Agent Manifest/Adapter | 显式 endpoint、请求与响应协议、主机范围和凭据引用 |
 | TypeScript 功能模块 | `FeaturePlugin` 包装上游函数或 SDK | 注册 Agent/Tool/Skill、消息、计划、Web 等贡献，Cordis 管理生命周期 |

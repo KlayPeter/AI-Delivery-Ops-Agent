@@ -5,7 +5,7 @@ status: active
 agent_mapping:
   - community.context7-docs
   - community.context7-assistant
-last_reviewed: 2026-11-05
+last_reviewed: 2026-11-06
 ---
 
 # Context7 社区开发文档插件
@@ -126,3 +126,17 @@ flowchart TD
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
 | 2026-11-05 | 接入上游 Context7 MCP 与原样标准 Skill，增加独立查询/研究能力及插件页面 | 专项/全量测试、固定包在线查询与工作台验收；真实模型未调用 |
+
+## GitHub Skill 审查与文本运行
+
+标准文件入口 readAgentSkill 改为复用 parseAgentSkill 纯文本解析，原普通文件/符号链接/大小、名称/目录、描述和正文校验保持，权限仍来自宿主。共用 SkillRuntime 补强取消/超时边界并保存执行指令 SHA，Context7 现有工具与查询/研究行为通过原专项回归。
+
+```mermaid
+flowchart LR
+    SK_URL[GitHub 固定提交与完整文本审查] --> SK_PROFILE[原发现记录绑定配置下载]
+    SK_PROFILE --> SK_RESTART[本机保存并重启]
+    SK_RESTART --> SK_RUNTIME[已有 SkillRuntime 与零外部工具]
+    SK_RUNTIME --> SK_TRACE[文本、真实步骤与指令 SHA]
+```
+
+实现与限制见[Skill 工作台功能卡](../skill-workbench/FEATURE.md)。代码：backend/src/connectors/skill-workbench/、platform/skills/packageLoader.ts、runtime.ts；前端 SkillSetupPage.tsx / SkillRunnerPage.tsx。验证：backend/test/skillWorkbench.test.ts、toolSkillRuntime.test.ts、context7Plugin.test.ts 与既有 Host/Plugin/模型回归，前端检查及桌面/375px 验收。仅支持指令文本，无脚本/引用资源自动执行或完整上游能力兼容；模型协议样例不证明真实质量。

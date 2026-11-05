@@ -366,3 +366,17 @@ flowchart LR
 ```
 
 实现与限制见[评测功能卡](../../evaluations/FEATURE.md)。代码：backend/src/evaluations/、backend/src/scripts/evaluate.ts、frontend/src/pages/workspace/EvaluationsPage.tsx。验证：backend/test/evaluations.test.ts、既有模型/插件/RAG/工作台回归、前端类型/lint/build 与桌面/375px 浏览器验收。固定样例和本机 HTTP 协议服务不代表真实模型质量；无语义裁判、个人资料评测或历史业务环境回放。
+
+## GitHub Skill 审查与文本运行
+
+显式 skills.setup 的 /skills 支持公开文件链接、原文/许可审查、内容绑定确认和本地配置下载，保存/重启后由 skills.prompt 提供 /skill-runner。文本运行复用普通 Run/Drawer；未配置模型时表单与通用能力入口禁用，后端再次检查。默认导航和十四插件九 Agent 保持。
+
+```mermaid
+flowchart LR
+    SK_URL[GitHub 固定提交与完整文本审查] --> SK_PROFILE[原发现记录绑定配置下载]
+    SK_PROFILE --> SK_RESTART[本机保存并重启]
+    SK_RESTART --> SK_RUNTIME[已有 SkillRuntime 与零外部工具]
+    SK_RUNTIME --> SK_TRACE[文本、真实步骤与指令 SHA]
+```
+
+实现与限制见[Skill 工作台功能卡](../../connectors/skill-workbench/FEATURE.md)。代码：backend/src/connectors/skill-workbench/、platform/skills/packageLoader.ts、runtime.ts；前端 SkillSetupPage.tsx / SkillRunnerPage.tsx。验证：backend/test/skillWorkbench.test.ts、toolSkillRuntime.test.ts、context7Plugin.test.ts 与既有 Host/Plugin/模型回归，前端检查及桌面/375px 验收。仅支持指令文本，无脚本/引用资源自动执行或完整上游能力兼容；模型协议样例不证明真实质量。
