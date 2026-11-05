@@ -404,3 +404,16 @@ flowchart LR
     MIX_MD --> MIX_RESULT[保留原引用与独立版本]
     MIX_WEB --> MIX_RESULT
 ```
+
+## 根目录本地启动
+
+`bun run setup:local` 安装锁定依赖、生成客户端并调用既有安全 SQLite 同步，再启动前后端；`bun run local` 直接启动。后端在监听后仅向携带 LOCAL_DEV_SESSION 的本次启动输出 session/loopback/实际端口标记。启动器只接受匹配标记，注入前端 VITE_API_BASE；不读取秘密或靠端口判断归属。两端绑定回环地址，退出保留最多 10 秒收尾，仅清理本次进程组。后端无 watch，修改配置或代码需重新运行。运行事实、连接保存和就绪检查保持既有协议；首次安装仍不代表外部服务可用。
+
+```mermaid
+flowchart LR
+    LOCAL[根目录启动器] --> OWN[本次后端监听标记]
+    OWN --> VITE[前端连接本次实际端口]
+    LOCAL --> STOP[信号或服务退出：本次进程组收尾]
+```
+
+代码与测试：scripts/local/launcher.ts、backend/src/index.ts、backend/test/localLauncher.test.ts。完整边界见[本地启动功能卡](../../../../scripts/local/FEATURE.md)。

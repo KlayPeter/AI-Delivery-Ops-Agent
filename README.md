@@ -56,35 +56,24 @@ Obsidian、公开网页或本地文档开始，检索原文、生成带引用的
 
 ```bash
 git clone https://github.com/KlayPeter/AI-Delivery-Ops-Agent.git
-cd AI-Delivery-Ops-Agent/backend
-bun install --frozen-lockfile
-cp .env.example .env
-bunx prisma generate
-bun run setup
+cd AI-Delivery-Ops-Agent
+bun run setup:local
 ```
 
-复制 `.env` 只用于首次初始化，已有配置请保留。示例凭据留空即可，后端默认
-监听 `http://127.0.0.1:8090`。`setup` 安全同步 SQLite schema 并启动开发服务。
-
-另开终端，从仓库根目录启动前端：
+首次命令会安装锁定依赖、生成 Prisma Client、安全同步 SQLite，并一起启动前后端。
+只在缺少时创建后端 `.env`，已有配置保留。以后从仓库根目录运行：
 
 ```bash
-cd frontend
-pnpm install --frozen-lockfile
-cp .env.example .env
-pnpm dev --host 127.0.0.1
+bun run local
 ```
 
-打开 [本地工作台](http://127.0.0.1:15173/)，进入「知识库」检索 **API 迁移说明**。
-结果来自仓库里的虚构示例笔记，无需模型。端口被占用时以终端实际地址为准。
+打开终端中 Vite 显示的工作台地址（默认 `http://127.0.0.1:15173/`），进入「知识库」
+检索 **API 迁移说明**。结果来自仓库里的虚构示例笔记，无需模型。
+前端会连接本次后端实际端口；默认后端为 `8090`，端口占用时明确报错，可在后端
+`.env` 修改 `PORT`，或用 `PORT=0 bun run local` 自动分配。Ctrl+C 一起停止。
 
-```bash
-curl http://127.0.0.1:8090/healthz
-curl http://127.0.0.1:8090/readyz
-```
-
-`readyz` 的 `status: "ready"` 表示数据库、Host 和所需机器人已就绪；没有配置
-飞书时，`required: 0` 是正常状态。完整说明见[本地运行](docs/LOCAL_DEVELOPMENT.md)。
+修改后端代码或连接配置后，停止并重新运行 `bun run local`；前端支持热更新。
+独立开发启动、就绪检查及排障见[本地运行](docs/LOCAL_DEVELOPMENT.md)。
 
 ## 接入自己的资料与能力
 

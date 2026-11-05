@@ -101,6 +101,7 @@ HTTP 默认装配个人知识、采集、验收、工具接入、研究、配方
 
 | Feature ID | 功能 | 状态 | 运行时 Agent 映射 | 功能文档 |
 | --- | --- | --- | --- | --- |
+| `local-launcher` | 首次初始化、前后端启动与本次进程清理 | active | 本地脚本，无独立 Agent | [查看](../../scripts/local/FEATURE.md) |
 | `mixed-knowledge` | 笔记与网页并行检索、跨来源引用与独立版本复核 | active | `native.knowledge-mixed` | [查看](../../backend/src/knowledge/mixed/FEATURE.md) |
 | `model-providers` | 模型提供者插件、配置诊断与无密钥本机 Ollama | active | 宿主模型端口，无独立 Agent | [查看](../../backend/src/platform/models/FEATURE.md) |
 | `run-recipes` | 原参数/版本核验、审查复用与运行来源关联 | active | 控制面插件，无独立 Agent | [查看](../../backend/src/recipes/FEATURE.md) |
@@ -212,6 +213,7 @@ HTTP 默认装配个人知识、采集、验收、工具接入、研究、配方
 | `backend/src/platform/plugins/**`、`backend/src/agents/plugins/**` | `plugin-runtime`、`agent-platform`；同步对应业务功能 |
 | `backend/src/platform/agents/**`、`tools/**`、`skills/**`、`bots/**`、Agent 定义 | `agent-platform`；同时更新受影响的业务功能 |
 | Outbox、Delivery Worker、Run/Step/Artifact、审计、上下文、Debug/Logs 页面 | `operations-observability`；同时更新产生产物的业务功能 |
+| `package.json`、`scripts/local/**` | `local-launcher`、`local-agent-workspace`、`operations-observability` |
 | `backend/src/index.ts`、`frontend/src/api.ts` | 根据变更接口所属能力更新对应功能；公共控制面变更追加 `operations-observability` |
 | 公共 Store、Prisma Schema、`models/types.ts` | 更新所有使用该数据对象的功能文档 |
 
@@ -233,5 +235,5 @@ HTTP 默认装配个人知识、采集、验收、工具接入、研究、配方
 - **推荐在功能代码 Owner 目录使用 `FEATURE.md`，不推荐再放业务型 `AGENTS.md`。** `FEATURE.md` 面向人和 AI 共同解释产品能力；根目录 `AGENTS.md` 统一约束 AI 的修改流程。这样代码与功能事实相邻，又不会让业务说明和开发规则混在一起。
 - **系统已经是 Agent 系统。** 它具备 Registry、三类 Adapter、Model Loop、Tool/Skill Runtime、委派、Session/Checkpoint、Run/Artifact、Outbox 和 Bot Binding，不只是“调用一次大模型”的普通业务系统。
 - **系统采用混合架构是正确的。** 自主决策和可插拔执行使用 Agent，强一致状态交给 Domain Service，确定性管理和查询保留为服务/控制面。强行把每个页面或函数 Agent 化会增加成本、随机性和数据冲突。
-- **当前功能文档覆盖 31 个能力。** 团队 SDK 组合包含 7 个 Agent；HTTP 个人默认十四插件、九个 Agent，包含来源检索、RAG、采集、导入、资料库、验收、MCP 接入、个人研究、任务配方及三个模型提供者。明确配置 GitHub 后为十六插件、十个 Agent；团队组合通过显式文件选择，AI Hot 是可选外部 Agent；会议纪要处于 dormant，其余功能通过 Agent、领域服务和控制面协作完成。
+- **当前功能文档覆盖 32 个能力。** 团队 SDK 组合包含 7 个 Agent；HTTP 个人默认十四插件、九个 Agent，包含来源检索、RAG、采集、导入、资料库、验收、MCP 接入、个人研究、任务配方及三个模型提供者。明确配置 GitHub 后为十六插件、十个 Agent；团队组合通过显式文件选择，AI Hot 是可选外部 Agent；会议纪要处于 dormant，其余功能通过 Agent、领域服务和控制面协作完成。
 - **下一步维护重点**是保证功能卡与代码同提交更新，并继续把业务写入口收敛到 `TaskService`、`StandupService` 和受治理 Tool；新增机器人优先增加 Binding，新增自治能力再增加 Agent。

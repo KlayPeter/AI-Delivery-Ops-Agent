@@ -2,29 +2,29 @@
 
 安装 Bun 1.3.x、Node.js 22 和 pnpm 10。以下命令在仓库根目录执行；不需要 Docker、服务器或外部账号。仅首次复制 .env，已有配置请保留。
 
-首次启动后端：
+## 一个命令启动
 
 ```sh
-cd backend
-cp .env.example .env
-bun install --frozen-lockfile
-bunx prisma generate
-bun run db:push
-bun run dev
+bun run setup:local
 ```
 
-示例配置将 HTTP 绑定到 `127.0.0.1:8090`。飞书 App ID 和 Secret 都留空时，不创建默认飞书长连接，仍可使用本地管理页面和 Agent/知识 CLI。只填一项或填写错误 App ID 会明确报错；配置凭据后需要重启后端。TAPD、模型和飞书业务操作需要各自的真实配置。
+首次安装前后端锁定依赖，生成 Prisma Client，使用既有安全数据库同步入口初始化 SQLite，随后启动前后端。只在缺少时从 backend/.env.example 创建 backend/.env（0600），已有文件不覆盖；不会复制或改写 frontend/.env。已有数据库会先做完整性检查和备份，不允许自动接受数据丢失。失败时停止后续步骤，按终端提示修复后可重新执行。
 
-另开终端，在仓库根目录启动前端：
+以后在仓库根目录执行 `bun run local`。它不安装依赖或修改 schema；拉取涉及依赖或数据库的更新后，再运行 `bun run setup:local`。打开 Vite 输出的实际地址，默认是 http://127.0.0.1:15173/；前端端口占用时由 Vite 选择可用端口。
 
-```sh
-cd frontend
-cp .env.example .env
-pnpm install --frozen-lockfile
-pnpm dev --host 127.0.0.1
-```
+启动器把后端和 Vite 绑定到 127.0.0.1，等待自己启动的后端报告监听成功，再把实际 API 地址传给前端；本次 VITE_API_BASE 覆盖已有前端配置，不会连接旧服务。默认后端 8090 被占用会报错；可修改 backend/.env 的 PORT，或执行 `PORT=0 bun run local` 使用动态端口。启动成功不代表外部模型或 MCP 服务可用。
 
-打开 [本地界面](http://localhost:15173/)。[就绪检查](http://localhost:8090/readyz) 返回 `status: "ready"` 表示数据库、Agent Host 和已配置的入站机器人已就绪；未配置飞书时 `required: 0` 是正常状态。
+Ctrl+C 或任一服务退出会停止本次启动的其他服务及其进程组，最多留 10 秒正常收尾；仍不退出才强制停止。退出不撤销已发生的业务操作；长任务应先在运行页确认结束。不会按端口查杀其他本地服务。当前进程生命周期验证覆盖 macOS 和 Linux；Windows 兼容分支尚未实际验证。
+
+前端保留热更新；后端使用 start，不监听文件。修改后端代码、插件组合或保存连接后，停止并重新运行根目录命令。外部程序仍由用户自行安装：根启动器不安装 Bun、Node.js、pnpm、Ollama 或 MarkItDown。
+
+## 分开开发与排障
+
+需要后端代码监听重启时，可沿用两个终端的方式。已初始化后，在 backend 执行 `bun run dev`；另一终端在 frontend 执行 `pnpm dev --host 127.0.0.1`。此方式的 API 地址由 frontend/.env 或 frontend/.env.example 中的 VITE_API_BASE 配置，修改 PORT 时要对应调整。
+
+手动首次初始化可在 backend 依次执行 `bun install --frozen-lockfile`、仅在缺少时复制 .env.example、`bunx prisma generate`、`bun run db:push`，在 frontend 执行 `pnpm install --frozen-lockfile`。不要覆盖已有 .env。
+
+飞书 App ID 和 Secret 都留空时，不创建默认飞书长连接。只填一项或错误 App ID 会明确报错；TAPD、模型和飞书业务操作需要各自的真实配置。后端监听后可查看其终端地址下的 /healthz 与 /readyz；后者返回 status: ready 表示数据库、Agent Host 和已配置入站机器人已就绪，未配置飞书时 required: 0 正常。
 
 首页为个人 Agent 工作台，默认十四个插件、九个 Agent，不自动装配团队业务。个人知识使用仓库中的虚构示例，可在「知识库」直接检索，无需任何密钥。「连接与模型」可填写飞书、模型与 TAPD；「知识库 → 配置来源」可选择自己的目录或公开链接。配置保存在数据目录下的 connections.json（0600、本机明文），密钥不回显，重启后端后生效。工作台保存值覆盖同名环境值，模型与 TAPD 连接环境值优先于旧 config.json。
 

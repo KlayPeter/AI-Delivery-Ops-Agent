@@ -1,0 +1,9 @@
+{
+  "name": "ai-delivery-ops-agent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "setup:local": "bun run scripts/local/launcher.ts --setup",
+    "local": "bun run scripts/local/launcher.ts"
+  }
+}

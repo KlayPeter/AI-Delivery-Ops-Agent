@@ -463,6 +463,10 @@ app.use(createPluginApi(agentHost!, app.routes))
 console.log(`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`);
 console.log(`Loaded config for project: ${config.project.name}`);
 console.log(`Data path: ${config.data_path}`);
+if (process.env.LOCAL_DEV_SESSION) console.log(JSON.stringify({
+    event: 'local-dev-ready', session: process.env.LOCAL_DEV_SESSION,
+    hostname: app.server?.hostname, port: app.server?.port,
+}));
 
 let shuttingDown = false;
 async function shutdown(): Promise<void> {
