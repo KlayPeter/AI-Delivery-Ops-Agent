@@ -12,7 +12,8 @@ import { knowledgeMarkdownPlugin } from '@/knowledge/markdown/plugin';
 import { createKnowledgeWebPlugin } from '@/knowledge/web/plugin';
 import { releasePlugin, RELEASE_PREPARE_CAPABILITY } from '@/domains/release/plugin';
 import { webReleasePlugin } from '@/domains/release/webPlugin';
-import { renderReleaseDraft, type ReleaseDraft } from '@/domains/release/evidence';
+import { renderReleaseDraft, renderReleaseCollection, type ReleaseDraft } from '@/domains/release/evidence';
+import { statusPanelSchema } from '@/platform/plugins/runActions';
 import { githubFixture, repository, window, pr } from './helpers/github';
 
 const cleanup: Array<() => unknown | Promise<unknown>> = [];
@@ -99,7 +100,15 @@ describe('knowledge-backed release preparation', () => {
 
     test('collect mode reads evidence without a model and missing knowledge or PRs remains explicit', async () => {
         const f = await fixture();
-        expect((await f.call({ operation: 'collect' })).execution!.result.data).toMatchObject({ status: 'evidence_only', requiresHumanReview: true });
+        const result = (await f.call({ operation: 'collect' })).execution!;
+        expect(result.result.data).toMatchObject({ status: 'evidence_only', requiresHumanReview: true });
+        const panel = (result.artifacts.find(artifact => artifact.type === 'json')!.metadata!.statusPanels as unknown[])[0];
+        expect(statusPanelSchema.parse(panel)).toMatchObject({ title: '证据已收集', tone: 'neutral' });
+        const markdown = result.artifacts.find(artifact => artifact.type === 'markdown')!.content as string;
+        expect(markdown).toContain('本轮没有生成发布草稿');
+        expect(markdown).toContain('API changes require migration notes');
+        expect(markdown).toContain(`https://github.com/${repository}/pull/1`);
+        expect(markdown).toContain('分页已读完');
         expect(f.modelRequests).toHaveLength(0);
         expect((await f.call({ policyQuery: 'missingpolicy849zz' })).execution!.result.data).toMatchObject({ status: 'insufficient_evidence' });
         f.github.state.pulls = [];
@@ -182,5 +191,9 @@ describe('knowledge-backed release preparation', () => {
         expect(markdown).not.toContain('<script>');
         expect(markdown).not.toContain('\n# injected heading');
         expect(markdown).toContain('&lt;script&gt;');
+        data.facts.pullRequests[0].title = '<script>bad</script>\n# injected heading';
+        const collection = renderReleaseCollection(data.facts, data.evidence, ['<img src=x>']);
+        expect(collection).not.toContain('<script>'); expect(collection).not.toContain('<img');
+        expect(collection).not.toContain('\n# injected heading');
     });
 });

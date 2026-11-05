@@ -9,8 +9,9 @@ export const connectionKeys = [
     'AI_PROVIDER', 'AI_API_BASE', 'AI_API_KEY', 'AI_MODEL',
     'TAPD_WORKSPACE_ID', 'TAPD_API_BASE', 'TAPD_API_TOKEN', 'TAPD_WORKITEM_TYPE_ID',
     'KNOWLEDGE_KIND', 'KNOWLEDGE_ROOT', 'KNOWLEDGE_URLS', 'KNOWLEDGE_VAULT_NAME', 'KNOWLEDGE_EXCLUDE',
+    'RELEASE_GITHUB_REPOSITORY', 'RELEASE_GITHUB_BRANCH', 'RELEASE_GITHUB_TOKEN',
 ] as const;
-const secretKeys = new Set(['FEISHU_APP_SECRET', 'AI_API_KEY', 'TAPD_API_TOKEN']);
+const secretKeys = new Set(['FEISHU_APP_SECRET', 'AI_API_KEY', 'TAPD_API_TOKEN', 'RELEASE_GITHUB_TOKEN']);
 const settingValue = z.string().max(8192).refine(value => !value.includes('\0'));
 const settingsSchema = z.partialRecord(z.enum(connectionKeys), settingValue);
 const updateSchema = z.partialRecord(z.enum(connectionKeys), settingValue.nullable());
@@ -80,6 +81,10 @@ export class LocalConnections {
             if (merged.KNOWLEDGE_KIND === 'web') {
                 const { webSourceConfig } = await import('@/knowledge/web/source');
                 webSourceConfig.parse({ urls: lines(merged.KNOWLEDGE_URLS || '') });
+            }
+            if (merged.RELEASE_GITHUB_REPOSITORY) {
+                const { githubConfig } = await import('@/connectors/github/source');
+                githubConfig.parse({ repository: merged.RELEASE_GITHUB_REPOSITORY, baseBranch: merged.RELEASE_GITHUB_BRANCH || undefined });
             }
             await mkdir(path.dirname(this.file), { recursive: true, mode: 0o700 });
             const temporary = `${this.file}.${randomUUID()}.tmp`;

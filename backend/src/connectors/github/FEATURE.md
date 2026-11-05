@@ -18,7 +18,8 @@ last_reviewed: 2026-11-05
 
 ```mermaid
 flowchart TD
-    C[固定仓库、可选分支与 tokenRef] --> P[Cordis: connector.github]
+    UI[本机连接设置或可信插件配置] --> C[固定仓库、可选分支与 tokenRef]
+    C --> P[Cordis: connector.github]
     A[任务 Agent] --> G[Tool Gateway]
     P --> G
     G --> V[验证个人范围和时间窗口]
@@ -48,7 +49,7 @@ flowchart TD
 ## 核心规则
 
 1. 仓库来自插件配置的 owner/repo，调用输入仅允许 since/until。所有请求固定到 HTTPS api.github.com，GET，禁止自动重定向。仓库改名/迁移导致重定向时需更新配置；不会把认证转发到另一个目标。
-2. tokenRef 仅支持 env:// 引用，复用 EnvironmentSecretResolver；未配置时匿名读取。返回与错误不包含 token，也不自动读取 Git Credential。私有仓库需要调用者授予相应读取权限。
+2. 工作台可保存 RELEASE_GITHUB_REPOSITORY、RELEASE_GITHUB_BRANCH 与可选 RELEASE_GITHUB_TOKEN；密钥仅返回已配置布尔值，0600 文件保存、重启生效。只有明确仓库时默认 HTTP 组合装配本插件及匹配知识源的发布插件，清空仓库并重启会停用；显式插件文件优先。普通请求不能改仓库。tokenRef 仅支持 env:// 引用，复用 EnvironmentSecretResolver；未配置时匿名读取。返回与错误不包含 token，也不自动读取 Git Credential。私有仓库需要调用者授予相应读取权限。
 3. 先读取元数据并核对仓库身份；未指定分支时使用 default_branch。PR 请求按 base 过滤并再次检查结果分支，只有 merged_at 位于半开窗口的记录进入结果。关闭但未合并的 PR 排除。
 4. API 的关闭 PR 列表按更新时间获取，不根据遇到的旧记录提前停止；最多每端点五页，配置最多二十页，每页三十项。只利用 Link 是否有 next 来判断结束，不跟随服务器提供的 next URL；下一页仍在固定端点构造。
 5. 分页不足、重复条目和输出截断分别保留。每类最多输出 100 条，正文最多 3000 字符、标题 256 字符、标签 30 项/每项 64 字符；截断可见。记录版本绑定投影前实际读取的数据，未展示正文末尾变化仍会改变版本。
@@ -104,6 +105,7 @@ flowchart TD
 
 ### 主要测试
 
+- `backend/test/workspace.test.ts`：本地连接校验、Token 脱敏与重启生效、来源匹配装配、HTTP 只读采集及停用。
 - `backend/test/githubConnector.test.ts`：窗口、范围、分页、重试、凭据、版本、截断和预算。
 - `backend/test/helpers/github.ts`：虚构仓库和受控 REST 响应。
 

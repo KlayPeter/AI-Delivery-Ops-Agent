@@ -50,6 +50,7 @@ export default function RunDrawer({ runId, onClose, onSelectRun }: { runId: stri
   const [reply, setReply] = useState('');
   const [resuming, setResuming] = useState(false);
   const [resumeError, setResumeError] = useState('');
+  const artifacts = [...(data?.artifacts || [])].sort((a, b) => Number(Boolean(parseStatusPanels(b.metadata?.statusPanels))) - Number(Boolean(parseStatusPanels(a.metadata?.statusPanels))));
   const resume = async () => {
     setResuming(true); setResumeError('');
     try { await api.resumeRun(runId!, { prompt: reply.trim(), text: reply.trim() }, crypto.randomUUID()); setReply(''); await Promise.all([refresh(), mutate()]); }
@@ -66,7 +67,7 @@ export default function RunDrawer({ runId, onClose, onSelectRun }: { runId: stri
         {resumeError && <Alert type="error" title={resumeError} />}<Button onClick={resume} loading={resuming} disabled={!reply.trim()} type="primary">继续执行</Button>
       </div>}
       <Tabs items={[
-        { key: 'result', label: '结果', children: data.artifacts.length ? data.artifacts.map(a => <ResultContent key={a.id} artifact={a} onSelectRun={onSelectRun} />) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={data.run.status === 'running' ? '执行中，产物完成后会显示在这里' : '本次运行没有生成产物'} /> },
+        { key: 'result', label: '结果', children: artifacts.length ? artifacts.map(a => <ResultContent key={a.id} artifact={a} onSelectRun={onSelectRun} />) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={data.run.status === 'running' ? '执行中，产物完成后会显示在这里' : '本次运行没有生成产物'} /> },
         { key: 'steps', label: `执行步骤 · ${data.steps.length}`, children: <>
           <Timeline items={data.steps.map(step => ({ color: step.status === 'failed' ? 'red' : step.status === 'running' ? 'blue' : 'gray', content: <div><strong>{step.name}</strong><div className="muted">{step.kind} · {step.status}</div>{step.error && <p>{step.error.message}</p>}</div> }))} />
           {data.children.map((run: RunInfo) => <div className="child-run" key={run.id}>{capabilityName(run.capability, workspace?.agents.find(agent => agent.capabilities.includes(run.capability))?.name)}<RunStatus status={run.status} /></div>)}

@@ -8,6 +8,7 @@ test('knowledge tasks use their governed input contracts and reject empty prompt
   assert.deepEqual(prepareInput('delivery.ops.orchestrate', '查看任务'), { prompt: '查看任务', source: 'private' });
   assert.deepEqual(prepareInput('knowledge.impact.check', 'first，second third'), { runIds: ['first', 'second', 'third'], operation: 'check' });
   assert.throws(() => prepareInput('knowledge.answer', ' '));
+  assert.throws(() => prepareInput('release.prepare', '发布'), /发布准备页面/);
 });
 
 test('source links allow web pages and Obsidian note opening without accepting arbitrary protocols', () => {

@@ -55,6 +55,7 @@ export default function WorkspacePage({ history = false }: { history?: boolean }
           </div>
           {requiresModel && !data?.modelConfigured && <div className="composer-notice">此能力需要模型服务。<Link to="/connections">去连接模型 <ArrowRightOutlined aria-hidden /></Link>，也可以先体验下方的笔记检索。</div>}
           {capability === 'knowledge.impact.check' && <div className="composer-notice">也可以在<Link to="/runs">历史结果详情</Link>中直接点击「检查引用变化」。</div>}
+          {capability === 'release.prepare' && <div className="composer-notice">在<Link to="/release">发布准备页面</Link>选择时间段和个人规则，或使用下方高级参数。</div>}
           <Collapse ghost className="advanced-input" items={[{ key: 'input', label: '高级任务参数', children: <><p className="muted">为已安装插件提供结构化输入；填写后替代上方任务描述。</p><Input.TextArea aria-label="JSON 任务参数" value={jsonInput} onChange={e => setJsonInput(e.target.value)} placeholder={'{ "prompt": "任务描述" }'} rows={4} /></> }]} />
         </section>
         {runError && <Alert type="error" showIcon title="任务未能发起" description={runError} />}

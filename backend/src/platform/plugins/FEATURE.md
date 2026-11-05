@@ -32,6 +32,8 @@ flowchart TD
     D --> WEB[注册页面、API 与原有手动任务授权]
     WEB --> VIS[站会、看板、甘特、周报与隐藏纪要 API；卸载保留事实数据]
     VIS --> E
+    WEB --> RELEASE[可选发布准备表单；结果复用通用状态面板与 Markdown]
+    RELEASE --> E
     WEB --> E
     D --> RA[注册成功 Run 的后续动作与文本状态]
     RA --> E
@@ -96,6 +98,10 @@ connector.mcp 通过现有 FeaturePlugin/Config/effect 接入，无需修改 Hos
 ctx.delivery.web.register 注册唯一贡献 ID、页面元数据、API 前缀/路由/Fetch handler 和可手动执行的原有任务名称。注册随 Cordis 回滚与释放。页面路径、任务名和 API 前缀不能重复或覆盖保留入口；前端只支持已打包视图或跳到指定 Agent 的入口，不执行远端 UI 包。
 
 站会、项目看板和人力甘特图已把页面与 API 从全局组合移入各自所有者；builtin.dashboard 使用两个 Web 贡献分别声明文件与甘特命名空间，卸载时一起释放。旧根查询与 HTML 链接也不能绕过插件检查。任务、日报、看板插件各自声明原有手动任务；缺少所有者时旧 /api/jobs 不执行，默认仍为九个原有任务。MCP 读取示例通过元数据增加页面入口，不修改前端业务表。周报与隐藏纪要页/API 同样归属插件；navigation=false 仅隐藏菜单，不绕过安装检查。知识工作台的业务适配、连接/成员同步、全局维护和基础服务生命周期仍需继续解耦，当前不宣称全产品已经插件化。
+
+## 发布工作流装配
+
+发布插件拥有 /release 页面贡献，不在核心路由直接开放；移除插件释放入口。HTTP 默认组合仅在明确配置仓库后添加 connector.github 和匹配当前知识来源的 release.prepare；SDK 默认与显式插件文件语义不变。发布结果使用既有 StatusPanel 1.0 和 Markdown 展示，未增加业务专用前端执行器或平台协议。验证见工作台与发布专项。
 
 ## 社区 Skill 与 Context7 验证
 

@@ -10,7 +10,8 @@ import { KNOWLEDGE_SEARCH_TOOL } from '@/knowledge/markdown/plugin';
 import { requirePersonalScope } from '@/knowledge/scope';
 import { knowledgeSearchInput } from '@/knowledge/search';
 import { retrievalEvidence, selectEvidence } from '@/knowledge/answer/evidence';
-import { releaseEvidence, verifyReleaseDraft, renderReleaseDraft } from './evidence';
+import { releaseEvidence, verifyReleaseDraft, renderReleaseDraft, renderReleaseCollection } from './evidence';
+import { statusPanelSchema } from '@/platform/plugins/runActions';
 
 export const RELEASE_PREPARE_CAPABILITY = 'release.prepare';
 export const releaseInput = githubSnapshotInput.extend({
@@ -41,6 +42,7 @@ export function createReleasePlugin(source = { pluginId: 'knowledge.markdown', s
         manifest: { apiVersion: '1.0', id: 'release.prepare', name: manifest.name, version: '1.0.0', description: manifest.description, requires: ['connector.github', source.pluginId] },
         agents: [{ manifest, installationId: 'install-release-prepare' }],
         apply(ctx) {
+            ctx.delivery.web.register({ id: 'release.prepare', pages: [{ path: '/release', label: '发布准备', section: 'workspace', view: { kind: 'builtin', id: 'release-preparation' } }] });
             ctx.delivery.nativeAgents.register(manifest.id, manifest.version, async (request, _resolved, signal) => {
                 signal.throwIfAborted();
                 requirePersonalScope(request.scope);
@@ -89,9 +91,15 @@ export function createReleasePlugin(source = { pluginId: 'knowledge.markdown', s
                 }
                 const data = { status, reason, facts, knowledge: { source: knowledge.source, suppliedCount: notes.length, candidateCount: knowledge.hits.length },
                     evidence, warnings, draft, markdown, requiresHumanReview: true, verification: { citationIdentityAndQuotePresence: draft ? 'checked' : 'not_applicable', prCoverage: draft ? 'checked' : 'not_applicable', semanticSupport: 'not_verified' } };
+                const panel = statusPanelSchema.parse({ schemaVersion: '1.0', tone: status === 'evidence_only' ? 'neutral' : 'warning',
+                    title: ({ evidence_only: '证据已收集', insufficient_evidence: '资料不足，未生成草稿', needs_review: '需要人工复核', draft: '草稿已生成，待人工复核' } as Record<string, string>)[status],
+                    description: reason || '仅供发布准备；未检查代码差异、CI 或审核状态。引用核验不证明语义正确。', checkedAt: facts.collectedAt,
+                    items: [{ label: facts.repository, value: `${facts.pullRequests.length} 个合并 PR · ${facts.openIssues.length} 个当前开放 Issue` },
+                        { label: '个人规则', value: `${notes.length} 条选中片段` }, { label: '来源提示', value: `${warnings.length} 项`, detail: warnings.join(' ') }],
+                });
                 return { status: 'succeeded', data, metrics, artifacts: [
-                    { type: 'json' as const, mediaType: 'application/json', schemaVersion: '1.0', content: data, metadata: { privateKnowledge: true, title: 'Release preparation', semanticSupport: 'not_verified' } },
-                    ...(markdown ? [{ type: 'markdown' as const, mediaType: 'text/markdown', schemaVersion: '1.0', content: markdown, metadata: { privateKnowledge: true, title: 'Release draft' } }] : []),
+                    { type: 'json' as const, mediaType: 'application/json', schemaVersion: '1.0', content: data, metadata: { privateKnowledge: true, title: 'Release preparation', semanticSupport: 'not_verified', statusPanels: [panel] } },
+                    { type: 'markdown' as const, mediaType: 'text/markdown', schemaVersion: '1.0', content: markdown || renderReleaseCollection(facts, evidence, warnings), metadata: { privateKnowledge: true, title: markdown ? 'Release draft' : 'Release evidence' } },
                 ] };
             });
         },

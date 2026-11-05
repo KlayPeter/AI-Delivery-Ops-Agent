@@ -12,6 +12,8 @@ import { PersistentAgentRunStore } from '@/platform/agents/persistentRunStore';
 import { buildConfig } from '@/core/config';
 import { echoPlugin } from '../examples/plugins/echo';
 import type { FeaturePlugin } from '@/platform/plugins/contracts';
+import { createGitHubPlugin } from '@/connectors/github/plugin';
+import { githubFixture, repository, window } from './helpers/github';
 
 let directory: string;
 let environment: Record<string, string | undefined>;
@@ -62,6 +64,8 @@ describe('local connection settings', () => {
             { KNOWLEDGE_KIND: 'markdown', KNOWLEDGE_ROOT: directory, KNOWLEDGE_EXCLUDE: '../escape' },
             { KNOWLEDGE_KIND: 'web', KNOWLEDGE_URLS: 'http://127.0.0.1/private' },
             { AI_MODEL: '\0' }, { HOST: '0.0.0.0' }, { AI_MODEL: null },
+            { RELEASE_GITHUB_REPOSITORY: 'https://github.com/example/project' }, { RELEASE_GITHUB_REPOSITORY: 'example/..' },
+            { RELEASE_GITHUB_REPOSITORY: repository, RELEASE_GITHUB_BRANCH: 'x'.repeat(257) },
         ]) await expect(settings.save(payload)).rejects.toThrow();
         expect(await readFile(file, 'utf8')).toBe(before);
     });
@@ -86,6 +90,45 @@ describe('local connection settings', () => {
             ['http://127.0.0.1/api/workspace/state', { 'sec-fetch-site': 'cross-site' }],
         ] as const) expect(isLocalWorkspaceRequest(new Request(url, { headers }))).toBe(false);
     });
+});
+
+test('GitHub settings enable the matching release composition after restart, keep the token private, and can disable it', async () => {
+    const file = path.join(directory, 'connections.json');
+    const settings = new LocalConnections(file); await settings.initialize();
+    expect(workspaceKnowledge().plugins.some(plugin => plugin.manifest.id === 'release.prepare')).toBe(false);
+    const saved = await settings.save({ RELEASE_GITHUB_REPOSITORY: repository, RELEASE_GITHUB_BRANCH: 'main', RELEASE_GITHUB_TOKEN: 'fixture-private-token' });
+    expect(saved.secrets.RELEASE_GITHUB_TOKEN).toBe(true);
+    expect(JSON.stringify(saved)).not.toContain('fixture-private-token');
+    expect(workspaceKnowledge().plugins.some(plugin => plugin.manifest.id === 'release.prepare')).toBe(false);
+    await new LocalConnections(file).initialize();
+    const selected = workspaceKnowledge(), github = githubFixture();
+    expect('connector.github' in selected.config ? selected.config['connector.github'] : undefined).toMatchObject({ repository, baseBranch: 'main', tokenRef: 'env://RELEASE_GITHUB_TOKEN' });
+    const config = buildConfig({}), store = new InMemoryPersistentKeyValueStore();
+    const host = new AgentHost(() => ({ store, config, feishu: {}, tapd: {}, intentParser: {} } as any), 1000, undefined, [], {
+        plugins: selected.plugins.map(plugin => plugin.manifest.id === 'connector.github' ? createGitHubPlugin(github) : plugin), pluginConfig: selected.config,
+    });
+    try {
+        await host.start();
+        const app = createWorkspaceApi(host, settings, () => config);
+        const state = await (await app.handle(new Request('http://localhost/api/workspace/state'))).json() as any;
+        expect(state.pages.find((page: any) => page.path === '/release')?.view.id).toBe('release-preparation');
+        const response = await app.handle(new Request('http://localhost/api/workspace/runs', { method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ capability: 'release.prepare', input: { ...window, policyQuery: 'API 迁移', operation: 'collect' } }) }));
+        expect(response.status).toBe(200);
+        const result = await response.json() as any;
+        expect(result.status).toBe('succeeded');
+        const details = await host.getLocalRunDetails(result.runId);
+        expect(details!.artifacts.map(artifact => artifact.type).sort()).toEqual(['json', 'markdown']);
+        expect(github.calls.every(call => call.init?.method === 'GET')).toBe(true);
+        expect(JSON.stringify(details)).not.toContain('fixture-private-token');
+    } finally { await host.stop(); }
+    expect(host.web.pages()).toEqual([]);
+    process.env.KNOWLEDGE_KIND = 'web'; process.env.KNOWLEDGE_URLS = 'https://example.com/policy';
+    expect(workspaceKnowledge().plugins.find(plugin => plugin.manifest.id === 'release.prepare')?.manifest.requires).toContain('knowledge.web');
+    await settings.save({ RELEASE_GITHUB_REPOSITORY: '', RELEASE_GITHUB_TOKEN: null });
+    const disabled = new LocalConnections(file); await disabled.initialize();
+    expect(workspaceKnowledge().plugins.some(plugin => plugin.manifest.id === 'release.prepare')).toBe(false);
+    expect(disabled.snapshot().secrets.RELEASE_GITHUB_TOKEN).toBe(false);
 });
 
 test('workspace API runs a real plugin, deduplicates triggers, returns artifacts and excludes foreign workspaces', async () => {

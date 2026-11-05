@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { Alert, Button, Form, Input, Select, Skeleton, Tabs, Tag } from 'antd';
-import { ApiOutlined, RobotOutlined, ProjectOutlined } from '@ant-design/icons';
+import { ApiOutlined, RobotOutlined, ProjectOutlined, GithubOutlined } from '@ant-design/icons';
 import { api } from '@/api';
 import { errorMessage, useConnections, type ConnectionState } from './state';
 
@@ -12,6 +12,11 @@ const groups: { key: string; title: string; icon: ReactNode; description: string
     { key: 'AI_API_BASE', label: 'API 地址', placeholder: 'https://api.openai.com/v1' },
     { key: 'AI_MODEL', label: '模型名称', placeholder: '填写供应商提供的模型 ID' },
     { key: 'AI_API_KEY', label: 'API Key', secret: true },
+  ] },
+  { key: 'github', title: 'GitHub', icon: <GithubOutlined aria-hidden />, description: '选择一个仓库用于发布准备。公开仓库可匿名读取；填写 Token 时请授予必要的只读权限。保存后重启后端，启用发布准备插件。清空仓库可停用。', fields: [
+    { key: 'RELEASE_GITHUB_REPOSITORY', label: '仓库', placeholder: 'owner/repository' },
+    { key: 'RELEASE_GITHUB_BRANCH', label: '目标分支（可选）', placeholder: '留空使用仓库默认分支' },
+    { key: 'RELEASE_GITHUB_TOKEN', label: '读取 Token（可选）', secret: true },
   ] },
   { key: 'feishu', title: '飞书', icon: <ApiOutlined aria-hidden />, description: '连接你的飞书应用，在群聊和私聊中使用 Agent。保存后重启后端，建立机器人长连接。', fields: [
     { key: 'FEISHU_APP_ID', label: 'App ID', placeholder: 'cli_…' }, { key: 'FEISHU_APP_SECRET', label: 'App Secret', secret: true },
@@ -38,7 +43,7 @@ function ConnectionForm({ group, data, onSaved }: { group: typeof groups[number]
     } catch (e) { setError(errorMessage(e)); } finally { setSaving(false); }
   };
   return <section className="connection-panel">
-    <div className="connection-title"><span className="icon-tile">{group.icon}</span><h2>{group.title}</h2><Tag>{data.secrets[secret] ? '已配置' : '未配置'}</Tag></div>
+    <div className="connection-title"><span className="icon-tile">{group.icon}</span><h2>{group.title}</h2><Tag>{(group.key === 'github' ? data.values.RELEASE_GITHUB_REPOSITORY : data.secrets[secret]) ? '已配置' : '未配置'}</Tag></div>
     <p className="muted">{group.description}</p>
     <Form form={form} layout="vertical" onFinish={save} initialValues={{ ...data.values, AI_PROVIDER: data.values.AI_PROVIDER === 'gemini' ? 'google' : data.values.AI_PROVIDER || 'openai' }}>
       <div className="connection-fields">{group.fields.map(field => <Form.Item key={field.key} name={field.key} label={field.label} extra={field.secret && data.secrets[field.key] ? '已保存，留空将保留当前密钥。' : undefined}>

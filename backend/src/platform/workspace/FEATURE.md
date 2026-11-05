@@ -23,6 +23,9 @@ flowchart TD
     CFG --> FILE[connections.json 原子写入·0600]
     FILE --> BOOT[重启后注入环境变量]
     BOOT --> PL[团队插件 + 选定知识来源/回答/复核插件]
+    PL --> GH[明确配置 GitHub 后增装连接与匹配知识源的发布插件]
+    GH --> RP[插件拥有的发布准备表单、证据与草稿]
+    RP --> H
     PL --> H[Agent Host]
     G --> T[固定默认 workspace/bot·manual Trigger]
     T --> H
@@ -56,7 +59,7 @@ flowchart TD
 ### 目标
 
 - 提供真实的本地 Agent 发起、最近运行、产物、步骤和人工继续入口。
-- 飞书、模型、TAPD 与个人知识来源可在界面填写并保存在本机。
+- 飞书、模型、TAPD、GitHub 与个人知识来源可在界面填写并保存在本机。
 - 无凭据时可检索仓库内的虚构示例笔记。
 
 ### 非目标
@@ -75,7 +78,7 @@ flowchart TD
 5. 本地连接字段采用 allowlist；密钥只返回已配置布尔值。省略字段保留当前值，null 仅用于明确清除密钥；空凭据的飞书可保持未连接，部分凭据拒绝保存。
 6. 配置写入独占创建的临时文件、flush、原子 rename，文件权限 0600；读取拒绝符号链接、硬链接和共享权限文件。配置为本机明文，不声称加密。连接更新串行合并，失败保留原文件。
 7. 保存不改变在途任务的配置。重启时本地文件覆盖同名环境值；模型供应商/地址/名称和 TAPD 项目/地址/工作项环境值优先于旧 config.json。页面持续提示待重启状态。
-8. HTTP 入口默认在原九个团队插件上增加示例 Markdown 来源、回答与复核插件，合计 12 个插件、10 个 Agent。选择公开网页时替换来源组合。SDK 团队工厂仍为九个插件、七个 Agent。显式 AGENT_PLUGINS_FILE 完全管理组合，不自动叠加页面知识配置。
+8. HTTP 入口默认在原九个团队插件上增加示例 Markdown 来源、回答与复核插件，合计 12 个插件、10 个 Agent。选择公开网页时替换来源组合。明确保存 GitHub 仓库后再增装 GitHub/发布两个插件，合计 14 个插件、11 个 Agent；清空仓库并重启停用。SDK 团队工厂仍为九个插件、七个 Agent。显式 AGENT_PLUGINS_FILE 完全管理组合，不自动叠加页面知识配置。
 9. 知识请求保留无 chat/conversation 的个人手动 Scope。检索不调用模型，生成回答使用当前宿主模型并发送所选片段；证据沿用来源和引用核验协议。
 10. 结果 Markdown 不执行 HTML，不自动加载远端图片；原文链接仅允许 HTTP/HTTPS 和 Obsidian open。原始 JSON 放在详情，不作为主要操作入口。
 11. 首页新工作台保留 `?groupId` / `?dashboardId` 的既有看板入口，以及旧根目录 HTML 长链接；这些入口都核对看板插件是否装配，项目看板使用 `/dashboard` 导航。
@@ -93,6 +96,12 @@ HTTP 装配先核对现有 API 命名空间，插件声明冲突时拒绝启动�
 工作台 state 增加 pages 和 manualJobs，由真实 Cordis 注册表提供。前端按页面元数据生成导航，支持已打包站会、看板、甘特、周报、隐藏纪要视图或指定 Agent 的入口；不执行第三方 HTML/JS。入口失效显示恢复链接，连接失败提供重试，Agent 入口跳转后保留导航选中状态。旧根查询参数与根目录 .html 看板链接共享插件检查，只有看板插件启用时才可打开；导航保持对应页面选中。
 
 站会页面和统计 API 随 builtin.standup 装配；移除后旧地址不能访问数据。Debug 页面只显示已声明的任务，后端 /api/jobs 同样校验所有者，不能靠手写请求绕过。默认九项任务保持，空组合没有这些任务。原有站会、看板、甘特、周报及隐藏纪要页面/API 已迁移，读写都经插件所有权检查。navigation=false 的页面保留直达入口，不在导航展示。周报使用统一历史抽屉与精确版本选择，纪要使用服务端分页、附件链接和展示收件人的发送确认；生成仍关闭。知识工作台业务适配与基础服务生命周期仍按路线图迁移。
+
+## 发布准备入口
+
+发布插件贡献 /release 已打包视图，表单提交合并时间段和个人规则关键词，复用同一 Run API 与结果抽屉。无模型时仅收集证据；生成使用当前宿主模型并提示事实及片段的数据去向。结果优先展示状态面板，再展示正文。JSON 通过通用 StatusPanel 展示实际状态，Markdown 呈现草稿或可读的证据、来源版本与覆盖提示，不在通用结果组件加入发布专用分支。原始 JSON 保留在详情。移除插件时导航、页面和 Capability 同时不可用，历史数据保留。自定义插件文件管理来源时页面明确提示，以免把保存的设置当成实际装配。
+
+验证：backend/test/workspace.test.ts 覆盖来源匹配、脱敏、重启生效/停用和真实 HTTP collect；发布专项检查状态面板与可读证据；frontend/src/pages/workspace/releaseInput.test.mjs 检查日期和关键词边界。
 
 ## 社区 Skill 与 Context7 验证
 
@@ -166,6 +175,7 @@ HTTP 装配先核对现有 API 命名空间，插件声明冲突时拒绝启动�
 - `backend/src/platform/bootstrap/agentHost.ts`：本地根 Run 列表、详情、发起与继续。
 - `frontend/src/layouts/MainLayout.tsx`、`frontend/src/App.tsx`、`frontend/src/index.css`：浅色响应式应用壳与路由。
 - `frontend/src/pages/workspace/WorkspacePage.tsx`、`RunDrawer.tsx`：任务、历史和执行结果。
+- `frontend/src/pages/workspace/ReleasePage.tsx`、`releaseInput.ts`：发布准备表单、真实运行历史、日期与关键词校验。
 - `frontend/src/pages/workspace/RunActions.tsx`、`panels.ts`：插件动作、版本化文本面板与内部 Run 导航。
 - `backend/src/platform/plugins/runActions.ts`：动作注册与面板 Schema。
 - `frontend/src/pages/workspace/CatalogPage.tsx`、`ConnectionsPage.tsx`、`KnowledgePage.tsx`：能力、连接与知识。

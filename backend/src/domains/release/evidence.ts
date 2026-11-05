@@ -50,6 +50,21 @@ export function verifyReleaseDraft(text: string, evidence: readonly ReleaseEvide
 }
 
 const escape = (text: string) => text.replace(/[\r\n]+/g, ' ').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/[\\`*_[\]{}()#!|]/g, '\\$&');
+export function renderReleaseCollection(snapshot: GitHubSnapshot, evidence: readonly ReleaseEvidence[], warnings: readonly string[]) {
+    return ['# 发布准备证据', '', `仓库：${escape(snapshot.repository)}；分支：${escape(snapshot.baseBranch)}`,
+        `合并区间：[${snapshot.window.since}, ${snapshot.window.until})；Issue 为当前开放状态。`, '',
+        '> 本轮没有生成发布草稿。分页非原子快照；读完分页也不证明资料完整或具备发布条件。', '',
+        ...warnings.map(warning => `- 注意：${escape(warning)}`), '',
+        ...Object.entries(snapshot.coverage).map(([kind, coverage]) => `- ${kind === 'pullRequests' ? 'PR' : 'Issue'}：${coverage.pages} 页；${coverage.exhausted ? '分页已读完' : '仍有分页未读取'}；${coverage.outputTruncated ? '输出已截断' : '输出未截断'}；${coverage.duplicated ? '发现重复记录' : '未发现重复记录'}`), '',
+        '## 合并 PR', '', ...snapshot.pullRequests.map(pr => `- [#${pr.number}](https://github.com/${snapshot.repository}/pull/${pr.number}) ${escape(pr.title)}`),
+        ...(!snapshot.pullRequests.length ? ['本轮窗口未采集到合并 PR；请结合覆盖提示确认。'] : []), '',
+        '## 当前开放 Issue', '', ...snapshot.openIssues.map(issue => `- [#${issue.number}](https://github.com/${snapshot.repository}/issues/${issue.number}) ${escape(issue.title)}`), '',
+        '## 选中的个人规则', '', ...evidence.filter(item => item.kind === 'knowledge').flatMap(item => [
+            `### ${escape(item.title)}`, `来源：${escape(item.path)}；版本：${item.documentVersion}`, '',
+            `> ${escape(item.excerpt)}`, '',
+            ...(item.openUri && /^(https?:|obsidian:)/.test(item.openUri) ? [`[打开原文](<${new URL(item.openUri).href.replace(/>/g, '%3E')}>)`, ''] : []),
+        ]), ...(!evidence.some(item => item.kind === 'knowledge') ? ['没有命中规则；关键词结果为空不证明资料不存在。'] : []), ''].join('\n');
+}
 export function renderReleaseDraft(snapshot: GitHubSnapshot, draft: ReleaseDraft, evidence: readonly ReleaseEvidence[], warnings: readonly string[]) {
     const references = (refs: z.infer<typeof citations>) => refs.map(ref => `[${evidence.findIndex(item => item.citationId === ref.citationId) + 1}]`).join(' ');
     return [`# 发布准备草稿`, '', `仓库：${escape(snapshot.repository)}；分支：${escape(snapshot.baseBranch)}`,

@@ -15,13 +15,16 @@ last_reviewed: 2026-11-05
 
 `release.prepare` 是独立功能插件，依赖 `connector.github` 和一个知识来源。默认使用 Markdown/Obsidian；webPlugin.ts 切换到网页来源，复用同一发布实现。固定的取证、生成与验收管线使用 Native Agent，接入现有 Host、Tool Gateway、Run/Step/Artifact；不包含自主多 Agent 循环。
 
-CLI 与配置档可使用。知识与 GitHub 事实在同一次实际任务中参与草稿生成；外部写入、专门的发布页面和持续监控尚未实现；保存后的实际知识引用可用独立 impact 插件显式复核。
+CLI、配置档与插件拥有的本地 /release 页面均可使用。HTTP 默认组合在明确保存 GitHub 仓库并重启后，增装 GitHub 和发布插件；知识来源沿用当前所选 Markdown/Obsidian 或网页。显式 AGENT_PLUGINS_FILE 仍完全管理组合。外部写入与持续监控未实现；保存后的实际知识引用可用独立 impact 插件显式复核。
 
 ## 实现流程图
 
 ```mermaid
 flowchart TD
-    U[本地 CLI / SDK：仓库、时间段与知识范围] --> P[Cordis: release.prepare]
+    UISET[本机连接设置：固定仓库与可选读取密钥] --> BOOT[重启后组合 GitHub 与匹配知识源的发布插件]
+    BOOT --> PAGE[插件拥有的 /release 时间段与规则表单]
+    PAGE --> U[本地 Web / CLI / SDK：时间段与知识范围]
+    U --> P[Cordis: release.prepare]
     P --> V[校验本地个人 Scope 与输入]
     V --> G[Tool Gateway: GitHub snapshot]
     G --> K[Tool Gateway: 选定来源 search]
@@ -35,9 +38,10 @@ flowchart TD
     A -- 非法 --> F[Run 失败，不发布草稿]
     A -- 通过 --> D[草稿、潜在阻塞、证据与 Markdown]
     D --> H[始终要求人工复核]
-    O --> J[JSON Artifact]
+    O --> J[JSON Artifact 与通用状态面板]
     I --> J
     R --> J
+    J --> EMD[未生成时也提供证据 Markdown、覆盖提示和规则片段]
     D --> J
     D --> MD[Markdown Artifact]
     J --> ST[可选本地 state]
@@ -73,7 +77,8 @@ flowchart TD
 9. 每个 finding 引用的 PR/Issue 必须真实供给且各自被引用。policy 类发现同时需要 PR 和知识依据，issue 类发现需要实际 Issue。仅返回 potential_blocker 或 needs_review，不产生“已证明可发布”的结论。
 10. 无 warning/发现时可标为 draft，其余已生成草稿为 needs_review；始终 requiresHumanReview=true。verification 只说明引用与 PR 覆盖检查，semanticSupport=not_verified。不存在的 PR、漏 PR、改写引文或缺少相应来源都会拒绝整个草稿。
 11. Markdown 将模型文字的 HTML 和标题语法按文本转义；原文链接只允许 HTTP(S)/Obsidian。JSON 保存完整证据与版本，打开链接指向当前来源。生成期间源文件变化时保留实际检索版本，不自动重写或标记旧产物。
-12. 默认团队组合不启用本插件。CLI 生成要求专用 KNOWLEDGE_* 设置；collect 不需要模型。GitHub 凭据仅经显式 tokenRef，不自动采用 Git 登录或团队模型凭据。
+12. SDK 团队默认组合不启用本插件。HTTP 工作台明确配置 RELEASE_GITHUB_REPOSITORY 后增装两个插件，使用当前知识来源及宿主模型；配置重启生效。CLI 生成仍要求专用 KNOWLEDGE_* 设置，不自动采用团队模型凭据。collect 不需要模型；GitHub 凭据仅经显式 tokenRef，不自动采用 Git 登录。
+13. /release 页面随插件装配与释放，只提交时间段、规则关键词和操作；普通任务文本引导到该页面或高级参数。无模型时仍能收集证据。所有成功结果保存 JSON 与 Markdown：JSON 的通用状态面板区分证据、资料不足、待复核和草稿；未生成时 Markdown 展示实际 PR/Issue 链接、分页/重复/截断提示和选中规则版本及片段，原始完整 JSON 在运行详情。
 
 ## 用户能力
 
@@ -83,12 +88,13 @@ flowchart TD
 
 ## 工作台引用复核
 
-在 HTTP Host 显式组合发布与 impact 插件后，成功的发布 Run 详情可显示 impact 插件贡献的「检查引用变化」。它只复核知识文档版本并生成独立检查记录，不发布内容、不改写草稿，也不复核 GitHub 事实。默认 HTTP 组合没有发布插件；发布配置档仍需自行选择 impact 依赖组合。
+在 HTTP Host 显式组合发布与 impact 插件后，成功的发布 Run 详情可显示 impact 插件贡献的「检查引用变化」。它只复核知识文档版本并生成独立检查记录，不发布内容、不改写草稿，也不复核 GitHub 事实。未配置仓库时 HTTP 默认不装配发布插件；配置后与选定知识来源和 impact 一起加载。显式发布配置档仍需自行选择 impact 依赖组合。
 
 ## 入口与触发
 
 | 入口 | 输入 | 输出 |
 | --- | --- | --- |
+| /release 本地页面 | 合并起止时间、规则关键词；收集或生成 | 真实 Run、状态面板、可读证据与草稿；来源设置需重启 |
 | release.prepare Capability | since、可选 until/operation/policyQuery/limit | evidence_only、insufficient_evidence、needs_review 或 draft 数据与 Artifact |
 | release.ts CLI | 仓库、目录或公开链接、时间段、可选 collect/tokenRef | Run ID 与 JSON；生成成功带 Markdown |
 | release-demo / release-web-demo | 发布功能、GitHub 与一个知识源 | 独立配置组合，不加载默认团队功能 |
@@ -133,7 +139,9 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 - `backend/src/platform/persistence/sqliteStore.ts`：可选私有运行记录。
 - `backend/src/knowledge/impact/service.ts`：复核已引用规则的当前文档版本。
-- `backend/src/domains/release/plugin.ts`：取证、模型调用、追踪与产物。
+- `backend/src/domains/release/plugin.ts`：页面贡献、取证、模型调用、追踪、通用状态面板与产物。
+- `frontend/src/pages/workspace/ReleasePage.tsx`、`releaseInput.ts`：时间段表单、模型前置条件、历史结果与日期输入校验。
+- `backend/src/platform/workspace/connections.ts`、`knowledge.ts`：显式 GitHub 配置和知识来源匹配装配。
 - `backend/src/domains/release/evidence.ts`：事实引用、草稿校验和 Markdown。
 - `backend/src/domains/release/webPlugin.ts`：网页来源组合。
 - `backend/src/connectors/github/plugin.ts`、`backend/src/connectors/github/source.ts`：仓库事实 Tool。
@@ -144,14 +152,20 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 ### 主要测试
 
+- `backend/test/workspace.test.ts`、`frontend/src/pages/workspace/releaseInput.test.mjs`：配置脱敏/重启/停用、两类知识组合、真实插件 HTTP 采集、页面释放与日期边界。
 - `backend/test/releasePreparation.test.ts`：真实 Host/SDK 与受控 API/模型、PR 覆盖/引文拒绝、资料不足、预算、Scope、版本、网页、Markdown 与 CLI。
 - `backend/test/githubConnector.test.ts`：来源范围、分页、凭据、重试、取消与预算。
 - `backend/test/knowledgeAnswer.test.ts`、`backend/test/knowledgeMarkdown.test.ts`、`backend/test/knowledgeWeb.test.ts`：共享引用和模型设置回归。
+
+## 本地页面验收
+
+2026-11-05 使用独立本地数据库，实际匿名读取 upstash/context7：采集 52 个合并 PR、14 个当前开放 Issue，匹配 3 个虚构示例笔记片段；界面明确显示 PR 五页仍未读完及正文截断，不声称查全。没有调用真实模型或执行 GitHub 写入。GitHub 表单保存反馈和 375px 页面检查通过，页面宽度 375px、无横向溢出。后端全量 553 通过 / 1 TAPD 集成跳过，前端 16 项通过，类型、lint 和构建通过（保留既有 lint/包体警告）。
 
 ## 变更记录
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 增加插件拥有的发布页面、可填写 GitHub 连接、匹配知识源装配与可读证据产物 | 工作台/发布专项、日期边界、后端回归、前端门禁与本地浏览器验证 |
 | 2026-11-05 | 说明可选工作台引用复核入口，原发布与草稿契约保持不变 | 插件动作/API 专项、后端回归、前端检查与桌面/375px 浏览器验收 |
 | 2026-11-05 | 修复已有 CLI 状态文件的文件检查释放 POSIX 会话锁，重复拒绝不能放行其他进程 | 本地状态与知识复核专项、类型检查、后端回归 |
 | 2026-11-05 | 新增只读发布准备插件、网页组合、CLI 与共享引用核验 | 17 项发布专项、干净安装类型检查与后端 487 通过 / 1 TAPD 跳过；真实公开仓库 collect；生成使用本地模拟模型，不声明真实模型质量 |

@@ -1,6 +1,15 @@
 # 用个人知识准备一次发布
 
-当前是只读 CLI/插件：读取明确仓库的合并 PR、当前开放 Issue 和选定个人发布规则，生成带引用的草稿与待确认事项。不会写入 GitHub 或笔记。功能契约见[发布准备](../backend/src/domains/release/FEATURE.md)和[GitHub 连接器](../backend/src/connectors/github/FEATURE.md)。
+当前提供只读本地页面、CLI/插件：读取明确仓库的合并 PR、当前开放 Issue 和选定个人发布规则，生成带引用的草稿与待确认事项。不会写入 GitHub 或笔记。功能契约见[发布准备](../backend/src/domains/release/FEATURE.md)和[GitHub 连接器](../backend/src/connectors/github/FEATURE.md)。
+
+## 在本地工作台使用
+
+1. 打开「连接与模型 → GitHub」，填写 owner/repository 和可选目标分支。公开仓库无需 Token；私有仓库请提供必要的读取权限。
+2. 在「知识库」选择虚构示例、Markdown/Obsidian 目录或公开规则链接，保存后重启本地后端。
+3. 打开侧栏「发布准备」，选择合并时间段与个人规则关键词，点击「收集证据」。结果展示真实来源、覆盖提示、选中规则片段和版本；原始 JSON 在详情。
+4. 配置模型后可「生成发布草稿」，所选事实及个人片段会发送给当前宿主模型。草稿、待确认项、引用和步骤留在运行记录；有 impact 插件时可显式检查知识引用变化。
+
+本地设置为 RELEASE_GITHUB_REPOSITORY、RELEASE_GITHUB_BRANCH 和可选 RELEASE_GITHUB_TOKEN。保存与实际加载分开，重启前任务继续使用旧配置。清空仓库并重启会卸载 GitHub 与发布插件，保留历史运行。显式 AGENT_PLUGINS_FILE 完全管理组合，页面设置不会覆盖它。CLI 模型配置仍独立，见下文。
 
 ## 先检查来源，不调用模型
 
