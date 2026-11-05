@@ -80,8 +80,7 @@ flowchart LR
 | Feature ID | 功能 | 状态 | 运行时 Agent 映射 | 功能文档 |
 | --- | --- | --- | --- | --- |
 | `personal-knowledge-library` | 明确收录资料、私有保存、检索与 RAG 来源 | active | `native.knowledge-library` | [查看](../../backend/src/knowledge/library/FEATURE.md) |
-| `web-page-capture` | 单篇网页正文、来源版本与 Markdown 导出 | active | `native.knowledge-library` | `knowledge.library.manage` | 可选 Native Agent | 明确收录网页/文档与原文检索；HTTP 默认装配 |
-| `native.web-capture` | [查看](../../backend/src/knowledge/capture/FEATURE.md) |
+| `web-page-capture` | 单篇网页正文、来源版本与 Markdown 导出 | active | `native.web-capture` | [查看](../../backend/src/knowledge/capture/FEATURE.md) |
 | `local-document-import` | 本地 PDF/Office 转 Markdown 与原始指纹 | active | `native.document-convert` | [查看](../../backend/src/connectors/markitdown/FEATURE.md) |
 | `personal-knowledge-workspace` | 可选知识界面、明确来源与匹配回答 | active | 确定性界面，无独立 Agent | [查看](../../backend/src/knowledge/workspace/FEATURE.md) |
 | `local-agent-workspace` | 本地任务发起、运行追踪、知识与连接配置 | active | 控制面，复用现有 Agent | [查看](../../backend/src/platform/workspace/FEATURE.md) |
@@ -187,7 +186,7 @@ flowchart LR
 3. Agent、Tool、Skill、领域服务或 Adapter 的关系变化时，更新 Mermaid 和职责边界。
 4. 数据归属、状态机、幂等键、投递目标、重试或降级变化时，更新核心规则与数据说明。
 5. 新增或移动源码、测试时，更新代码地图；跨目录功能仍只保留一个功能卡 Owner。
-6. 文档与代码冲突时，以当前代码和测试为证据修正文档，并在变更记录说明差异。
+6. 文档与代码冲突时，以当前代码和测试为证据修正文档，并在变更记录说明差异。backend/test/featureIndex.test.ts 校验能力表列数、唯一 ID、Owner 链接、功能卡身份和声明数量，避免批量替换破坏索引。
 
 新增功能从 [功能文档模板](FEATURE_TEMPLATE.md) 开始。
 
@@ -196,5 +195,5 @@ flowchart LR
 - **推荐在功能代码 Owner 目录使用 `FEATURE.md`，不推荐再放业务型 `AGENTS.md`。** `FEATURE.md` 面向人和 AI 共同解释产品能力；根目录 `AGENTS.md` 统一约束 AI 的修改流程。这样代码与功能事实相邻，又不会让业务说明和开发规则混在一起。
 - **系统已经是 Agent 系统。** 它具备 Registry、三类 Adapter、Model Loop、Tool/Skill Runtime、委派、Session/Checkpoint、Run/Artifact、Outbox 和 Bot Binding，不只是“调用一次大模型”的普通业务系统。
 - **系统采用混合架构是正确的。** 自主决策和可插拔执行使用 Agent，强一致状态交给 Domain Service，确定性管理和查询保留为服务/控制面。强行把每个页面或函数 Agent 化会增加成本、随机性和数据冲突。
-- **当前功能文档覆盖 25 个能力。** 团队 SDK 组合包含 7 个 Agent；HTTP 工作台默认额外装配知识来源、回答、复核、知识界面、网页收集与文档导入，共 13 个 Agent；个人 Markdown、公开网页检索、RAG 回答、发布准备与知识变更复核是五个可选 Native Agent，AI Hot 是可选外部 Agent；会议纪要处于 dormant，其余功能通过 Agent、领域服务和控制面协作完成。
+- **当前功能文档覆盖 25 个能力。** 团队 SDK 组合包含 7 个 Agent；HTTP 工作台默认额外装配知识来源、回答、复核、知识界面、网页收集、文档导入与资料库，共 13 个 Agent；个人 Markdown、公开网页检索、RAG 回答、发布准备与知识变更复核是五个可选 Native Agent，AI Hot 是可选外部 Agent；会议纪要处于 dormant，其余功能通过 Agent、领域服务和控制面协作完成。
 - **下一步维护重点**是保证功能卡与代码同提交更新，并继续把业务写入口收敛到 `TaskService`、`StandupService` 和受治理 Tool；新增机器人优先增加 Binding，新增自治能力再增加 Agent。
