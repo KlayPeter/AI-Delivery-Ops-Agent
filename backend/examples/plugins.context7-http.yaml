@@ -1,0 +1,23 @@
+apiVersion: "1.0"
+plugins:
+  - module: ../src/connectors/mcp/plugin.ts
+    config:
+      servers:
+        - id: context7
+          transport: http
+          url: https://mcp.context7.com/mcp
+          # Optional bearer token:
+          # tokenRef: env://CONTEXT7_API_KEY
+          timeoutMs: 30000
+          tools:
+            - alias: resolve
+              name: resolve-library-id
+              description: Search public library documentation IDs through Context7.
+              readOnly: true
+            - alias: docs
+              name: query-docs
+              description: Retrieve documentation for an explicitly selected public library.
+              readOnly: true
+  - module: ../src/connectors/context7/plugin.ts
+    config:
+      defaultLibraryId: /reactjs/react.dev

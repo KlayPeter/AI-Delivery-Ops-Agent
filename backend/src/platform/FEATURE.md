@@ -66,8 +66,10 @@ flowchart TD
     AB --> FAIL[失败 Run / Step；不向调用者返回成功产物]
     I --> SV[标准 JSON Schema 校验；同 ID 契约隔离]
     SV --> J["Domain Service / Adapter"]
-    X --> MCP[可选 MCP stdio 连接插件]
+    X --> MCP[可选 MCP stdio / 公开 HTTPS 连接插件]
     MCP --> I
+    MCP --> MHTTP[HTTP 固定端点、公开 DNS/IP 与 TLS；有界 JSON/SSE]
+    MHTTP --> I
     J --> MS[显式选择的本地 MCP 工具]
     I -- "调用前已取消" --> XC["拒绝进入 Tool Handler"]
     X --> NP["Native 插件：宿主模型与 Tool 组合"]
@@ -250,7 +252,8 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 - `backend/src/platform/plugins/web.ts`、`backend/src/platform/workspace/jobsApi.ts`：Web 注册、API 路由与手动任务所有者校验。
 
 - `backend/src/platform/agents/schema.ts`、`contracts.ts`：标准 JSON Schema 契约与失败关闭。
-- `backend/src/connectors/mcp/plugin.ts`：可选 stdio 工具连接；不进入默认组合。
+- `backend/src/connectors/mcp/plugin.ts`、`http.ts`：可选 stdio / 公开 HTTPS 工具连接；不进入默认组合。
+- `backend/test/mcpHttp.test.ts`：真实 TCP JSON/SSE、固定 IP/TLS 参数、Bearer 引用、DNS/URL 拒绝、取消/预算与会话清理；真实 HTTPS 另经官方 Context7 验收。
 
 - `backend/src/platform/plugins/runActions.ts`：成功 Run 的插件动作注册与文本面板协议。
 

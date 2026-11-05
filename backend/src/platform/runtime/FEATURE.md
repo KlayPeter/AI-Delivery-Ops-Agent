@@ -43,7 +43,8 @@ flowchart TD
     SC --> C7[标准 Skill 与社区 MCP 工具调用]
     C7 --> TC
     SC --> TC{"Tool 调用前已取消?"}
-    D --> MCP[可选 MCP 工具：错误、取消和超时显式失败]
+    D --> MCP[可选 stdio / HTTPS MCP：错误、取消和超时显式失败]
+    MCP --> MHTTP[HTTP 固定 IP/TLS、无重定向与有界响应；凭据引用不进产物]
     TC -- 是 --> TR["TOOL_CANCELLED：不进入 Handler"]
     TC -- 否 --> L{"Run Tool 预算内?"}
     L -- 是 --> D["Step / Tool Call / Audit"]
@@ -94,6 +95,8 @@ flowchart TD
 - 可观测性不是独立 Agent；它是所有 Agent 和确定性流程共享的平台能力。
 
 ## 工作台入口
+
+MCP 在线连接不增加新的执行状态机：公开 HTTPS 经与 stdio 相同的 Tool Gateway、Scope、预算及 Tool Step，固定工具调用的错误/超时/取消均失败。HTTP 连接自己校验 DNS、固定 IP/TLS 与响应预算，停止尝试终止本客户端会话并关闭本地流；失败清理不删除运行历史。HTTP JSON/SSE、字节超限、重定向、流取消和会话测试见 backend/test/mcpHttp.test.ts；官方 Context7 实际查询为 1 次工具/0 次模型，不代表所有服务或远端取消均已验证。
 
 新增本地工作台：最近 50 个根 Run、结果/步骤/详情和人工继续；Run 列表与 Artifact 查询固定默认 workspace/bot。运行入口使用 manual Trigger 和 none 回复策略，Tool 自身仍可能写业务数据。管理 API（包括既有 Run 详情）统一检查本机 Host/Origin，防止其他网站读取本地个人产物。HTTP 默认监听 127.0.0.1。连接保存与实际运行状态分开呈现，见 [工作台功能卡](../workspace/FEATURE.md)。
 

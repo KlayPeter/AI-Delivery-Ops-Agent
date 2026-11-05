@@ -5,7 +5,7 @@ GitHub 仓库可以通过已有扩展协议接入。仓库本身不必改写成�
 | 上游提供什么 | 本项目接入方式 | 当前范围 |
 | --- | --- | --- |
 | 标准 `SKILL.md` | `readAgentSkill` 读取 name/description/正文，再交给现有 Prompt Skill Runtime | 显式本地导入，宿主决定工具、预算、模型 Agent 兼容性；不自动运行脚本或展开引用资源 |
-| MCP 服务 | `connector.mcp` 连接已安装的 stdio 服务并选择工具 | 已审查的读取工具、真实 Schema、取消/超时、Run/Step 与进程清理 |
+| MCP 服务 | `connector.mcp` 连接 stdio 或公开 HTTPS Streamable HTTP 并选择工具 | 已审查的读取工具、真实 Schema、取消/超时、Run/Step 与连接清理 |
 | 独立 HTTP Agent | 现有 HTTP Agent Manifest/Adapter | 显式 endpoint、请求与响应协议、主机范围和凭据引用 |
 | TypeScript 功能模块 | `FeaturePlugin` 包装上游函数或 SDK | 注册 Agent/Tool/Skill、消息、计划、Web 等贡献，Cordis 管理生命周期 |
 
@@ -24,7 +24,15 @@ GitHub 仓库可以通过已有扩展协议接入。仓库本身不必改写成�
 
 ## 本地运行
 
-从仓库根目录进入 backend，安装固定版本上游包。它安装在本地数据目录，不修改项目依赖或编辑器全局配置：
+按[本地说明](LOCAL_DEVELOPMENT.md)初始化数据库后，从 backend 可直接连接官方在线 MCP，不安装额外进程：
+
+```bash
+AGENT_PLUGINS_FILE=examples/plugins.context7-http.yaml bun run dev
+```
+
+该配置使用官方 https://mcp.context7.com/mcp，已实际验证 React 查询、真实 Tool/Agent Step 和零模型调用。可在自己的配置副本中取消 tokenRef: env://CONTEXT7_API_KEY 的注释，通过环境注入 API key，SDK 以 Bearer 发送。远端服务版本及匿名限额由上游维护，本地 Skill 仍固定到已审查来源；不把远端后端当作固定版本本地包。
+
+也可继续安装固定版本本地 stdio 包。它放在本地数据目录，不修改项目依赖或编辑器全局配置：
 
 ```bash
 cd backend
@@ -52,7 +60,7 @@ React useEffect cleanup function for a window event listener
 { "prompt": "How to configure Prisma relations", "libraryId": "/实际搜索返回的文档库ID" }
 ```
 
-查询问题会发往 Context7，请使用适合交给该服务处理的内容。需要 API key 时在自己的配置副本中为 MCP server 添加 `envRefs.CONTEXT7_API_KEY: env://CONTEXT7_API_KEY`，通过环境注入凭据；不把 key 写入命令参数或公开 YAML。上游限流/认证失败会显示失败，应用不自动重试或启动 OAuth/编辑器安装流程。
+查询问题会发往 Context7，请使用适合交给该服务处理的内容。本地 stdio 方式需要 API key 时，在自己的配置副本中添加 `envRefs.CONTEXT7_API_KEY: env://CONTEXT7_API_KEY`；HTTP 使用上面的 tokenRef。不要把 key 写入命令参数或公开 YAML。上游限流/认证失败会显示失败，不自动重发工具调用或启动 OAuth/编辑器安装流程；连接安全与范围见[MCP 说明](MCP_TOOLS.md)。
 
 ## 导入其他 Skill
 

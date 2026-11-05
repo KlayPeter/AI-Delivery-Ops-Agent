@@ -47,3 +47,5 @@ pnpm dev --host 127.0.0.1
 ## 社区插件体验
 
 可选择 [Context7 社区插件](COMMUNITY_PLUGINS.md)，无需宿主模型即可查开发文档；其官方标准 Skill 也会导入，模型研究需自己的模型配置。该组合显式选择，不自动叠加默认团队/个人插件。
+
+已初始化的 backend 可用 AGENT_PLUGINS_FILE=examples/plugins.context7-http.yaml bun run dev 直接连接官方 HTTPS MCP，无需安装上游本地包；查询会发给 Context7。凭据、固定地址、DNS/TLS 与流预算见 [MCP 工具](MCP_TOOLS.md)。

@@ -98,7 +98,7 @@ flowchart LR
 | `ai-news-radar` | 飞书私聊查询、续页、搜索与多源 AI 信号，可选独立机器人 | active | `native.ai-news-radar` | [查看](../../backend/src/agents/native/ai-news-radar/FEATURE.md) |
 | `release-preparation` | 结合仓库事实与个人规则生成发布草稿、引用与待确认项 | active | `native.release-prepare`；显式组合、本地 CLI / Web | [查看](../../backend/src/domains/release/FEATURE.md) |
 | `community-developer-docs` | Context7 在线开发文档与标准 Agent Skills 导入 | active（显式安装） | `community.context7-docs` / `community.context7-assistant` | [查看](../../backend/src/connectors/context7/FEATURE.md) |
-| `mcp-tool-connector` | 显式选择的本地 MCP 工具、标准 Schema 与进程生命周期 | active | 无独立业务 Agent；可选读取示例 | [查看](../../backend/src/connectors/mcp/FEATURE.md) |
+| `mcp-tool-connector` | 本地 stdio / 公开 HTTPS MCP、显式工具、标准 Schema 与连接生命周期 | active | 无独立业务 Agent；可选读取示例 | [查看](../../backend/src/connectors/mcp/FEATURE.md) |
 | `github-project-facts` | GitHub 固定仓库的合并 PR、开放 Issue 与来源覆盖 | active | 无独立 Agent；只读连接 Tool | [查看](../../backend/src/connectors/github/FEATURE.md) |
 | `knowledge-change-impact` | 历史引用版本复核、来源身份与可选本地持久化 | active | `native.knowledge-impact`；本地显式检查 | [查看](../../backend/src/knowledge/impact/FEATURE.md) |
 | `personal-markdown-knowledge` | 只读 Markdown/Obsidian 同步、笔记链接与版本化关键词检索；本地 CLI | active | `native.knowledge-markdown`；显式安装，默认团队不启用 | [查看](../../backend/src/knowledge/markdown/FEATURE.md) |

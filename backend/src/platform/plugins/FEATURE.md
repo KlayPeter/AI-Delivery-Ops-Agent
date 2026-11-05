@@ -41,7 +41,9 @@ flowchart TD
     WEB --> E
     D --> RA[注册成功 Run 的后续动作与文本状态]
     RA --> E
-    D --> MCP[可选 connector.mcp：发现并注册所选 stdio 工具]
+    D --> MCP[可选 connector.mcp：发现并注册所选 stdio / HTTPS 工具]
+    MCP --> MHTTP[HTTP 校验公开地址、固定 IP/TLS 与流预算]
+    MHTTP --> E
     MCP --> C7[可选 Context7 上游服务与标准 Skill]
     C7 --> E
     MCP --> E
@@ -100,7 +102,7 @@ flowchart TD
 
 ## 本地 MCP 插件
 
-connector.mcp 通过现有 FeaturePlugin/Config/effect 接入，无需修改 Host 或默认组合。它启动已审查的本地服务、发现工具并只注册显式选中项，失败回滚并等待进程关闭。工具名称与读取授权由安装者声明，不采用上游注解作为权限证明；当前不支持写工具或远程 HTTP。完整规范和实际例子见 [MCP 使用说明](../../../../docs/MCP_TOOLS.md)。
+connector.mcp 1.1.0 通过现有 FeaturePlugin/Config/effect 接入，无需修改 Host 或默认组合。它启动已审查的本地服务或连接固定公开 HTTPS，发现工具后只注册显式选中项，失败回滚并关闭连接。HTTP 每次校验全量 DNS、固定 IP 并保留 Host/TLS，拒绝重定向，凭据只用可选 Bearer 引用；JSON/SSE 受流预算和超时约束。工具名称与读取授权由安装者声明，不采用上游注解作为权限证明；当前不支持写工具、OAuth 或私网 HTTP。停止先等待 Run，再尝试终止远端会话并关闭本地流。旧 stdio 配置保持兼容；完整规范、官方 Context7 HTTP 例子和测试边界见 [MCP 使用说明](../../../../docs/MCP_TOOLS.md)。
 
 ## Web 贡献
 

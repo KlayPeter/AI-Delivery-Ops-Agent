@@ -212,4 +212,6 @@ Runtime 新步骤保存 execution 1.0，包括 Agent ID/版本、Manifest 及可
 
 ## 标准 Agent Skills 与 GitHub 项目
 
+已有 MCP 服务可选择 stdio 或公开 HTTPS Streamable HTTP，connector.mcp 1.1.0 共用显式工具白名单与执行契约；HTTP 固定端点、校验 DNS/IP/TLS、拒绝重定向、限制流大小，凭据只用可选 Bearer 环境引用。不安装上游代码的真实例子见 backend/examples/plugins.context7-http.yaml；配置和边界见 [MCP 指南](MCP_TOOLS.md)。OAuth、私网地址、写工具和任意仓库自动安装仍需各自适配，不能由协议握手推断支持。
+
 现在可显式使用 readAgentSkill 读取第三方 SKILL.md，再以宿主确定的 allowedTools、compatibleAgents、Schema 和预算注册。不是自动继承上游执行权限，也不自动执行脚本或安装任意仓库。Context7 已实际接入：上游 MCP 两个工具、官方原文 Skill、原生查询和可选模型研究。完整配置、固定来源及接入分类见 [社区插件说明](COMMUNITY_PLUGINS.md)。
