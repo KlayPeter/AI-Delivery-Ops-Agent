@@ -197,11 +197,15 @@ export class AgentRuntime {
         if (!adapter) return this.fail(runId, { code: 'ADAPTER_NOT_FOUND', message: `Adapter not found: ${resolved.manifest.runtime.type}`, retryable: false });
 
         const configuredTimeoutMs = Math.max(1, resolved.manifest.limits.timeoutSeconds) * 1000;
-        const remainingMs = deadlineCap ? Math.max(1, new Date(deadlineCap).getTime() - Date.now()) : configuredTimeoutMs;
-        const timeoutMs = Math.min(configuredTimeoutMs, remainingMs);
-        const deadlineAt = new Date(Date.now() + timeoutMs).toISOString();
+        const deadlineMs = Math.min(Date.now() + configuredTimeoutMs, deadlineCap ? new Date(deadlineCap).getTime() : Infinity);
+        const deadlineAt = new Date(deadlineMs).toISOString();
         const controller = new AbortController();
         const abortFromParent = (): void => controller.abort(Object.assign(new Error('Parent Agent execution aborted'), { code: 'PARENT_ABORTED', retryable: false }));
+        const timeoutError = Object.assign(new Error('Agent execution timed out'), { code: 'TIMEOUT', retryable: true });
+        const checkActive = (): void => {
+            if (Date.now() >= deadlineMs) controller.abort(timeoutError);
+            controller.signal.throwIfAborted();
+        };
         const stepId = randomUUID();
         const startedAt = new Date().toISOString();
         const execution = { schemaVersion: '1.0', agentId: resolved.manifest.id, agentVersion: resolved.manifest.version, manifestHash: jsonFingerprint(resolved.manifest), inputHash: jsonFingerprint(input) };
@@ -211,7 +215,7 @@ export class AgentRuntime {
         try {
             if (parentSignal?.aborted) abortFromParent();
             else parentSignal?.addEventListener('abort', abortFromParent, { once: true });
-            controller.signal.throwIfAborted();
+            checkActive();
             const request: AgentRequest<T> = {
                 runId,
                 scope,
@@ -225,12 +229,12 @@ export class AgentRuntime {
                 abortExecution = () => reject(controller.signal.reason);
                 controller.signal.addEventListener('abort', abortExecution, { once: true });
             });
-            timer = setTimeout(() => controller.abort(Object.assign(new Error('Agent execution timed out'), { code: 'TIMEOUT', retryable: true })), timeoutMs);
+            timer = setTimeout(() => controller.abort(timeoutError), Math.max(0, deadlineMs - Date.now()));
             const result = await Promise.race([Promise.resolve().then(() => {
-                controller.signal.throwIfAborted();
+                checkActive();
                 return adapter.execute(request, resolved, controller.signal);
             }), aborted]);
-            controller.signal.throwIfAborted();
+            checkActive();
             const outputErrors = result.data === undefined ? [] : validateSchema(result.data, resolved.manifest.outputSchema);
             if (outputErrors.length) throw new Error(`Invalid Agent output: ${outputErrors.join('; ')}`);
             const encoded = JSON.stringify({ data: result.data, artifacts: result.artifacts });
@@ -238,7 +242,7 @@ export class AgentRuntime {
             for (const artifact of result.artifacts) if (!resolved.manifest.delivery.allowedArtifactTypes.includes(artifact.type)) throw new Error(`Artifact type is not allowed: ${artifact.type}`);
             const artifacts = result.artifacts.map((artifact): Artifact => ({ ...artifact, id: randomUUID(), runId, createdAt: new Date().toISOString(), metadata: artifact.metadata || {} }));
             await this.runs.saveArtifacts(artifacts);
-            controller.signal.throwIfAborted();
+            checkActive();
             await this.runs.saveStep({
                 id: stepId,
                 runId,
@@ -250,7 +254,7 @@ export class AgentRuntime {
                 error: result.error,
                 metadata: { ...result.metrics, execution },
             });
-            controller.signal.throwIfAborted();
+            checkActive();
             if (result.status === 'failed') return this.fail(runId, result.error || { code: 'AGENT_FAILED', message: 'Agent failed', retryable: false });
             const status = result.status === 'needs_human' ? 'waiting_human' : 'succeeded';
             const finalRun = await this.runs.transition(runId, status, { completedAt: status === 'succeeded' ? new Date().toISOString() : undefined });

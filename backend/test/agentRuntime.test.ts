@@ -55,6 +55,24 @@ describe('AgentRuntime', () => {
         expect(outcome.run.status).toBe('failed'); expect(outcome.result.error?.code).toBe('TIMEOUT');
     });
 
+    test('honors the recorded absolute deadline when saving the running step takes time', async () => {
+        const { runtime, adapter, trigger, runs } = fixture(1);
+        const saveStep = runs.saveStep.bind(runs);
+        runs.saveStep = async step => {
+            if (step.status === 'running') await Bun.sleep(100);
+            saveStep(step);
+        };
+        adapter.register('echo', '1.0.0', async request => {
+            await Bun.sleep(Math.max(0, new Date(request.deadlineAt).getTime() - Date.now() + 10));
+            return { status: 'succeeded', data: { reply: 'late' }, artifacts: [{ type: 'markdown', mediaType: 'text/markdown', schemaVersion: '1.0', content: 'late output' }] };
+        });
+        const outcome = await runtime.execute(trigger, 'echo', { text: 'slow recording' });
+        expect(outcome.run.status).toBe('failed');
+        expect(outcome.run.error).toMatchObject({ code: 'TIMEOUT', retryable: true });
+        expect(runs.listArtifacts(outcome.run.id)).toEqual([]);
+        expect(runs.listSteps(outcome.run.id)[0]?.status).toBe('failed');
+    });
+
     test('preserves adapter error codes and retryability', async () => {
         const { runtime, adapter, trigger, runs } = fixture();
         adapter.register('echo', '1.0.0', async () => { throw Object.assign(new Error('upstream unavailable'), { code: 'HTTP_503', retryable: true }); });

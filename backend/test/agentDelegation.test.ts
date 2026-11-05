@@ -83,7 +83,11 @@ describe('Agent-to-Agent delegation', () => {
             const parent = await runtime.execute(trigger(), 'main.run', {});
             const child = await childExecution!;
             expect(child.run.status).toBe('failed');
-            expect(child.run.error).toMatchObject({ code: 'PARENT_ABORTED', retryable: false });
+            if (timing === 'parent-timeout') {
+                // Parent and inherited child deadlines can fire in either order.
+                expect(['PARENT_ABORTED', 'TIMEOUT']).toContain(child.run.error?.code);
+                expect(child.run.error?.retryable).toBe(child.run.error?.code === 'TIMEOUT');
+            } else expect(child.run.error).toMatchObject({ code: 'PARENT_ABORTED', retryable: false });
             expect(calls).toBe(timing === 'before-child' ? 0 : 1);
             expect(runs.listArtifacts(child.run.id)).toHaveLength(timing === 'during-save' ? 1 : 0);
             expect(runs.listSteps(child.run.id)).toHaveLength(1);
