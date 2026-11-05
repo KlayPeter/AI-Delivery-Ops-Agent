@@ -36,9 +36,10 @@ function fixtureModel(test: EvaluationCase, variant: 'baseline' | 'regression') 
             finishReason: { unified: 'stop', raw: 'stop' }, usage: { inputTokens: { total: 0, noCache: 0, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 0, text: 0, reasoning: 0 } }, warnings: [] };
     } });
 }
-function endpointOrigin(config: AIConfig) {
+export function endpointOrigin(config: AIConfig) {
+    if (modelProviderId(config) === 'google' && (!config.api_base || config.api_base.includes('api.openai.com'))) return 'https://generativelanguage.googleapis.com';
     if (modelProviderId(config) === 'ollama') return new URL(config.api_base || 'http://127.0.0.1:11434/v1').origin;
-    if (!config.api_base) return null;
+    if (!config.api_base) return modelProviderId(config) === 'openai' ? 'https://api.openai.com' : null;
     try { return new URL(config.api_base).origin; } catch { return null; }
 }
 export async function runEvaluation(raw: EvaluationInput, config: AIConfig, signal: AbortSignal, providers: Pick<ModelProviderRegistry, 'configured' | 'resolve'> = new ModelProviderRegistry(standardModelProviders)): Promise<EvaluationReport> {

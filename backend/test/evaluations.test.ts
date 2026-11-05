@@ -6,7 +6,7 @@ import type { AIConfig } from '@/core/config';
 import { AgentHost } from '@/platform/bootstrap/agentHost';
 import { InMemoryPersistentKeyValueStore } from '@/platform/persistence/keyValueStore';
 import { cases, documents } from '@/evaluations/dataset';
-import { runEvaluation } from '@/evaluations/runner';
+import { endpointOrigin, runEvaluation } from '@/evaluations/runner';
 import { compareReports, evaluationInput, timings, validateReport } from '@/evaluations/grading';
 import { ragEvaluationPlugin, readEvaluationReports } from '@/evaluations/plugin';
 import { DEFAULT_BOT_INSTANCE_ID, DEFAULT_WORKSPACE_ID } from '@/platform/runtime/scope';
@@ -46,6 +46,11 @@ describe('isolated RAG evaluation', () => {
             expect(report.summary.passed).toBe(6); expect(JSON.stringify(report)).not.toContain('evaluation-test-secret'); expect(JSON.stringify(report)).not.toContain('secret.example');
         } finally { if (old === undefined) delete process.env.AGENT_PLUGINS_FILE; else process.env.AGENT_PLUGINS_FILE = old; }
         expect((await readdir(tmpdir())).filter(file => file.startsWith('agent-rag-evaluation-')).sort()).toEqual(before);
+    });
+    test('report origin matches provider defaults and Google legacy normalization', () => {
+        expect(endpointOrigin({ provider: 'google', model: 'gemini-test', api_base: 'https://api.openai.com/v1' } as AIConfig)).toBe('https://generativelanguage.googleapis.com');
+        expect(endpointOrigin({ provider: 'openai', model: 'test' } as AIConfig)).toBe('https://api.openai.com');
+        expect(endpointOrigin({ provider: 'openai', api_base: 'https://user:password@example.test/v1?secret=private' } as AIConfig)).toBe('https://example.test');
     });
     test('current model does not silently choose another provider', async () => {
         await expect(runEvaluation({ mode: 'model', confirmed: true, label: 'missing' }, {} as AIConfig, new AbortController().signal)).rejects.toThrow('配置');
