@@ -78,7 +78,7 @@ flowchart TD
 10. 无 warning/发现时可标为 draft，其余已生成草稿为 needs_review；始终 requiresHumanReview=true。verification 只说明引用与 PR 覆盖检查，semanticSupport=not_verified。不存在的 PR、漏 PR、改写引文或缺少相应来源都会拒绝整个草稿。
 11. Markdown 将模型文字的 HTML 和标题语法按文本转义；原文链接只允许 HTTP(S)/Obsidian。JSON 保存完整证据与版本，打开链接指向当前来源。生成期间源文件变化时保留实际检索版本，不自动重写或标记旧产物。
 12. SDK 团队默认组合不启用本插件。HTTP 工作台明确配置 RELEASE_GITHUB_REPOSITORY 后增装两个插件，使用当前知识来源及宿主模型；配置重启生效。CLI 生成仍要求专用 KNOWLEDGE_* 设置，不自动采用团队模型凭据。collect 不需要模型；GitHub 凭据仅经显式 tokenRef，不自动采用 Git 登录。
-13. /release 页面随插件装配与释放，只提交时间段、规则关键词和操作；普通任务文本引导到该页面或高级参数。无模型时仍能收集证据。所有成功结果保存 JSON 与 Markdown：JSON 的通用状态面板区分证据、资料不足、待复核和草稿；未生成时 Markdown 展示实际 PR/Issue 链接、分页/重复/截断提示和选中规则版本及片段，原始完整 JSON 在运行详情。
+13. /release 页面随插件装配与释放，只提交时间段、规则关键词和操作；普通任务文本引导到该页面或高级参数。组合未安装 knowledge.workspace 时，个人规则链接转到插件页，避免指向未启用的知识页面。无模型时仍能收集证据。所有成功结果保存 JSON 与 Markdown：JSON 的通用状态面板区分证据、资料不足、待复核和草稿；未生成时 Markdown 展示实际 PR/Issue 链接、分页/重复/截断提示和选中规则版本及片段，原始完整 JSON 在运行详情。
 
 ## 用户能力
 

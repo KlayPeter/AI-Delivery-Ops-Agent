@@ -60,7 +60,7 @@ export default function WorkspacePage({ history = false }: { history?: boolean }
         </section>
         {runError && <Alert type="error" showIcon title="任务未能发起" description={runError} />}
         <div className="quick-actions">
-          {retrieval ? <button onClick={() => { selectCapability(retrieval); setPrompt('API 迁移说明'); }}><FileSearchOutlined aria-hidden /><span><strong>从知识库开始</strong><small>检索已有笔记，查看原文证据</small></span><ArrowRightOutlined aria-hidden /></button> : <Link to="/knowledge"><FileSearchOutlined aria-hidden /><span><strong>配置知识来源</strong><small>查看当前知识插件配置</small></span><ArrowRightOutlined aria-hidden /></Link>}
+          {retrieval ? <button onClick={() => { selectCapability(retrieval); setPrompt('API 迁移说明'); }}><FileSearchOutlined aria-hidden /><span><strong>从知识库开始</strong><small>检索已有笔记，查看原文证据</small></span><ArrowRightOutlined aria-hidden /></button> : <Link to="/plugins"><FileSearchOutlined aria-hidden /><span><strong>查看知识插件</strong><small>按需装配个人知识能力</small></span><ArrowRightOutlined aria-hidden /></Link>}
           <Link to="/agents"><RobotOutlined aria-hidden /><span><strong>选择专业 Agent</strong><small>查看当前可用能力与执行方式</small></span><ArrowRightOutlined aria-hidden /></Link>
         </div>
       </>}

@@ -2,6 +2,18 @@
 
 当前支持只读 Markdown/Obsidian 与公开单页 URL、内容版本、同步、关键词检索，以及显式启用的 RAG 回答。query/sync 不调用模型；网页模式会请求选定网站，ask 还会将问题和选中片段发送给配置的模型。知识回写、联合检索和持续自动通知尚未实现；已保存 Run 可用独立[知识变更检查](KNOWLEDGE_IMPACT.md)显式复核实际引用。见[文件来源功能卡](../backend/src/knowledge/markdown/FEATURE.md)、[网页功能卡](../backend/src/knowledge/web/FEATURE.md)、[回答功能卡](../backend/src/knowledge/answer/FEATURE.md)与[设计方案](PERSONAL_KNOWLEDGE_DESIGN.md)。
 
+## 本地页面与可选界面插件
+
+默认 HTTP 应用装配 knowledge.workspace，在「知识库」中检索和配置来源，保存后重启生效。页面使用明确选择的来源；同时安装 Markdown 与网页时不会按 Agent 顺序猜测。回答插件必须使用相同来源，模型未连接时仍可检索。
+
+显式 AGENT_PLUGINS_FILE 完全控制装配：只安装来源插件不会自动增加知识页面。完成仓库本地初始化后，从 backend 可运行仅含 Markdown 来源和界面的示例：
+
+```bash
+AGENT_PLUGINS_FILE=examples/plugins.knowledge-workspace.yaml bun run src/index.ts
+```
+
+修改示例里的 root 即可选择自己的目录。网页组合使用 knowledge/web/plugin.ts 配置 urls，并加入 knowledge/workspace/webPlugin.ts。需要回答时另外加入匹配的 answer 插件；需要引用复核时加入匹配的 impact 插件。显式文件管理来源时，页面会关闭来源编辑入口，提示修改文件并重启。移除 knowledge.workspace 后导航、直接页面和描述 API 关闭，CLI/SDK 来源与历史数据保留。详见[知识工作台功能卡](../backend/src/knowledge/workspace/FEATURE.md)。
+
 ## 先运行虚构样例
 
 在仓库的 `backend` 目录执行：

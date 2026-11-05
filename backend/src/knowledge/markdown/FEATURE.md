@@ -56,6 +56,8 @@ flowchart TD
 
 ## 本机工作台入口
 
+界面由独立 knowledge.workspace 插件贡献，来源自身不隐式注册页面。可同时安装两个来源并明确选择界面使用哪一个；回答必须依赖同一来源。移除界面仍可通过 CLI/SDK 使用来源。见 [知识工作台功能卡](../workspace/FEATURE.md)。
+
 本地 HTTP 工作台可以配置和使用Markdown / Obsidian。来源设置仅接受本机控制面请求，保存后重启生效；检索请求不能改写目录或 URL，仍要求无 chat/conversation 的个人 manual Scope。HTTP 应用复用宿主 Prisma KV 保存本次 Run 与证据，与 CLI 可选独立 SQLite 状态文件分开；不提供多人共享授权。界面展示行号、原文、版本证据及部分来源失败，Markdown 不自动加载远端图片。模型回答发送所选片段给当前宿主模型。见 [工作台功能卡](../../platform/workspace/FEATURE.md)。
 
 ## 核心规则

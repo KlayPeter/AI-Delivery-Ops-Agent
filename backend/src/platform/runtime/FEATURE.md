@@ -55,6 +55,8 @@ flowchart TD
     D --> K["Logs / Contexts / Debug 页面"]
     A --> X["消息处理失败分类审计"]
     X --> K
+    A --> KW[可选知识工作台入口；描述失败不执行检索]
+    KW --> B
     E --> RELEASE[发布结果：证据/不足/待复核/草稿面板与 Markdown；不代表已发布]
     RELEASE --> WA
     E --> WA[本机工作台：插件动作与上次检查时间]
@@ -88,6 +90,8 @@ flowchart TD
 新增本地工作台：最近 50 个根 Run、结果/步骤/详情和人工继续；Run 列表与 Artifact 查询固定默认 workspace/bot。运行入口使用 manual Trigger 和 none 回复策略，Tool 自身仍可能写业务数据。管理 API（包括既有 Run 详情）统一检查本机 Host/Origin，防止其他网站读取本地个人产物。HTTP 默认监听 127.0.0.1。连接保存与实际运行状态分开呈现，见 [工作台功能卡](../workspace/FEATURE.md)。
 
 发布准备通过插件拥有的 /release 表单复用 manual Trigger、Run 和 Tool/Model Step。收集不调用模型，生成始终需要人工复核；证据不足或预算超限仍是执行完成的资料结果，与 Run 执行失败区分。结果将通用状态面板置于正文前，避免存储的同时间产物顺序掩盖状态；只使用既有通用状态面板/Markdown 协议，JSON 完整证据保留在详情；本地 GitHub 密钥不回显。验证覆盖 workspace/release 专项与前端日期边界。
+
+知识库页面与描述 API 由 knowledge.workspace 所有；卸载界面不删除运行记录或底层来源能力。页面明确选择来源并核对回答插件依赖，描述错误时不使用缓存来源发起新任务。知识请求仍复用原 Run/Artifact，无新状态机；专项覆盖来源并存、生命周期与只读 API 边界。
 
 ## 核心规则
 

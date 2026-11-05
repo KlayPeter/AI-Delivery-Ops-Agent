@@ -45,7 +45,7 @@ export const agentDescription = (agent: AgentInfo) => descriptions[agent.capabil
 export const pluginName = (id: string, fallback: string) => ({
   'builtin.ai-news': 'AI 资讯', 'builtin.daily-summary': '日报', 'builtin.dashboard': '项目看板', 'builtin.weekly-report': '周报',
   'builtin.task': '任务管理', 'builtin.standup': '站会', 'builtin.orchestrator': '交付协调', 'builtin.meeting-summary': '会议纪要',
-  'builtin.ai-hot-schedule': '外部资讯调度', 'knowledge.markdown': 'Markdown / Obsidian', 'knowledge.web': '公开网页', 'knowledge.answer': '知识问答', 'knowledge.impact': '知识引用复核',
+  'builtin.ai-hot-schedule': '外部资讯调度', 'knowledge.markdown': 'Markdown / Obsidian', 'knowledge.web': '公开网页', 'knowledge.answer': '知识问答', 'knowledge.impact': '知识引用复核', 'knowledge.workspace': '个人知识工作台',
 } as Record<string, string>)[id] || fallback;
 export const errorMessage = (error: unknown) => error instanceof Error ? error.message : '操作失败，请重试';
 export const needsModel = (agent?: AgentInfo) => agent?.runtime === 'model-loop' || agent?.capabilities.includes('knowledge.answer');

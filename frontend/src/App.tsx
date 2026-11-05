@@ -12,7 +12,6 @@ import ContextsPage from '@/pages/ContextsPage';
 const WorkspacePage = lazy(() => import('@/pages/workspace/WorkspacePage'));
 const CatalogPage = lazy(() => import('@/pages/workspace/CatalogPage'));
 const ConnectionsPage = lazy(() => import('@/pages/workspace/ConnectionsPage'));
-const KnowledgePage = lazy(() => import('@/pages/workspace/KnowledgePage'));
 const PluginPage = lazy(() => import('@/pages/workspace/PluginPage'));
 
 function WorkspaceEntry() {
@@ -36,7 +35,6 @@ function App() {
             <Route path="agents" element={<CatalogPage />} />
             <Route path="plugins" element={<CatalogPage key="plugins" plugins />} />
             <Route path="connections" element={<ConnectionsPage />} />
-            <Route path="knowledge" element={<KnowledgePage />} />
             <Route path="logs" element={<LogsPage />} />
             <Route path="debug" element={<DebugPage />} />
             <Route path="contexts" element={<ContextsPage />} />

@@ -20,7 +20,8 @@ last_reviewed: 2026-11-05
 
 ```mermaid
 flowchart TD
-    LC[本机连接与知识表单] --> LF[私有文件·校验·原子保存]
+    KWP[可选知识工作台插件] --> LC[本机连接与知识表单]
+    LC --> LF[私有文件·校验·原子保存]
     LF --> BOOT[重启注入环境配置]
     BOOT --> PH
     PC["可信插件配置 / 重启生效"] --> PH["Agent、Tool、Skill、消息与群调度装配"]
@@ -78,7 +79,7 @@ flowchart TD
 
 ## 本地连接配置
 
-工作台的「连接与模型」独立保存飞书、模型和 TAPD 配置；知识来源也通过该私有设置服务保存。文件位于数据目录 connections.json，权限 0600、原子写入、密钥不回显；重启后应用，不热替换在途执行。启动时设置覆盖同名环境值，模型供应商/地址/名称与 TAPD 项目/地址/类型环境值优先于旧 config.json。现有动态群与计划 API 仍只保存 runtime、schedule、groups。详见 [工作台功能卡](../../platform/workspace/FEATURE.md)。
+工作台的「连接与模型」独立保存飞书、模型和 TAPD 配置；知识来源由可选 knowledge.workspace 界面调用该私有设置服务保存。显式插件文件管理来源时页面关闭编辑入口，避免无效覆盖；默认应用保存后重启切换。文件位于数据目录 connections.json，权限 0600、原子写入、密钥不回显；重启后应用，不热替换在途执行。启动时设置覆盖同名环境值，模型供应商/地址/名称与 TAPD 项目/地址/类型环境值优先于旧 config.json。现有动态群与计划 API 仍只保存 runtime、schedule、groups。详见 [工作台功能卡](../../platform/workspace/FEATURE.md)。
 
 ## 核心规则
 

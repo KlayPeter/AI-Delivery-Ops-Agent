@@ -12,14 +12,15 @@ import { githubPlugin } from '@/connectors/github/plugin';
 import { githubConfig } from '@/connectors/github/source';
 import { releasePlugin } from '@/domains/release/plugin';
 import { webReleasePlugin } from '@/domains/release/webPlugin';
+import { createKnowledgeWorkspacePlugin } from '@/knowledge/workspace/plugin';
 
 export function workspaceKnowledge() {
     const kind = process.env.KNOWLEDGE_KIND || 'sample';
     const selected = kind === 'web' ? {
-        plugins: [knowledgeWebPlugin, knowledgeWebAnswerPlugin, knowledgeWebImpactPlugin],
+        plugins: [knowledgeWebPlugin, knowledgeWebAnswerPlugin, knowledgeWebImpactPlugin, createKnowledgeWorkspacePlugin('web')],
         config: { 'knowledge.web': webSourceConfig.parse({ urls: lines(process.env.KNOWLEDGE_URLS || ''), sourceId: 'workspace-web' }) },
     } : {
-        plugins: [knowledgeMarkdownPlugin, knowledgeAnswerPlugin, knowledgeImpactPlugin],
+        plugins: [knowledgeMarkdownPlugin, knowledgeAnswerPlugin, knowledgeImpactPlugin, createKnowledgeWorkspacePlugin(kind === 'sample' ? 'sample' : 'markdown')],
         config: { 'knowledge.markdown': markdownSourceConfig.parse({
             root: kind === 'sample' ? path.join(import.meta.dir, '../../../examples/knowledge-vault') : process.env.KNOWLEDGE_ROOT,
             sourceId: kind === 'sample' ? 'workspace-sample' : 'workspace-notes',

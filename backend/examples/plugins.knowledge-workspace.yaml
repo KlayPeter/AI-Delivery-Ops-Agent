@@ -1,0 +1,8 @@
+# Run from backend: AGENT_PLUGINS_FILE=examples/plugins.knowledge-workspace.yaml bun run src/index.ts
+# Replace root with your selected Markdown/Obsidian directory; no model or messaging credentials required.
+apiVersion: '1.0'
+plugins:
+  - module: ../src/knowledge/markdown/plugin.ts
+    config:
+      root: ./examples/knowledge-vault
+  - module: ../src/knowledge/workspace/plugin.ts

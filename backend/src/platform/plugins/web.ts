@@ -19,7 +19,7 @@ export interface WebContribution {
     api?: { prefix: string; routes: readonly { method: string; path: string }[]; handle: ApiHandler };
 }
 // Existing bundled routes stay reserved until their owning plugins migrate them.
-const reservedPages = new Set(['/', '/runs', '/agents', '/plugins', '/connections', '/knowledge', '/logs', '/debug', '/contexts', '/config']);
+const reservedPages = new Set(['/', '/runs', '/agents', '/plugins', '/connections', '/logs', '/debug', '/contexts', '/config']);
 const reservedApis = ['/api/workspace', '/api/config', '/api/agents', '/api/agent-runs', '/api/bots', '/api/jobs', '/api/health', '/api/logs', '/api/contexts', '/api/feishu', '/api/swagger'];
 const contains = (prefix: string, path: string) => path === prefix || path.startsWith(prefix + '/');
 
