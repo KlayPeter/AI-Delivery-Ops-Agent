@@ -179,3 +179,7 @@ Agent、Tool 和 Skill 的输入输出共用标准 JSON Schema 校验，支持�
 6. 同步功能卡、代码与测试地图，运行受影响回归和 `git diff --check`。
 
 当前规范的运行证据见 `backend/test/runActions.test.ts`、`backend/test/workspaceActions.test.ts`、`backend/test/pluginRuntime.test.ts`、`backend/test/agentHost.test.ts`、`backend/test/messagePlugins.test.ts` 和 `backend/test/schedulePlugins.test.ts`。面向业务结果的插件验收契约与版本回放实验室仍在产品路线图中。
+
+## 标准 Agent Skills 与 GitHub 项目
+
+现在可显式使用 readAgentSkill 读取第三方 SKILL.md，再以宿主确定的 allowedTools、compatibleAgents、Schema 和预算注册。不是自动继承上游执行权限，也不自动执行脚本或安装任意仓库。Context7 已实际接入：上游 MCP 两个工具、官方原文 Skill、原生查询和可选模型研究。完整配置、固定来源及接入分类见 [社区插件说明](COMMUNITY_PLUGINS.md)。

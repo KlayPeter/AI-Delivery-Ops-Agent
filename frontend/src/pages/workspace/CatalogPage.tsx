@@ -9,7 +9,7 @@ export default function CatalogPage({ plugins = false }: { plugins?: boolean }) 
   const [search, setSearch] = useState('');
   const matches = (value: string) => value.toLowerCase().includes(search.toLowerCase());
   const visiblePlugins = data?.plugins.filter(p => matches(`${pluginName(p.id, p.name)} ${p.name} ${p.id}`)) || [];
-  const visibleAgents = data?.agents.filter(a => matches(`${a.name} ${agentDescription(a)} ${a.capabilities.map(capabilityName).join(' ')}`)) || [];
+  const visibleAgents = data?.agents.filter(a => matches(`${a.name} ${agentDescription(a)} ${a.capabilities.map(cap => capabilityName(cap, a.name)).join(' ')}`)) || [];
   return <div className="workspace-page">
     <div className="page-heading"><div><h1>{plugins ? '插件' : 'Agent'}</h1><p>{plugins ? '每个功能独立装配，组合成你的工作空间。' : '选择适合当前工作的能力，交给对应的 Agent 执行。'}</p></div></div>
     {error && <Alert type="error" title="能力列表加载失败" description={error.message} />}
@@ -21,8 +21,8 @@ export default function CatalogPage({ plugins = false }: { plugins?: boolean }) 
         <details><summary>插件详情</summary><code>{plugin.id}</code><p className="muted">依赖：{plugin.requires?.join('、') || '无'}</p></details>
       </article>) : visibleAgents.map(agent => <article className="catalog-card" key={agent.agentId}>
         <div className="catalog-card-top"><span className="icon-tile"><RobotOutlined aria-hidden /></span><Tag>{agent.runtime === 'model-loop' ? '模型循环' : agent.runtime === 'native' ? '固定流程' : '外部 Agent'}</Tag></div>
-        <h2>{capabilityName(agent.capabilities[0] || agent.name)}</h2><p>{agentDescription(agent)}</p>
-        <div className="capability-tags">{agent.capabilities.map(cap => <Tag key={cap}>{capabilityName(cap)}</Tag>)}</div>
+        <h2>{capabilityName(agent.capabilities[0] || agent.name, agent.name)}</h2><p>{agentDescription(agent)}</p>
+        <div className="capability-tags">{agent.capabilities.map(cap => <Tag key={cap}>{capabilityName(cap, agent.name)}</Tag>)}</div>
         {needsModel(agent) && !data?.modelConfigured ? <Link to="/connections">先连接模型 <ArrowRightOutlined aria-hidden /></Link> : <Link to={`/?capability=${encodeURIComponent(agent.capabilities[0])}`}>发起任务 <ArrowRightOutlined aria-hidden /></Link>}
       </article>)}
     </div>}

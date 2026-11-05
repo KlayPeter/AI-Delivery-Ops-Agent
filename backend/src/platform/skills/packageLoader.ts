@@ -1,8 +1,29 @@
-import { readFile, readdir } from 'node:fs/promises';
+import { lstat, readFile, readdir } from 'node:fs/promises';
 import * as path from 'node:path';
 import { parse } from 'yaml';
+import { z } from 'zod';
+import { readWorkspaceArtifact } from '@/platform/workspace/artifactFiles';
 import type { SkillManifest } from './contracts';
 import type { SkillRegistry } from './registry';
+
+export type AgentSkillGrants = Omit<SkillManifest, 'schemaVersion' | 'name' | 'description' | 'execution' | 'instructionsRef'>;
+
+export async function readAgentSkill(packageRoot: string, grants: AgentSkillGrants): Promise<{ manifest: SkillManifest; instructions: string }> {
+    const filename = path.join(packageRoot, 'SKILL.md'), info = await lstat(filename);
+    if (!info.isFile() || info.size > 128 * 1024) throw new Error('Agent Skill must be a regular SKILL.md file within 128 KiB');
+    const text = await readWorkspaceArtifact(packageRoot, filename, '.md');
+    if (!text || Buffer.byteLength(text) > 128 * 1024) throw new Error('Agent Skill instructions are unavailable or too large');
+    const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text);
+    if (!match || Buffer.byteLength(match[1]!) > 8192) throw new Error('Agent Skill requires bounded YAML frontmatter');
+    const metadata = z.object({
+        name: z.string().min(1).refine(value => [...value].length <= 64 && value === value.toLowerCase() && /^[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*$/u.test(value)),
+        description: z.string().trim().min(1).refine(value => [...value].length <= 1024),
+    }).parse(parse(match[1]!));
+    if (metadata.name !== path.basename(path.resolve(packageRoot))) throw new Error('Agent Skill name must match its directory');
+    const instructions = text.slice(match[0].length).trim();
+    if (!instructions) throw new Error('Agent Skill instructions must not be empty');
+    return { manifest: { ...grants, schemaVersion: '1.0', ...metadata, instructionsRef: 'SKILL.md', execution: { type: 'prompt' } }, instructions };
+}
 
 export class SkillPackageLoader {
     constructor(private readonly registry: Pick<SkillRegistry, 'register'>) {}

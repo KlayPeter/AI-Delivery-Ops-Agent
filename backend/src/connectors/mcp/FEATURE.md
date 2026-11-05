@@ -25,7 +25,7 @@ flowchart TD
     E --> S[官方 SDK：stdio 握手与有界工具发现]
     S --> V[检查选中工具、Schema 与任务模式]
     V --> R[注册 mcp.server.alias Tool]
-    NAV[读取示例插件贡献的页面入口] --> A[声明工具权限的任务 Agent]
+    NAV[读取示例/Context7 插件贡献的页面入口] --> A[声明工具权限的任务 Agent]
     A --> G[Tool Gateway：Schema、权限与预算]
     R --> G
     G --> B[个人手动 Scope、输入字节与取消检查]
@@ -65,6 +65,12 @@ flowchart TD
 ## 示例页面入口
 
 example.mcp-reader 通过 ctx.delivery.web.register 贡献 /mcp-reader 导航，跳到指定 Capability 的工作台，不修改前端业务列表。移除读取示例插件后该入口消失；连接插件自身仍只提供 Tool。界面不加载上游 UI 代码，读取流程仍由同一 Manifest、Tool Gateway 和来源范围约束。
+
+## 社区 Skill 与 Context7 验证
+
+标准 SKILL.md 可经 readAgentSkill 显式导入现有 Prompt Skill Runtime；元数据不能自动取得工具或 Agent 授权，不执行目录脚本。community.context7 是真实使用者：接入上游 MCP 两个读取工具，提供无模型查询和需模型的研究助手；页面按插件贡献，未知能力标签使用作者声明的 Agent 名称。默认组合不自动安装它。来源、许可、运行命令和验收边界见 [社区接入说明](../../../../docs/COMMUNITY_PLUGINS.md)。
+
+验证：backend/test/context7Plugin.test.ts 覆盖格式/边界、权限不继承、受控 Prompt Skill 执行及插件装配；本地实际 MCP 与工作台验收覆盖公开文档检索。真实付费模型未调用。
 
 ## 用户能力
 

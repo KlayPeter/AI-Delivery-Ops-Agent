@@ -62,6 +62,10 @@ flowchart LR
     MCP --> MG[显式白名单 / 标准 Schema / Tool Gateway]
     MG --> MS[已审查的 stdio 服务]
     MS --> O
+    MCP --> C7[可选 Context7 文档服务]
+    FP --> SKIMP[标准 SKILL.md 显式导入；宿主另授工具权限]
+    SKIMP --> C7
+    C7 --> O
 ```
 
 ## 1. 当前功能
@@ -77,6 +81,7 @@ flowchart LR
 | `project-visibility` | 项目看板、历史快照与人力甘特图 | active | `native.project-dashboard`；人力甘特图不是 Agent | [查看](../../backend/src/agents/native/project-dashboard/FEATURE.md) |
 | `ai-news-radar` | 飞书私聊查询、续页、搜索与多源 AI 信号，可选独立机器人 | active | `native.ai-news-radar` | [查看](../../backend/src/agents/native/ai-news-radar/FEATURE.md) |
 | `release-preparation` | 结合仓库事实与个人规则生成发布草稿、引用与待确认项 | active | `native.release-prepare`；显式组合、本地 CLI | [查看](../../backend/src/domains/release/FEATURE.md) |
+| `community-developer-docs` | Context7 在线开发文档与标准 Agent Skills 导入 | active（显式安装） | `community.context7-docs` / `community.context7-assistant` | [查看](../../backend/src/connectors/context7/FEATURE.md) |
 | `mcp-tool-connector` | 显式选择的本地 MCP 工具、标准 Schema 与进程生命周期 | active | 无独立业务 Agent；可选读取示例 | [查看](../../backend/src/connectors/mcp/FEATURE.md) |
 | `github-project-facts` | GitHub 固定仓库的合并 PR、开放 Issue 与来源覆盖 | active | 无独立 Agent；只读连接 Tool | [查看](../../backend/src/connectors/github/FEATURE.md) |
 | `knowledge-change-impact` | 历史引用版本复核、来源身份与可选本地持久化 | active | `native.knowledge-impact`；本地显式检查 | [查看](../../backend/src/knowledge/impact/FEATURE.md) |
@@ -107,6 +112,8 @@ flowchart LR
 | `native.release-prepare` | `release.prepare` | 可选 Native 管线 | 个人知识驱动的只读发布准备 |
 | `native.knowledge-impact` | `knowledge.impact.check` | 可选 Native 管线 | 指定历史 Run 的知识引用检查 |
 | `native.knowledge-answer` | `knowledge.answer` | 可选 Native RAG 管线 | 个人知识回答；依赖来源插件与显式模型配置 |
+| `community.context7-docs` | `docs.context7.lookup` | 可选 Native Agent | Context7 文档查询；无需模型 |
+| `community.context7-assistant` | `docs.context7.research` | 可选 Model Loop | 标准 Context7 Skill 文档研究；需模型 |
 | `external.ai-hot` | `knowledge.ai.hot.fetch` | 可选 HTTP Agent | Agent 平台；安装后生效 |
 
 系统是 Agent 系统，但不是“每个功能都必须变成 Agent”。任务和站会的 Agent 通过受治理 Tool 复用领域服务；配置、日志和人力甘特图等确定性能力保留为服务或控制面。
@@ -124,6 +131,8 @@ flowchart LR
 | 日报 Builder、Renderer、`native/dailySummaryAgent.ts` | `daily-summary` |
 | `agents/native/ai-news-radar/**` | `ai-news-radar`；涉及 Bot/Outbox 时追加 `agent-platform`、`operations-observability` |
 | `backend/src/domains/release/**`、`backend/src/scripts/release.ts` | `release-preparation` |
+| `backend/src/connectors/context7/**` | `community-developer-docs`、`plugin-runtime`、`agent-platform`、`operations-observability` |
+| `backend/src/platform/skills/packageLoader.ts` | `agent-platform`、`plugin-runtime`、`operations-observability`；外部 Skill 变化同步对应接入功能 |
 | `backend/src/connectors/mcp/**`、`backend/examples/plugins/mcp-reader.ts` | `mcp-tool-connector`、`plugin-runtime`、`agent-platform`、`operations-observability` |
 | `backend/src/platform/agents/schema.ts` | `agent-platform`、`plugin-runtime`、`operations-observability`；使用完整外部 Schema 时追加连接功能 |
 | `backend/src/connectors/github/**` | `github-project-facts`；结果协议变化同步使用它的任务功能 |

@@ -27,7 +27,7 @@ const names: Record<string, string> = {
   'knowledge.ai.news.fetch': 'AI 资讯', 'knowledge.markdown.retrieve': '笔记检索', 'knowledge.web.retrieve': '网页检索',
   'knowledge.answer': '知识问答', 'knowledge.impact.check': '引用复核', 'release.prepare': '发布准备',
 };
-export const capabilityName = (capability: string) => names[capability] || capability;
+export const capabilityName = (capability: string, fallback?: string) => names[capability] || fallback || capability;
 const descriptions: Record<string, string> = {
   'delivery.ops.orchestrate': '理解你的目标，选择合适的专业能力，协调任务并汇总结果。',
   'task.manage': '创建、查询和跟踪任务，处理进度、负责人及状态更新。',

@@ -1,0 +1,23 @@
+apiVersion: "1.0"
+plugins:
+  - module: ../src/connectors/mcp/plugin.ts
+    config:
+      servers:
+        - id: context7
+          command: node
+          args: [".data/context7/node_modules/@upstash/context7-mcp/dist/index.js"]
+          envRefs:
+            OTEL_SDK_DISABLED: env://OTEL_SDK_DISABLED
+          timeoutMs: 30000
+          tools:
+            - alias: resolve
+              name: resolve-library-id
+              description: Search public library documentation IDs through Context7.
+              readOnly: true
+            - alias: docs
+              name: query-docs
+              description: Retrieve documentation for an explicitly selected public library.
+              readOnly: true
+  - module: ../src/connectors/context7/plugin.ts
+    config:
+      defaultLibraryId: /reactjs/react.dev

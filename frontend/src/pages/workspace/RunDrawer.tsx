@@ -45,7 +45,7 @@ function ResultContent({ artifact, onSelectRun }: { artifact: { type: string; co
 }
 
 export default function RunDrawer({ runId, onClose, onSelectRun }: { runId: string | null; onClose: () => void; onSelectRun: (id: string) => void }) {
-  const { mutate } = useWorkspace();
+  const { data: workspace, mutate } = useWorkspace();
   const { data, error, isLoading, mutate: refresh } = useSWR<RunDetail>(runId ? ['run', runId] : null, () => api.fetchRun(runId!), { refreshInterval: details => details && ['running', 'queued', 'waiting_human'].includes(details.run.status) ? 2000 : 0 });
   const [reply, setReply] = useState('');
   const [resuming, setResuming] = useState(false);
@@ -55,7 +55,7 @@ export default function RunDrawer({ runId, onClose, onSelectRun }: { runId: stri
     try { await api.resumeRun(runId!, { prompt: reply.trim(), text: reply.trim() }, crypto.randomUUID()); setReply(''); await Promise.all([refresh(), mutate()]); }
     catch (e) { setResumeError(errorMessage(e)); } finally { setResuming(false); }
   };
-  return <Drawer title={data ? capabilityName(data.run.capability) : '运行详情'} open={Boolean(runId)} onClose={onClose} size="large" className="run-drawer">
+  return <Drawer title={data ? capabilityName(data.run.capability, workspace?.agents.find(agent => agent.capabilities.includes(data.run.capability))?.name) : '运行详情'} open={Boolean(runId)} onClose={onClose} size="large" className="run-drawer">
     {isLoading ? <Spin /> : error ? <Alert type="error" title="加载失败" description={error.message} /> : data ? <>
       <div className="run-meta"><RunStatus status={data.run.status} /><Typography.Text copyable className="muted">{data.run.id}</Typography.Text></div>
       {data.run.error && <Alert type="error" showIcon title="本次执行未完成" description={data.run.error.message} />}
@@ -69,7 +69,7 @@ export default function RunDrawer({ runId, onClose, onSelectRun }: { runId: stri
         { key: 'result', label: '结果', children: data.artifacts.length ? data.artifacts.map(a => <ResultContent key={a.id} artifact={a} onSelectRun={onSelectRun} />) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={data.run.status === 'running' ? '执行中，产物完成后会显示在这里' : '本次运行没有生成产物'} /> },
         { key: 'steps', label: `执行步骤 · ${data.steps.length}`, children: <>
           <Timeline items={data.steps.map(step => ({ color: step.status === 'failed' ? 'red' : step.status === 'running' ? 'blue' : 'gray', content: <div><strong>{step.name}</strong><div className="muted">{step.kind} · {step.status}</div>{step.error && <p>{step.error.message}</p>}</div> }))} />
-          {data.children.map((run: RunInfo) => <div className="child-run" key={run.id}>{capabilityName(run.capability)}<RunStatus status={run.status} /></div>)}
+          {data.children.map((run: RunInfo) => <div className="child-run" key={run.id}>{capabilityName(run.capability, workspace?.agents.find(agent => agent.capabilities.includes(run.capability))?.name)}<RunStatus status={run.status} /></div>)}
         </> },
         { key: 'detail', label: '详情', children: <Collapse items={[{ key: 'raw', label: '原始运行记录', children: <pre className="json-view">{JSON.stringify(data, null, 2)}</pre> }]} /> },
       ]} />

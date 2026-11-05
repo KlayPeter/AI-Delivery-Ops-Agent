@@ -4,7 +4,7 @@
 
 ## 1. 最终呈现什么项目
 
-保留 AI Delivery Ops Agent 名称。面向有个人笔记、同时维护 GitHub 项目的开发者和小型研发团队，提供可自部署的 Agent 插件工作台：带上自己的知识库，按需接入开源能力，完成有来源、有结果凭证的交付任务。
+保留 AI Delivery Ops Agent 名称。面向有个人笔记、同时维护 GitHub 项目的开发者和小型研发团队，提供本地优先的 Agent 插件工作台：带上自己的知识库，按需接入开源能力，完成有来源、有结果凭证的交付任务。
 
 个人使用是低门槛入口，项目协作是后续延伸。首版允许接入公开网页链接、Markdown 文件夹与 Obsidian Vault 的选定目录，不要求先搬家到新的笔记系统。个人知识接入的流程、插件边界与验收见 [个人知识库设计](PERSONAL_KNOWLEDGE_DESIGN.md)。
 
@@ -15,6 +15,24 @@
 首批需求假设是：维护者愿意让 Agent 根据自己的项目笔记、发布规则和仓库事实，反复完成发布准备或项目周报。此假设需要外部试用验证；现阶段不宣称存在用户增长或生产采用数据。
 
 ## 2. 成熟路线与创新取舍
+
+### 面向用户的主卖点
+
+**让 Agent 用你的知识与项目规则完成真实工作，保留可核对的依据，并在资料变化后复核旧结果。**
+
+首批用户聚焦独立开发者和小型研发团队，主场景是“结合 Obsidian 发布规范、GitHub PR/Issue 与开发文档，生成可审阅的发布准备材料”。先证明一个场景能反复省下查资料、整理事实和核对规则的工作，再扩展更多工作流。
+
+| 卖点 | 当前证据 | 尚待验证或实现 |
+| --- | --- | --- |
+| 个人知识参与真实项目任务 | Markdown/Obsidian、网页、GitHub 事实和发布准备已连接；草稿保留引用与待确认项 | 真实模型生成质量、专门的发布交互、用户反复使用的价值 |
+| 结果可复核，旧依据能追踪 | Run/Step/Artifact、精确引文与版本保存；已支持按指定历史 Run 显式复核来源变化 | 全局影响索引、自动通知与自动修复；引用核验不等于语义证明 |
+| 社区能力可持续接入 | 固定版本 Context7 MCP 实际在线查询进入工作台；官方 SKILL.md 已导入现有 Skill Runtime；HTTP/原生插件接口已有契约 | 任意仓库自动适配、安装器与所有脚本环境兼容 |
+| 本地可试、过程可查看 | 无模型的示例笔记与 Context7 查询、可填写连接、执行记录和人工继续入口 | 一键安装体验、多用户认证与生产外部系统联调 |
+
+插件、RAG 和多 Agent 是技术基础。产品介绍应首先展示用户任务、产物与复核过程，简历或技术说明再展开 Cordis 生命周期、Scope/预算、暂停恢复、Schema、来源版本和第三方协议适配。
+
+使用情况目前没有外部数据。试用时应记录首次完成真实任务所需时间、产物被采纳/修改的情况、是否重复使用和失败原因；不以插件数量或演示测试数代替用户价值。
+
 
 框架复用成熟实现：Cordis 负责插件依赖和生命周期，现有 Agent Runtime 负责执行契约；MCP 接入通用工具，HTTP 接入已有独立服务。已有 Agent、Tool、Skill、领域服务与 Outbox 契约逐步迁移，避免一次性替换后丢失行为。
 
@@ -192,3 +210,7 @@ MCP 工具注解只是提示，不能当作授权证明。远程工具同样经�
 | [MCP Tools 规范](https://modelcontextprotocol.io/specification/2025-11-25/server/tools) | 采用标准工具发现和调用；契约验收在协议之上检查结果 |
 | [Obsidian 数据存储](https://obsidian.md/help/data-storage)、[内部链接](https://obsidian.md/help/links)、[URI](https://obsidian.md/help/Extending%2BObsidian/Obsidian%2BURI) | Vault 使用本地 Markdown；接入保留笔记链接和来源定位。URI 用于打开原文，不替代本地文件授权 |
 | [Open WebUI Knowledge](https://docs.openwebui.com/features/workspace/knowledge/)、[AnythingLLM 文档同步](https://docs.anythingllm.com/beta-preview/active-features/live-document-sync) | 知识检索、引用与同步属于成熟能力；本项目重点验证知识与执行产物之间的依赖、变更影响和验收链路 |
+
+## 已验证的社区接入节点
+
+Context7 接入同时覆盖上游 MCP 和标准 SKILL.md，真实在线查询已进入本地 Run/Tool/Artifact，未调用真实付费模型。原生查询无需模型，研究助手复用现有 Prompt Skill Runtime。其他 GitHub 项目按 Skill、MCP、HTTP Agent 或原生适配器接入，不把任意仓库当作直接可执行插件；详见 [社区插件接入](COMMUNITY_PLUGINS.md)。完整配置安装界面、知识工作台及基础服务生命周期解耦仍属于后续工作。

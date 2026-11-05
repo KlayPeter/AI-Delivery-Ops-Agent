@@ -38,6 +38,8 @@ flowchart TD
     WOWN --> B["Trigger / Job Execution"]
     B --> C["Agent Run / 业务服务"]
     C --> SC[Agent / Tool / Skill 标准 JSON Schema 校验]
+    SC --> C7[标准 Skill 与社区 MCP 工具调用]
+    C7 --> TC
     SC --> TC{"Tool 调用前已取消?"}
     D --> MCP[可选 MCP 工具：错误、取消和超时显式失败]
     TC -- 是 --> TR["TOOL_CANCELLED：不进入 Handler"]
@@ -142,6 +144,12 @@ CLI 可选 --state 保存 Run/Step/Tool/Artifact；默认仍为内存。知识�
 手动业务任务需要已装配插件声明所有权；未知名称为 400，已知但缺少所有者为 404，不创建执行器或产生业务副作用。日期、工作日、安全预览、sendToGroup 和原有审计语义保留。默认组合保留全部九项原有任务；空组合不暴露这些任务。
 
 插件 HTTP 与手动任务由 Host 跟踪，在途执行结束后才释放插件。声明路由加入 OpenAPI，代理不预先解析/消耗 Request body。站会读模型接口迁移到 Owner 目录，页面查询不创建 Agent Run；统计与历史汇总的规则由 StandupService 维护。
+
+## 社区 Skill 与 Context7 验证
+
+标准 SKILL.md 可经 readAgentSkill 显式导入现有 Prompt Skill Runtime；元数据不能自动取得工具或 Agent 授权，不执行目录脚本。community.context7 是真实使用者：接入上游 MCP 两个读取工具，提供无模型查询和需模型的研究助手；页面按插件贡献，未知能力标签使用作者声明的 Agent 名称。默认组合不自动安装它。来源、许可、运行命令和验收边界见 [社区接入说明](../../../../docs/COMMUNITY_PLUGINS.md)。
+
+验证：backend/test/context7Plugin.test.ts 覆盖格式/边界、权限不继承、受控 Prompt Skill 执行及插件装配；本地实际 MCP 与工作台验收覆盖公开文档检索。真实付费模型未调用。
 
 ## 用户能力
 
