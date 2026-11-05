@@ -1,24 +1,35 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { AgentHost } from '@/platform/bootstrap/agentHost';
 import { InMemoryPersistentKeyValueStore } from '@/platform/persistence/keyValueStore';
 import { buildConfig } from '@/core/config';
 import { loadWorkspacePlugins } from '@/platform/workspace/composition';
 
 const profile = (name: string) => path.resolve(import.meta.dir, `../profiles/agents/${name}.yaml`);
-const environmentKeys = ['AGENT_PLUGINS_FILE', 'KNOWLEDGE_KIND', 'KNOWLEDGE_URLS', 'RELEASE_GITHUB_REPOSITORY', 'RELEASE_GITHUB_BRANCH', 'RELEASE_GITHUB_TOKEN'];
+const environmentKeys = ['DATA_DIR', 'AGENT_PLUGINS_FILE', 'KNOWLEDGE_KIND', 'KNOWLEDGE_URLS', 'RELEASE_GITHUB_REPOSITORY', 'RELEASE_GITHUB_BRANCH', 'RELEASE_GITHUB_TOKEN'];
 let previous: Record<string, string | undefined>;
-beforeEach(() => { previous = Object.fromEntries(environmentKeys.map(key => [key, process.env[key]])); for (const key of environmentKeys) delete process.env[key]; });
-afterEach(() => { for (const key of environmentKeys) { if (previous[key] === undefined) delete process.env[key]; else process.env[key] = previous[key]; } });
+let root: string, directory: string;
+beforeEach(async () => {
+    previous = Object.fromEntries(environmentKeys.map(key => [key, process.env[key]])); for (const key of environmentKeys) delete process.env[key];
+    root = await mkdtemp(path.join(tmpdir(), 'workspace-composition-')); directory = path.join(root, 'fixture-data');
+    await mkdir(directory, { mode: 0o700 });
+    process.env.DATA_DIR = path.join(root, 'environment-data');
+});
+afterEach(async () => {
+    for (const key of environmentKeys) { if (previous[key] === undefined) delete process.env[key]; else process.env[key] = previous[key]; }
+    await rm(root, { recursive: true, force: true });
+});
 const createHost = async (store = new InMemoryPersistentKeyValueStore(), file = '') => {
-    const selection = await loadWorkspacePlugins('/tmp/workspace-composition-test', file);
-    const config = buildConfig({});
+    const selection = await loadWorkspacePlugins(directory, file);
+    const config = { ...buildConfig({}), data_path: directory };
     return new AgentHost(() => ({ store, config, feishu: {}, tapd: {}, intentParser: {} } as any), 1000, undefined, [], { plugins: selection.plugins, pluginConfig: selection.config });
 };
 
 test('HTTP default loads personal plugins without implicit team agents, routes or manual jobs', async () => {
-    const selected = await loadWorkspacePlugins('/tmp/workspace-composition-test', '');
+    const selected = await loadWorkspacePlugins(directory, '');
     expect(selected.plugins).toHaveLength(9);
     expect(selected.plugins.some(plugin => plugin.manifest.id.startsWith('builtin.'))).toBe(false);
     const host = await createHost();
@@ -31,14 +42,15 @@ test('HTTP default loads personal plugins without implicit team agents, routes o
         expect(host.web.manualJobs()).toEqual([]);
         expect(host.web.routes().some(route => route.path.startsWith('/api/standups'))).toBe(false);
         expect((await host.web.handle(new Request('http://localhost/api/standups'))).status).toBe(404);
+        expect(await readdir(root)).toEqual(['fixture-data']);
     } finally { await host.stop(); }
 });
 
 test('explicit team and empty files fully replace the default composition', async () => {
     process.env.KNOWLEDGE_KIND = 'web'; process.env.KNOWLEDGE_URLS = '';
     process.env.AGENT_PLUGINS_FILE = profile('team');
-    expect((await loadWorkspacePlugins('/tmp/workspace-composition-test')).plugins).toHaveLength(9);
-    const team = await loadWorkspacePlugins('/tmp/workspace-composition-test', profile('team'));
+    expect((await loadWorkspacePlugins(directory)).plugins).toHaveLength(9);
+    const team = await loadWorkspacePlugins(directory, profile('team'));
     expect(team.plugins).toHaveLength(9); expect(team.plugins.every(plugin => plugin.manifest.id.startsWith('builtin.'))).toBe(true);
     const host = await createHost(undefined, profile('team'));
     try {
