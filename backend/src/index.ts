@@ -162,9 +162,7 @@ const app = new Elysia()
             },
             getAgentHostHealth: () => agentHost?.health(),
             getBotConnections: () => botConnections?.health() || [],
-            requiredBotInstanceIds: agentHost?.bots.list()
-                .filter(bot => bot.status === 'active' && bot.config.inboundEnabled !== false)
-                .map(bot => bot.id) || [],
+            requiredBotInstanceIds: botConnections?.requiredBots().map(bot => bot.id) || [],
         });
         if (!report.ok) set.status = 503;
         return report;
@@ -737,7 +735,10 @@ const app = new Elysia()
             return { error: `任务 ${jobName} 执行失败`, stderr: e.message || String(e) };
         }
     })
-    .listen(process.env.PORT ? parseInt(process.env.PORT) : 8090);
+    .listen({
+        hostname: process.env.HOST || '0.0.0.0',
+        port: process.env.PORT ? parseInt(process.env.PORT) : 8090,
+    });
 
 console.log(`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`);
 console.log(`Loaded config for project: ${config.project.name}`);

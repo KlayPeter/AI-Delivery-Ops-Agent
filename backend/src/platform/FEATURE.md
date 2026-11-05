@@ -60,7 +60,7 @@ flowchart TD
     J --> K
     K --> L["Outbox"]
     L --> M["目标 Bot 与飞书群"]
-    N["每个 active BotInstance 独立飞书长连接"] --> R
+    N["配置完整的 active BotInstance 独立飞书长连接"] --> R
     G --> O["AI HOT v1 新闻 / 多源信号 Provider"]
 ```
 
@@ -97,11 +97,15 @@ Tool Gateway 在预取消和领取账本期间取消时拒绝进入 Handler；�
 9. **Agent 完成不等于消息送达。** Runtime 先保存 Artifact，再写 Outbox；Delivery Worker 独立完成 Bot 路由、重试和最终状态。
 10. **功能是否 Agent 化看运行特征。** 需要多步决策、会话恢复、独立部署或资源预算时使用 Agent；稳定知识和操作方法使用 Skill；强一致状态始终归 Domain Service。
 11. **功能 Agent 通过 Cordis 插件装配。** 七个内置 Agent 已拆为独立 `FeaturePlugin`，版本、依赖、配置和 effect 清理由插件运行时管理；`AgentHost` 默认无业务插件，应用通过 `createDeliveryOpsHost` 选择组合。完整规范见 `docs/PLUGIN_AUTHORING.md`。旧扩展继续兼容： 自定义模块实现带唯一 ID 的 `AgentHostExtension`，在 Runtime 就绪前取得受限的 Registry、Native/Model-loop Adapter、Tool 与 Skill 注册入口；重复 ID 或注册失败会让 Host 启动失败，不能留下部分就绪状态。内置 Agent 的默认注册顺序和外部 HTTP Agent 安装协议保持不变。
-12. **多机器人入口与出口使用同一 Bot Scope。** 每个 active BotInstance 建立自己的飞书长连接，入站闭包固定 bot ID；Trigger 幂等和 Outbox 目标都包含 bot ID，出站再按该 BotInstance 解析凭证。
+12. **多机器人入口与出口使用同一 Bot Scope。** 每个配置了入站连接的 active BotInstance 建立自己的飞书长连接，入站闭包固定 bot ID；Trigger 幂等和 Outbox 目标都包含 bot ID，出站再按该 BotInstance 解析凭证。
 13. **默认机器人可按确定性意图前置调用 Capability。** 现有机器人收到明确的 AI 新闻 p2p 文本时，在成员映射和 Delivery Ops 主 Agent 之前调用 `knowledge.ai.news.fetch`；同会话 30 分钟内的“查看更多”、关键词、来源和分类追问沿用新闻路由。其他模糊追问、否定、元问题、开发任务和非新闻文本继续原业务链路。显式配置不同 App ID 时才启用带 `entryCapability` 的独立新闻机器人。
 14. **机器人日志最小化且可验收。** AI 新闻入站和出站审计只保留 bot、message、chat、投递结果等路由元数据，不保存私聊或卡片正文；飞书事件先以 workspace、BotInstance、message ID 建立数据库原子 Claim，再写入最多 1000 条的进程内快速缓存，`/readyz` 要求所有启用的入站机器人连接可用。默认复用模式不增加连接数。
 15. **外部投递遵守供应商反馈。** 飞书请求接收 Worker 的取消信号；429 使用 `Retry-After`，月额度耗尽按 App ID 进入不可重试熔断，不能重新运行 Agent 或误伤其他机器人。
 15. **文章产物由平台安全渲染。** `article_list` 只接受 HTTP/HTTPS 原文链接，平台负责追加信号来源和操作提示；Provider 返回内容不能控制提示语、生成任意卡片结构或暴露内部 cursor。
+
+## 本地启动
+
+默认飞书 App ID/Secret 均为空时跳过该入站连接，保留默认 Bot 的本地 Agent Scope。只填一项或格式错误仍阻止连接启动；其他已配置机器人继续独立启动。连接管理器的 `requiredBots()` 同时驱动启动与 `/readyz`，避免未配置飞书使本地永远不就绪。`HOST` 可指定 HTTP 绑定地址，本地示例使用 `127.0.0.1`；现有未设置 HOST 的监听行为保持不变。操作步骤见 [本地运行](../../../../docs/LOCAL_DEVELOPMENT.md)。
 
 ## 本地 CLI 状态
 
@@ -217,6 +221,7 @@ Tool Gateway 在预取消和领取账本期间取消时拒绝进入 Handler；�
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 未配置默认飞书时支持本地启动；连接与就绪共用候选列表，拒绝部分凭据；增加 HOST 绑定 | 多机器人/健康回归、空库本地启动与 HTTP 就绪检查、后端全量回归 |
 | 2026-11-05 | 扩展 Native 插件模型/Tool 服务、纯生成禁用人工输入函数选项；修复取消边界和统一超时原因 | RAG、模型循环、Tool/Skill 与后端全量回归、类型检查 |
 | 2026-11-05 | 群业务调度改为可释放插件贡献，新增外部 AI Hot 调度插件；空组合不隐式执行群任务；停机等待本轮结束 | 调度/日历/插件回归、后端 428 通过 / 1 TAPD 跳过、类型检查 |
 | 2026-11-05 | 插件扩展消息路由贡献；Host 停止先拒绝并等待在途确定性消息，再清理插件 | 消息插件、Host 和原业务回归；类型检查 |

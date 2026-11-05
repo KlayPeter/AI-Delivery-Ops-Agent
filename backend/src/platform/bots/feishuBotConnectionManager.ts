@@ -47,13 +47,19 @@ export class FeishuBotConnectionManager {
 
     async start(): Promise<void> {
         if (this.clients.size) return;
-        const activeBots = this.bots.list().filter(bot => bot.status === 'active' && bot.config.inboundEnabled !== false);
         try {
-            for (const bot of activeBots) await this.startBot(bot);
+            for (const bot of this.requiredBots()) await this.startBot(bot);
         } catch (error) {
             await this.stop();
             throw error;
         }
+    }
+
+    requiredBots(): BotInstance[] {
+        const config = this.getDefaultConfig();
+        return this.bots.list().filter(bot => bot.status === 'active'
+            && bot.config.inboundEnabled !== false
+            && (bot.id !== this.defaultBotId || Boolean(config.app_id.trim() || config.app_secret.trim())));
     }
 
     async stop(): Promise<void> {
@@ -76,6 +82,7 @@ export class FeishuBotConnectionManager {
     private async startBot(bot: BotInstance): Promise<void> {
         const config = await this.feishuConfig(bot);
         if (!/^cli_[0-9a-fA-F]{16}$/.test(config.app_id)) throw new Error(`Invalid Feishu App ID for BotInstance: ${bot.id}`);
+        if (!config.app_secret.trim()) throw new Error(`Missing Feishu App Secret for BotInstance: ${bot.id}`);
         const adapter = this.createAdapter(config);
         adapter.setAuditCallback((action, payload) => {
             this.store.appendAuditLog(action, { ...payload, bot_instance_id: bot.id }).catch(() => {});

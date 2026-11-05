@@ -29,6 +29,47 @@ const newsBot = {
 };
 
 describe('Feishu multi-bot connections', () => {
+    test('allows a local host without default credentials while keeping configured bots required', async () => {
+        const started: string[] = [];
+        const manager = new FeishuBotConnectionManager(
+            new BotRegistry([{ ...defaultBot, appId: '' }, newsBot]),
+            defaultBot.id,
+            () => ({ app_id: '', app_secret: '', bot_open_id: '', bot_name: 'Local', send_retry_count: 1 }),
+            { resolve: async () => 'news-secret' },
+            { appendAuditLog: async () => {} },
+            async () => {},
+            {
+                createClient: ({ appId }) => ({ start: async () => { started.push(appId); }, close: () => {} }),
+                createDispatcher: () => ({}),
+                createAdapter: () => ({ setAuditCallback: () => {} } as any),
+            },
+        );
+        expect(manager.requiredBots().map(bot => bot.id)).toEqual([newsBot.id]);
+        await manager.start();
+        expect(started).toEqual([newsBot.appId]);
+        await manager.stop();
+    });
+
+    test('rejects partially configured default credentials instead of silently skipping them', async () => {
+        for (const [appId, secret, error] of [
+            ['', 'secret', 'Invalid Feishu App ID'],
+            ['invalid', 'secret', 'Invalid Feishu App ID'],
+            [defaultBot.appId, '', 'Missing Feishu App Secret'],
+        ]) {
+            const manager = new FeishuBotConnectionManager(
+                new BotRegistry([{ ...defaultBot, appId }]),
+                defaultBot.id,
+                () => ({ app_id: appId!, app_secret: secret!, bot_open_id: '', bot_name: 'Local', send_retry_count: 1 }),
+                { resolve: async () => '' },
+                { appendAuditLog: async () => {} },
+                async () => {},
+                { createClient: () => { throw new Error('must validate before connecting'); } },
+            );
+            expect(manager.requiredBots().map(bot => bot.id)).toEqual([defaultBot.id]);
+            await expect(manager.start()).rejects.toThrow(error);
+        }
+    });
+
     test('starts one connection per bot and scopes duplicate message ids by BotInstance', async () => {
         const bots = new BotRegistry([defaultBot, newsBot]);
         const handlers: Array<(data: any) => Promise<void>> = [];

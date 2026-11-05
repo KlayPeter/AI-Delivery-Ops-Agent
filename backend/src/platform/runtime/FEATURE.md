@@ -25,7 +25,8 @@ flowchart TD
     R --> OAPI["/api/swagger API 文档"]
     S --> P["Cordis 插件装配与配置恢复"]
     P --> MR["装配可释放消息贡献"]
-    MR --> Z["/readyz 数据库 + Agent Host 就绪"]
+    MR --> BC["requiredBots：仅要求已配置的入站连接"]
+    BC --> Z["/readyz 数据库 + Agent Host + 必需连接就绪"]
     P --> SJ[装配群业务计划与轮询]
     SJ --> Z
     S --> A["消息 / Scheduler / API"]
@@ -105,6 +106,10 @@ Host 关闭时先停止消息注册表接受新执行，等待在途确定性消
 27. **入站事件使用跨实例原子去重。** 收到飞书 message ID 后，以 workspace、BotInstance 和 message ID 组成 `feishu:event:` 幂等键并由数据库原子领取；进程内有界缓存只作为同实例快速路径，不能作为生产集群唯一去重机制。
 28. **重复触发不等于再次完成。** Agent Trigger Store 返回 `duplicate` 时，Scheduler 只记录 `job_duplicate_skipped`，不能追加第二条 `job_completed`；日志页明确显示“重复触发已跳过”，避免把幂等命中误读成业务再次执行。
 29. **API 文档必须经过生产代理可达。** Swagger UI 使用 `/api/swagger`，OpenAPI JSON 使用 `/api/swagger/json`；两者统一放在生产环境已转发到后端的 `/api` 前缀下，不能使用会被前端 SPA 接管的根路径 `/swagger`。
+
+## 本地启动与就绪
+
+默认飞书 App ID/Secret 都未配置时不创建连接，`/readyz` 的必需连接数为零；Agent Host 与数据库仍须真正就绪。部分凭据、错误 App ID 和已启用其他机器人的连接错误仍导致启动失败。连接启动与就绪共用 `FeishuBotConnectionManager.requiredBots()`。本地 `.env.example` 通过 `HOST=127.0.0.1` 限制监听地址；API 尚未提供登录认证。参见 [本地运行](../../../../../docs/LOCAL_DEVELOPMENT.md)。
 
 ## 本地历史复核
 
@@ -218,6 +223,7 @@ CLI 可选 --state 保存 Run/Step/Tool/Artifact；默认仍为内存。知识�
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 无飞书凭据也可启动本地管理界面，就绪只要求已配置的入站连接；支持 HOST 指定绑定 | 多机器人/健康回归、独立空库 HTTP 验证、后端全量回归 |
 | 2026-11-05 | Native RAG 保存同一 Run 的检索、生成和验收证据；修复预取消/领取中取消仍执行 Tool 的竞态 | RAG、Tool/Skill、模型循环与后端全量回归、类型检查 |
 | 2026-11-05 | Host 等待在途群调度后释放插件，应用退出先等待 Scheduler；计划/轮询失败单独审计，旧幂等键保留 | 调度与插件回归、后端 428 通过 / 1 TAPD 跳过、类型检查 |
 | 2026-11-05 | 消息贡献随插件回滚与释放；停机等待在途确定性消息并保留持久化事实 | 消息插件/Host 回归、后端 422 通过 / 1 TAPD 跳过、类型检查 |
