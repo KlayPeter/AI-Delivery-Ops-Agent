@@ -92,7 +92,7 @@ export class PluginRuntime {
                         const services = this.services;
                         const scoped: PluginHostServices = {
                             ...services,
-                            modelProviders: services.modelProviders && { register: (...args) => ctx.effect(() => services.modelProviders!.register(...args)) },
+                            modelProviders: services.modelProviders && { configured: config => services.modelProviders!.configured(config), resolve: config => services.modelProviders!.resolve(config), register: (...args) => ctx.effect(() => services.modelProviders!.register(...args)) },
                             tools: { register: (...args) => ctx.effect(() => services.tools.register(...args)), list: () => services.tools.list() },
                             nativeAgents: { register: (...args) => ctx.effect(() => services.nativeAgents.register(...args)) },
                             modelAgents: { register: (...args) => ctx.effect(() => services.modelAgents.register(...args)) },

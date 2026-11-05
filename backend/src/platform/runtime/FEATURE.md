@@ -463,3 +463,16 @@ flowchart LR
 ```
 
 实现、边界与代码地图见[知识回写功能卡](../../knowledge/writeback/FEATURE.md)。验证：backend/test/knowledgeWriteback.test.ts、既有知识/Runtime 回归、前端类型/lint/build 与桌面/375px 本地验收。仅新建，不支持已有笔记替换或自动批准；真实模型效果未验证。
+
+## 固定题集知识问答评测
+
+完整评测保存一个根 Run、父 Tool 步骤与私有 evaluation.rag.report。内部六题在独立内存 Host 执行，精简轨迹和调用/Token/耗时写入报告后销毁。读取/比较先核验全部根 Run 的 workspace/bot/Capability/状态再读取产物；对比只读，不重执行。父完成不代表全部题目通过。
+
+```mermaid
+flowchart LR
+    EV_INPUT[明确选择模式与题集] --> EV_ISOLATED[隔离虚构资料与实际 RAG]
+    EV_ISOLATED --> EV_REPORT[逐题规则、版本和轨迹]
+    EV_REPORT --> EV_COMPARE[同模式同题集同规则的只读比较]
+```
+
+实现与限制见[评测功能卡](../../evaluations/FEATURE.md)。代码：backend/src/evaluations/、backend/src/scripts/evaluate.ts、frontend/src/pages/workspace/EvaluationsPage.tsx。验证：backend/test/evaluations.test.ts、既有模型/插件/RAG/工作台回归、前端类型/lint/build 与桌面/375px 浏览器验收。固定样例和本机 HTTP 协议服务不代表真实模型质量；无语义裁判、个人资料评测或历史业务环境回放。

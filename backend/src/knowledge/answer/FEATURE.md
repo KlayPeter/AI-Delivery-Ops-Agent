@@ -197,3 +197,16 @@ flowchart LR
     MIX_MD --> MIX_RESULT[保留原引用与独立版本]
     MIX_WEB --> MIX_RESULT
 ```
+
+## 固定题集知识问答评测
+
+评测消费者复用原 knowledgeAnswerPlugin 的 Native handler、来源 Tool 与引文核验，只在独立 Host 将题目时限设为 12 秒。六题基线与三题故意退化对照覆盖引用拒绝、冲突、注入、空命中、干扰与不足；原个人 RAG 的输入/来源/产物行为保持。有效引文不等于语义支持，规则评测亦不证明模型正确率。
+
+```mermaid
+flowchart LR
+    EV_INPUT[明确选择模式与题集] --> EV_ISOLATED[隔离虚构资料与实际 RAG]
+    EV_ISOLATED --> EV_REPORT[逐题规则、版本和轨迹]
+    EV_REPORT --> EV_COMPARE[同模式同题集同规则的只读比较]
+```
+
+实现与限制见[评测功能卡](../../evaluations/FEATURE.md)。代码：backend/src/evaluations/、backend/src/scripts/evaluate.ts、frontend/src/pages/workspace/EvaluationsPage.tsx。验证：backend/test/evaluations.test.ts、既有模型/插件/RAG/工作台回归、前端类型/lint/build 与桌面/375px 浏览器验收。固定样例和本机 HTTP 协议服务不代表真实模型质量；无语义裁判、个人资料评测或历史业务环境回放。

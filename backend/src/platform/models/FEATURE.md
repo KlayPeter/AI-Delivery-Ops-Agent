@@ -83,3 +83,16 @@ flowchart LR
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
 | 2026-11-06 | 模型提供者独立插件化，增加 keyless Ollama 固定回环直连与配置界面 | 提供者/知识/研究专项、全量回归、类型与本机浏览器验收；真实推理未测 |
+
+## 固定题集知识问答评测
+
+PluginHostServices.modelProviders 增加当前注册表的 configured/resolve 访问，注册仍通过 Cordis effect。可选 RAG 评测只在当前模型插件已启用且配置完整时解析它；在隔离 Host 包装其 SDK 实现合并取消信号并禁止每题第二次底层生成请求，不另选供应商。CLI 显式 EVAL_* 使用标准提供者；离线 MockLanguageModelV3 不发网络请求、不记录推理 Token。
+
+```mermaid
+flowchart LR
+    EV_INPUT[明确选择模式与题集] --> EV_ISOLATED[隔离虚构资料与实际 RAG]
+    EV_ISOLATED --> EV_REPORT[逐题规则、版本和轨迹]
+    EV_REPORT --> EV_COMPARE[同模式同题集同规则的只读比较]
+```
+
+实现与限制见[评测功能卡](../../evaluations/FEATURE.md)。代码：backend/src/evaluations/、backend/src/scripts/evaluate.ts、frontend/src/pages/workspace/EvaluationsPage.tsx。验证：backend/test/evaluations.test.ts、既有模型/插件/RAG/工作台回归、前端类型/lint/build 与桌面/375px 浏览器验收。固定样例和本机 HTTP 协议服务不代表真实模型质量；无语义裁判、个人资料评测或历史业务环境回放。

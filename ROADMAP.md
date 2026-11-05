@@ -86,7 +86,11 @@ are deferred while the local product is being validated.
   at explicit manual confirmation, create files exclusively and recover missing receipts.
 - [ ] Extend write-back to reviewed replacements of existing notes; the current writer
   only creates a new note in an explicitly configured inbox.
-- [ ] Replay redacted fixtures to compare plugin and model versions without live writes.
+- [x] Run a fixed six-case synthetic RAG evaluation through the actual retrieval/citation
+  pipeline, with offline scripted controls, explicitly confirmed current-model mode,
+  bounded requests, JSON/CLI gates and same-mode rule comparisons. This is deterministic
+  regression evidence, not semantic model accuracy or a historical environment replay.
+- [ ] Extend redacted historical tool/environment replay to other plugin workflows.
 - [ ] Validate onboarding and repeated use with independent maintainers or teams.
 - [ ] Enable an external contributor to build and verify a plugin from documentation.
 - [ ] Publish measured success, latency, cost and recovery results with test scope.

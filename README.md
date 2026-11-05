@@ -36,6 +36,7 @@ Obsidian、公开网页或本地文档开始，检索原文、生成带引用的
 | 资料收集 | 单篇公开网页；微软 MarkItDown 0.1.9 转换 PDF、DOCX、PPTX、XLSX 等本地文件 |
 | 本地资料库 | 明确收录、去重、来源凭证、检索与知识来源切换 |
 | 开源能力接入 | MCP 工具发现、明确授权与配置导出、通用运行器；stdio/HTTPS 与标准 SKILL.md，真实 Context7 示例 |
+| 问答评测 | 可选六题虚构资料、实际 RAG、固定退化对照/当前模型、规则对比与 JSON/CLI 门槛；不验证语义 |
 | 插件契约 | Manifest、依赖、权限、页面/API/动作、结果规则与 Cordis 资源释放 |
 | 可靠执行 | Agent/Tool/Skill 预算、委派、Session/Checkpoint、Run/Artifact 与 Outbox |
 | 可选团队能力 | GitHub 发布准备、飞书任务与报告、TAPD 同步、多机器人路由 |
@@ -90,6 +91,8 @@ bun run local
   设置保存在本机 `connections.json`，权限 0600，密钥不回显；本机文件未加密。
 - 体验 [Context7 与标准 Skill](docs/COMMUNITY_PLUGINS.md)，或按
   [MCP 指南](docs/MCP_TOOLS.md)连接经审查的本地工具。独立配置档需显式选择。
+- 使用[问答评测](docs/RAG_EVALUATIONS.md)检查修改模型或检索后的规则退化；
+  离线对照无需 Key，真实模型模式需明确确认。
 - 配置 GitHub 后可使用[发布准备](docs/RELEASE_PREPARATION.md)，结合仓库事实与
   个人规则收集证据；生成草稿需要模型，不自动创建发布或发送消息。
 - 团队功能先在后端用 `AGENT_PLUGINS_FILE=profiles/agents/team.yaml bun run dev` 选择现有组合，再按[第三方配置指南](docs/第三方平台接入配置指南.md)填写凭据。飞书 App ID 与

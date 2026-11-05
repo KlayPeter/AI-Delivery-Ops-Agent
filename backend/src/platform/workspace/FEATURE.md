@@ -353,3 +353,16 @@ flowchart LR
 ```
 
 实现、边界与代码地图见[知识回写功能卡](../../knowledge/writeback/FEATURE.md)。验证：backend/test/knowledgeWriteback.test.ts、既有知识/Runtime 回归、前端类型/lint/build 与桌面/375px 本地验收。仅新建，不支持已有笔记替换或自动批准；真实模型效果未验证。
+
+## 固定题集知识问答评测
+
+可选 /evaluations 通过普通 Run API 运行六道虚构题，区分离线脚本与明确确认的当前模型，展示逐题检查、实际引文与内部轨迹，下载 JSON 并比较同模式记录。最近 50 次根运行中选取成功保存的评测；模型未配置时前后端均拒绝实时模式。复用现有浅色界面，不读取用户 Vault。
+
+```mermaid
+flowchart LR
+    EV_INPUT[明确选择模式与题集] --> EV_ISOLATED[隔离虚构资料与实际 RAG]
+    EV_ISOLATED --> EV_REPORT[逐题规则、版本和轨迹]
+    EV_REPORT --> EV_COMPARE[同模式同题集同规则的只读比较]
+```
+
+实现与限制见[评测功能卡](../../evaluations/FEATURE.md)。代码：backend/src/evaluations/、backend/src/scripts/evaluate.ts、frontend/src/pages/workspace/EvaluationsPage.tsx。验证：backend/test/evaluations.test.ts、既有模型/插件/RAG/工作台回归、前端类型/lint/build 与桌面/375px 浏览器验收。固定样例和本机 HTTP 协议服务不代表真实模型质量；无语义裁判、个人资料评测或历史业务环境回放。

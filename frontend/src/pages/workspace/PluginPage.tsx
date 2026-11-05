@@ -22,6 +22,7 @@ const OpenApiRunnerPage = lazy(() => import('./OpenApiRunnerPage'));
 const McpSetupPage = lazy(() => import('./McpSetupPage'));
 const McpRunnerPage = lazy(() => import('./McpRunnerPage'));
 const ResearchPage = lazy(() => import('./ResearchPage'));
+const EvaluationsPage = lazy(() => import('./EvaluationsPage'));
 const RecipesPage = lazy(() => import('./RecipesPage'));
 
 export default function PluginPage() {
@@ -43,6 +44,7 @@ export default function PluginPage() {
   if (page?.view.kind === 'builtin' && page.view.id === 'knowledge-library') return <LibraryPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'knowledge-writeback') return <KnowledgeWritebackPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'knowledge-reviews') return <KnowledgeReviewsPage />;
+  if (page?.view.kind === 'builtin' && page.view.id === 'rag-evaluation') return <EvaluationsPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'plugin-checks') return <ChecksPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'openapi-setup') return <OpenApiSetupPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'openapi-runner') return <OpenApiRunnerPage />;
