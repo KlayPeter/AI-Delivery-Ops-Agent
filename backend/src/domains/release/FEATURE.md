@@ -15,13 +15,13 @@ last_reviewed: 2026-11-06
 
 `release.prepare` 是独立功能插件，依赖 `connector.github` 和一个知识来源。默认使用 Markdown/Obsidian；webPlugin.ts 切换到网页来源，复用同一发布实现。固定的取证、生成与验收管线使用 Native Agent，接入现有 Host、Tool Gateway、Run/Step/Artifact；不包含自主多 Agent 循环。
 
-CLI、配置档与插件拥有的本地 /release 页面均可使用。HTTP 默认组合在明确保存 GitHub 仓库并重启后，增装 GitHub 和发布插件；知识来源沿用当前所选 Markdown/Obsidian 或网页。显式 AGENT_PLUGINS_FILE 仍完全管理组合。外部写入与持续监控未实现；保存后的实际知识引用可用独立 impact 插件显式复核。
+CLI、配置档与插件拥有的本地 /release 页面均可使用。HTTP 默认组合在明确保存 GitHub 仓库并重启后，增装 GitHub 和发布插件；知识来源沿用当前所选 Markdown/Obsidian 或网页。未声明 base: personal 的显式 AGENT_PLUGINS_FILE 仍完全管理组合；base: personal 继承重启时的本机知识及仓库设置，发布页面按 sourceSettingsManagedByPluginFile 提示来源所有权。外部写入与持续监控未实现；保存后的实际知识引用可用独立 impact 插件显式复核。
 
 ## 实现流程图
 
 ```mermaid
 flowchart TD
-    UISET[本机连接设置：固定仓库与可选读取密钥] --> BOOT[重启后组合 GitHub 与匹配知识源的发布插件]
+    UISET[默认或 base personal 的本机设置：固定仓库与可选读取密钥] --> BOOT[重启后组合 GitHub 与匹配知识源的发布插件]
     BOOT --> PAGE[插件拥有的 /release 时间段与规则表单]
     PAGE --> ACK[Web 先返回持久 Run 回执；可在详情请求停止]
     ACK --> U[本地 Web / CLI / SDK：时间段与知识范围]
@@ -198,3 +198,5 @@ flowchart LR
 ## 本机任务体验
 
 本功能发起页使用持久启动回执，立即进入可轮询详情；手动根任务可请求停止，关闭页面后仍可从运行记录找回。停止沿既有执行信号传递，取消后不能继续或接受迟到成功，已保存产物与完成操作保留；子任务由父任务管理。CLI/SDK 与内联审查操作仍使用原同步接口。完整协议见[工作台功能卡](../../platform/workspace/FEATURE.md)；验证：backend/test/runControl.test.ts、localRunApi.test.ts 和本功能既有回归，frontend/src/api.test.mjs。
+
+来源配置提示回归：backend/test/workspaceComposition.test.ts 验证个人基底仍装配当前 GitHub/知识设置、旧显式文件保持替换。发布取证与生成协议保持。

@@ -63,6 +63,10 @@ are deferred while the local product is being validated.
   A reviewed catalog now exports up to eight pinned Skills in one profile, supports
   explicit per-run selection, separates namesakes and revisions by content/source ID,
   and rejects removed selections without sending other Skill bodies to the model.
+  Optional personal-base composition keeps knowledge/research/library/recipes available;
+  a manual task can preview and confirm a stored retrieval snapshot, send only selected
+  excerpts, and retain selection provenance even on model failure or cancellation.
+  This does not verify actual source use, output citations or source currentness.
 - [ ] Design authenticated MCP/OpenAPI onboarding and credential destination grants.
 - [x] Add versioned plugin result contracts, sample checks and recorded execution
   receipts. Checks cover structure and required steps, not semantic correctness.

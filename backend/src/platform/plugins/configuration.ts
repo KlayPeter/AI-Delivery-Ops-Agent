@@ -8,6 +8,7 @@ import { orderPlugins } from './runtime';
 
 const configurationSchema = z.object({
     apiVersion: z.literal('1.0'),
+    base: z.literal('personal').optional(),
     plugins: z.array(z.object({
         module: z.string().trim().min(1),
         enabled: z.boolean().optional(),
@@ -18,13 +19,16 @@ const configurationSchema = z.object({
 export interface PluginSelection {
     plugins: FeaturePlugin[];
     config: Record<string, Record<string, unknown>>;
+    base?: 'personal';
 }
 
-export async function loadPluginConfiguration(file: string, builtins: readonly FeaturePlugin[] = []): Promise<PluginSelection> {
+export async function loadPluginConfiguration(file: string, builtins: readonly FeaturePlugin[] = [], personalBase?: () => PluginSelection): Promise<PluginSelection> {
     const filename = path.resolve(file);
     const configuration = configurationSchema.parse(parse(await readFile(filename, 'utf8')));
-    const byId = new Map(builtins.map(plugin => [plugin.manifest.id, plugin]));
-    const selected: Array<{ plugin: FeaturePlugin; config: Record<string, unknown> }> = [];
+    if (configuration.base && !personalBase) throw new Error('base: personal 需要通过本机工作台组合加载器解析');
+    const base = configuration.base ? personalBase!() : undefined;
+    const byId = new Map([...builtins, ...(base?.plugins || [])].map(plugin => [plugin.manifest.id, plugin]));
+    const selected: Array<{ plugin: FeaturePlugin; config: Record<string, unknown> }> = (base?.plugins || []).map(plugin => ({ plugin, config: base!.config[plugin.manifest.id] || {} }));
     for (const entry of configuration.plugins) {
         if (entry.enabled === false) continue;
         let plugin = byId.get(entry.module);
@@ -41,5 +45,5 @@ export async function loadPluginConfiguration(file: string, builtins: readonly F
     }
     const plugins = orderPlugins(selected.map(entry => entry.plugin));
     const config = Object.fromEntries(selected.map(entry => [entry.plugin.manifest.id, entry.config]));
-    return { plugins, config };
+    return { plugins, config, ...(configuration.base ? { base: configuration.base } : {}) };
 }

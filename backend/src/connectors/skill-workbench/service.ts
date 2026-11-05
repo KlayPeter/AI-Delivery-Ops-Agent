@@ -7,7 +7,7 @@ import { preparePromptSkills } from './catalog';
 
 export const INSPECT_CAPABILITY = 'skills.github.inspect', RUN_CAPABILITY = 'skills.prompt.run', INSPECTION_ROLE = 'skill.github.inspection';
 const selection = z.object({ inspectionRunId: z.string().uuid(), reviewedSha256: z.string().regex(/^[a-f0-9]{64}$/), confirmedPromptOnly: z.literal(true), confirmedLicense: z.literal(true) }).strict();
-export const exportInput = z.union([selection, z.object({ skills: z.array(selection).min(1).max(8) }).strict()]);
+export const exportInput = z.union([selection.extend({ includePersonalWorkspace: z.boolean().optional() }), z.object({ skills: z.array(selection).min(1).max(8), includePersonalWorkspace: z.boolean().optional() }).strict()]);
 export async function readInspection(store: PersistentKeyValueStore, scope: { workspaceId: string; botInstanceId: string }, id: string) {
     const runs = new PersistentAgentRunStore(store), run = await runs.get(z.string().uuid().parse(id));
     if (!run || run.workspaceId !== scope.workspaceId || run.botInstanceId !== scope.botInstanceId || run.parentRunId || run.status !== 'succeeded' || run.capability !== INSPECT_CAPABILITY) throw new Error('请选择当前范围内成功的 Skill 发现根记录');
@@ -23,8 +23,8 @@ export async function exportSkillProfile(store: PersistentKeyValueStore, scope: 
         return { bundle, reviewedSha256: item.reviewedSha256, confirmedPromptOnly: true as const, confirmedLicense: true as const };
     }));
     const config = multiple ? { skills } : skills[0]!; preparePromptSkills(config);
-    return { filename: multiple ? 'plugins.skills-reviewed.local.yaml' : 'plugins.skill-reviewed.local.yaml', yaml: stringify({ apiVersion: '1.0', plugins: [
-        ...['openai', 'google', 'ollama'].map(id => ({ module: `./src/platform/models/providers/${id}Plugin.ts` })),
+    return { filename: input.includePersonalWorkspace ? 'plugins.skills-personal.local.yaml' : multiple ? 'plugins.skills-reviewed.local.yaml' : 'plugins.skill-reviewed.local.yaml', yaml: stringify({ apiVersion: '1.0', ...(input.includePersonalWorkspace ? { base: 'personal' } : {}), plugins: [
+        ...(input.includePersonalWorkspace ? [] : ['openai', 'google', 'ollama'].map(id => ({ module: `./src/platform/models/providers/${id}Plugin.ts` }))),
         { module: './src/connectors/skill-workbench/setupPlugin.ts' },
         { module: './src/connectors/skill-workbench/promptPlugin.ts', config },
     ] }) };

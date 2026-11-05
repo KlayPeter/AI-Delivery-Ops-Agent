@@ -16,14 +16,18 @@ AGENT_PLUGINS_FILE=examples/plugins.skills.yaml bun run local
 
 1. 打开「接入 Skill」，填写 GitHub 文件链接。可以点击填入 Anthropic 前端设计示例，再明确读取。
 2. 查看完整 SKILL.md、固定提交、SHA-256、上游环境/工具声明与许可。声明的工具不会被自动授予；许可文件未取得时请自行核对。
-3. 核对文本范围与使用权限后，下载审查配置。该操作绑定原成功发现记录和内容指纹，不接受客户端传来的指令正文，也不会启用插件。
-4. 把下载的 `plugins.skill-reviewed.local.yaml` 保存到 `backend` 目录，停止当前本地进程，再从根目录启动：
+3. 核对文本范围与使用权限。页面默认勾选“保留本机个人工作台”，可继续使用自己的知识、研究、资料库和配方；也可取消选择独立 Skill 组合。
+4. 下载审查配置。服务绑定原成功发现记录和指纹，不接受客户端指令正文，不自动启用。保留个人工作台时，将 `plugins.skills-personal.local.yaml` 保存到 `backend`，停止当前进程，再从根目录启动：
 
 ```bash
-AGENT_PLUGINS_FILE=plugins.skill-reviewed.local.yaml bun run local
+AGENT_PLUGINS_FILE=plugins.skills-personal.local.yaml bun run local
 ```
 
-新组合增加 skills.prompt，共五插件、两个 Agent，导航出现「使用 Skill」。配置包含完整的固定指令、来源和已取得的许可正文，不含模型密钥；`*.local.yaml` 默认被 Git 忽略。请保留来源和许可，不把包含个人配置的文件提交到仓库。
+保留个人工作台的配置声明 `base: personal`，在重启时按「连接与模型」里的来源和仓库设置组合个人能力，再追加 skills.setup / skills.prompt；标准个人基底下共十六插件、十一 Agent，导航出现「使用 Skill」且保留「知识库」。它不合并其他自定义插件或团队组合，也不冻结整个环境。重复基底插件 ID 会拒绝启动，不会覆盖。
+
+取消保留时，单份仍导出 plugins.skill-reviewed.local.yaml（多份为 plugins.skills-reviewed.local.yaml），保持旧的五插件、两 Agent 独立组合，启动时使用下载的实际文件名。
+
+配置包含完整的固定指令、来源和已取得的许可正文，不含模型密钥；`*.local.yaml` 默认被 Git 忽略。请保留来源和许可，不把包含个人配置的文件提交到仓库。
 
 在「连接与模型」填写自己的标准提供者设置，保存后重启。进入「使用 Skill」填写目标、材料和约束，结果以文本返回；实际经过 SkillRuntime、Prompt Executor 与模型网关，详情中可以查看 Skill/Model Step。SDK 可能重试，不能把一次任务等同于一次计费请求。无需真实模型即可完成读取/审查/导出；没有配置时生成按钮禁用，后端也会拒绝。
 
@@ -31,19 +35,33 @@ AGENT_PLUGINS_FILE=plugins.skill-reviewed.local.yaml bun run local
 
 逐份读取并查看完整指令、固定提交和许可，勾选两项审查后点“加入待导出列表”。再读取另一份，重复审查加入；列表只在本页内存保存，刷新后可从成功发现记录重新加入。最多八份，同一固定来源和内容不重复添加。
 
-点“下载所选 Skill 的配置”，服务会重新核验每项原运行的归属、成功状态和内容指纹。任意项失效则整份不导出。把 plugins.skills-reviewed.local.yaml 保存到 backend 后，选择并重启：
+点“下载所选 Skill 的配置”，服务会重新核验每项原运行的归属、成功状态和内容指纹。任意项失效则整份不导出。勾选保留个人工作台时，把 plugins.skills-personal.local.yaml 保存到 backend 后，选择并重启：
 
 ```bash
-AGENT_PLUGINS_FILE=plugins.skills-reviewed.local.yaml bun run local
+AGENT_PLUGINS_FILE=plugins.skills-personal.local.yaml bun run local
 ```
 
-此配置仍是五插件、两个 Agent，只包含所选 Skill、接入助手及三个模型提供者，不合并当前其他插件。在“使用 Skill”的“本次使用”列表明确选一份，再填写任务；只有一份时可直接使用。每次只发送所选指令，其他 Skill 正文不会进入该模型请求。不同仓库/路径/提交的同名 Skill 分别显示，不按名称隐式覆盖。
+保留选项与单份一致；取消时仍是五插件、两个 Agent，只包含所选 Skill、接入助手及三个模型提供者。在“使用 Skill”的“本次使用”列表明确选一份，再填写任务；只有一份时可直接使用。每次只发送所选指令，其他 Skill 正文不会进入该模型请求。不同仓库/路径/提交的同名 Skill 分别显示，不按名称隐式覆盖。
 
 新集合的 skillId 由仓库 owner/repo 小写归一后的固定来源 URL 和原文 SHA 共同生成，与配置顺序无关。旧版本移除后，旧任务参数不会自动改跑另一份；重新选择并核对来源后再发起。结果保留实际 ID、仓库、路径、提交和指令指纹。旧单份配置继续可用；多份配置下旧单份描述 API 返回 409，目录接口为 GET /api/skill-runner/skills。
 
 Skill 配置 JSON 的 UTF-8 总量最多 512 KiB，原文每份最多 128 KiB、许可最多 64 KiB；导出 YAML 大小可能不同。指令、工具权限和运行上限不因集合增多而扩大。这里没有自动选 Skill、多技能串联、附属资源加载或在线热安装。
 
 设计参考 [Agent Skills 官方接入指南](https://agentskills.io/client-implementation/adding-skills-support)的显式激活和按需提供指令思路。本项目在本机已审查目录中使用内容来源 ID 区分同名技能，属于自身运行选择规则，不声称实现所有官方集成路径。
+
+## 让 Skill 使用自己的知识资料
+
+1. 使用保留个人工作台的配置，在「知识库 → 配置来源」选择 Markdown/Obsidian 目录、公开链接或应用资料库，保存后重启。首次可用明确标记的虚构示例。
+2. 先检索原文，完成一次命中资料的检索；资料不足时调整关键词。检索无需模型。
+3. 在「使用 Skill」明确选一份方法，勾选“为本次任务选择知识检索资料”，从最近 50 次根运行中选择成功检索。
+4. 展开查看将发送的片段、行号和文档版本；可打开原检索。确认发送给当前模型后，再填写目标并生成。
+5. 运行详情保留文本、Skill 来源和“本次选择的知识快照”，可返回原检索。关闭页面后可从运行记录找回。
+
+这份资料是**历史快照**，不会在 Skill 执行时重新读取笔记或网页。需要最新资料时先重新检索。每次任务只接受原 Run ID、快照 SHA 和人工确认，不能从客户端注入或替换片段；服务复验归属、成功状态和内容。普通 Skill 文本任务可不选择资料，行为保持。
+
+最多十条、12000 个标题/小标题/原文字符；不完整来源与上下文截断会提示。模型收到任务、所选 Skill 指令及片段 ID/标题/小标题/原文、历史与 partial 标记；不额外发送路径、打开 URI 或版本字段，文字本身仍可能包含这些信息。未选资料及其他 Skill 正文不进入本次请求。
+
+模型调用前先保存选择快照和守卫步骤，失败或取消时也能看到选入了什么。它不证明模型已收到或实际采用片段，不核验自由文本中的事实、引用或当前来源；这些状态明确为未验证/未检查。RAG 的结构化精确引文核验是另一条既有管线，不会自动应用到任意 Skill 输出。
 
 ## 已实际验证的公开来源
 
@@ -71,6 +89,6 @@ Skill 配置 JSON 的 UTF-8 总量最多 512 KiB，原文每份最多 128 KiB、
 - 原始文件 SHA 对应完整 SKILL.md；执行步骤另存已注册指令 SHA（正文加宿主边界），成功产物也保留。它不代表完整模型请求、权重或语义质量，也不是来源签名。
 - Skill 最长 45 秒，输出最多 256 KiB。模型内容与代码文本不等于实际执行、文件修改或渲染验证；附属资源缺失会限制能力。
 - Skill 内部不支持持久化人工追问。既有模型执行器的内部追问函数可能使该次 Skill 失败；应补全任务后重新运行。Agent 层已有的暂停/恢复能力保持。
-- 读取 GitHub 会把公开仓库路径发给 GitHub；运行时把固定指令与任务发给所选模型。应用仍是本机管理界面，不是公开的多用户服务或进程沙箱。
+- 读取 GitHub 会把公开仓库路径发给 GitHub；运行时把固定指令、任务及明确确认的知识片段发给所选模型。应用仍是本机管理界面，不是公开的多用户服务或进程沙箱。
 
-实现/测试地图见[功能卡](../backend/src/connectors/skill-workbench/FEATURE.md)、[专项测试](../backend/test/skillWorkbench.test.ts)与[取消/超时回归](../backend/test/toolSkillRuntime.test.ts)。标准文件格式参考 [Agent Skills 官方规范](https://agentskills.io/specification)；现有本地导入和 Context7 工具适配见[社区接入指南](COMMUNITY_PLUGINS.md)。
+实现/测试地图见[功能卡](../backend/src/connectors/skill-workbench/FEATURE.md)、[专项测试](../backend/test/skillWorkbench.test.ts)、[知识快照测试](../backend/test/skillKnowledgeContext.test.ts)与[取消/超时回归](../backend/test/toolSkillRuntime.test.ts)。标准文件格式参考 [Agent Skills 官方规范](https://agentskills.io/specification)；现有本地导入和 Context7 工具适配见[社区接入指南](COMMUNITY_PLUGINS.md)。

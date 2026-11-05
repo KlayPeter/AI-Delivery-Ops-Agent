@@ -92,7 +92,7 @@ bun run local
   Ollama 本机接口无需 Key，见[本机模型配置](docs/LOCAL_DEVELOPMENT.md#使用本机-ollama)。
   设置保存在本机 `connections.json`，权限 0600，密钥不回显；本机文件未加密。
 - 从[公开 GitHub 文件链接接入文本 Skill](docs/GITHUB_SKILLS.md)，审查固定指令与许可，
-  可逐份审查后一起下载配置，在已安装列表中明确选择一份运行；不执行仓库脚本或自动授予工具。
+  可保留个人工作台、并列安装多份，选一份方法与确认后的历史知识片段完成任务；保留来源快照，不执行仓库脚本或自动授予工具。
 - 体验 [Context7 与标准 Skill](docs/COMMUNITY_PLUGINS.md)，或按
   [MCP 指南](docs/MCP_TOOLS.md)连接经审查的本地工具。独立配置档需显式选择。
 - 使用[问答评测](docs/RAG_EVALUATIONS.md)检查修改模型或检索后的规则退化；

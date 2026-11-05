@@ -15,6 +15,7 @@ export default function SkillSetupPage() {
   const { data: workspace, mutate: refresh } = useWorkspace();
   const [url, setUrl] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [includePersonalWorkspace, setIncludePersonalWorkspace] = useState(true);
   const [inspection, setInspection] = useState<Inspection | null>(null), [inspectionId, setInspectionId] = useState<string | null>(null), [runId, setRunId] = useState<string | null>(null), [lastRunId, setLastRunId] = useState<string | null>(null), [reviewed, setReviewed] = useState(false), [licensed, setLicensed] = useState(false);
   const [selections, setSelections] = useState<ReviewedSelection[]>([]);
   const alreadySelected = inspection && selections.some(item => item.sourceUrl === inspection.bundle.skillUrl && item.reviewedSha256 === inspection.bundle.sha256);
@@ -39,7 +40,7 @@ export default function SkillSetupPage() {
     if (collection ? !selections.length : !inspection || !inspectionId || !reviewed || !licensed) return;
     setBusy(true); setExporting(true); setError('');
     try {
-      const profile = await api.exportSkillProfile(collection ? { skills: selections.map(item => ({ inspectionRunId: item.inspectionRunId, reviewedSha256: item.reviewedSha256, confirmedPromptOnly: true, confirmedLicense: true })) } : { inspectionRunId: inspectionId, reviewedSha256: inspection!.bundle.sha256, confirmedPromptOnly: true, confirmedLicense: true });
+      const profile = await api.exportSkillProfile(collection ? { includePersonalWorkspace, skills: selections.map(item => ({ inspectionRunId: item.inspectionRunId, reviewedSha256: item.reviewedSha256, confirmedPromptOnly: true, confirmedLicense: true })) } : { includePersonalWorkspace, inspectionRunId: inspectionId, reviewedSha256: inspection!.bundle.sha256, confirmedPromptOnly: true, confirmedLicense: true });
       const objectUrl = URL.createObjectURL(new Blob([profile.yaml], { type: 'application/yaml;charset=utf-8' })), link = document.createElement('a'); link.href = objectUrl; link.download = profile.filename; link.click(); setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
       setNotice(`已下载 ${profile.filename}。保存到 backend 目录，停止本地进程后选择此配置重启；届时会出现「使用 Skill」。下载不会改变当前装配。`);
     } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); setExporting(false); }
@@ -48,6 +49,7 @@ export default function SkillSetupPage() {
     <div className="page-heading"><div><h1>接入 Skill</h1><p>把公开 GitHub 的指令技能，审查后接到本地工作台。</p></div><div className="form-actions">{lastRunId && <Button onClick={() => setRunId(lastRunId)}>查看最近运行</Button>}<Button disabled={busy} onClick={() => refresh()}>刷新记录</Button></div></div>
     {error && <Alert type="error" showIcon title="Skill 接入未完成" description={error} />}
     {notice && <Alert type="success" showIcon title="配置已导出，保存并选择后重启" description={notice} />}
+    <section className="knowledge-search"><h2>重启后保留哪些功能</h2><Checkbox checked={includePersonalWorkspace} disabled={busy} onChange={event => setIncludePersonalWorkspace(event.target.checked)}>保留本机个人工作台：知识库、研究助手、资料库与任务配方</Checkbox><p className="muted">勾选后沿用「连接与模型」中的知识与仓库设置，重启时与所选 Skill 一起装配。不勾选则使用仅含 Skill 和模型提供者的独立组合。自定义插件和团队组合不会自动合并。</p></section>
     <section className="knowledge-search"><h2>1. 读取公开的 SKILL.md</h2><p className="muted">只读取这个文件和可找到的许可，固定到完整提交。无需模型，不克隆或安装仓库。</p>
       <label htmlFor="skill-source-url">GitHub 文件链接</label><Input id="skill-source-url" value={url} disabled={busy} maxLength={1024} placeholder="https://github.com/组织/仓库/blob/main/技能目录/SKILL.md" onChange={event => { setUrl(event.target.value); reset(); }} />
       <div className="form-actions"><Button type="primary" loading={busy && !exporting} disabled={busy || !url.trim()} onClick={inspect}>读取并检查 Skill</Button><Button disabled={busy} onClick={() => { setUrl(example); reset(); }}>填入 Anthropic 前端设计示例</Button></div>
@@ -69,7 +71,7 @@ export default function SkillSetupPage() {
     </section>}
     {selections.length > 0 && <section className="knowledge-search"><h2>3. 一起导出多份 Skill</h2><p aria-live="polite">已选择 {selections.length} / 8 份。列表只在本页保留，刷新后可从成功发现记录重新审查加入。</p>
       {selections.map(item => <article className="evidence" key={item.sourceUrl + item.reviewedSha256}><strong>{item.name}</strong><p className="muted break-text">{item.sourceLabel}</p><div className="form-actions"><a href={item.sourceUrl} target="_blank" rel="noopener noreferrer">固定来源</a><Button disabled={busy} aria-label={`移除 ${item.name} ${item.sourceLabel}`} onClick={() => setSelections(selections.filter(selected => selected !== item))}>移除</Button></div></article>)}
-      <div className="form-actions"><Button type="primary" loading={exporting} disabled={busy} onClick={() => download(true)}>下载所选 Skill 的配置</Button></div><p className="muted">服务会重新核验每份原记录和审查指纹。配置只包含所选 Skill、接入助手和模型提供者；不会合并当前其他插件。所选内容配置最多 512 KiB，保存并选择后重启，再从「使用 Skill」逐份运行。</p>
+      <div className="form-actions"><Button type="primary" loading={exporting} disabled={busy} onClick={() => download(true)}>下载所选 Skill 的配置</Button></div><p className="muted">服务会重新核验每份原记录和审查指纹，按上方选项保留个人工作台或使用独立组合。所选内容配置最多 512 KiB，保存并选择后重启，再从「使用 Skill」逐份运行。</p>
     </section>}
     <RunDrawer key={runId || 'closed'} runId={runId} onClose={() => setRunId(null)} onSelectRun={setRunId} />
   </div>;

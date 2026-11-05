@@ -110,7 +110,7 @@ HTTP 默认装配个人知识、采集、验收、工具接入、研究、配方
 | `local-launcher` | 首次初始化、前后端启动与本次进程清理 | active | 本地脚本，无独立 Agent | [查看](../../scripts/local/FEATURE.md) |
 | `mixed-knowledge` | 笔记与网页并行检索、跨来源引用与独立版本复核 | active | `native.knowledge-mixed` | [查看](../../backend/src/knowledge/mixed/FEATURE.md) |
 | `model-providers` | 模型提供者插件、配置诊断与无密钥本机 Ollama | active | 宿主模型端口，无独立 Agent | [查看](../../backend/src/platform/models/FEATURE.md) |
-| `github-skill-workbench` | GitHub Skill 固定版本审查、许可快照、配置导出与文本执行 | active（显式安装） | `native.skill-inspector` / `native.imported-skill` | [查看](../../backend/src/connectors/skill-workbench/FEATURE.md) |
+| `github-skill-workbench` | GitHub Skill 审查、个人基底组合与历史知识快照文本任务 | active（显式安装） | `native.skill-inspector` / `native.imported-skill` | [查看](../../backend/src/connectors/skill-workbench/FEATURE.md) |
 | `rag-evaluation` | 固定虚构题集、隔离 RAG、当前模型确认与逐题规则对比 | active（显式安装） | `native.rag-evaluation` | [查看](../../backend/src/evaluations/FEATURE.md) |
 | `knowledge-note-writeback` | 审查新笔记、来源版本复验、排他创建与回执恢复 | active（显式安装） | `native.knowledge-writeback` | [查看](../../backend/src/knowledge/writeback/FEATURE.md) |
 | `run-recipes` | 原参数/版本核验、审查复用与运行来源关联 | active | 控制面插件，无独立 Agent | [查看](../../backend/src/recipes/FEATURE.md) |

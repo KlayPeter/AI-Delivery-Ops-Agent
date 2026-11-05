@@ -9,6 +9,7 @@ import RunDrawer from './RunDrawer';
 interface KnowledgeWorkspace { kind: 'sample' | 'markdown' | 'web' | 'library' | 'mixed'; pluginId: string; capability: string }
 export default function KnowledgePage() {
   const { data: workspace, mutate } = useWorkspace();
+  const sourceSettingsFromFile = workspace?.sourceSettingsManagedByPluginFile ?? workspace?.managedByPluginFile;
   const { data, error, isLoading, mutate: refreshConnections } = useConnections();
   const { data: source, error: sourceError, isLoading: sourceLoading, mutate: refreshSource } = useSWR<KnowledgeWorkspace>('knowledge-workspace', api.fetchKnowledgeWorkspace, { refreshInterval: 5000 });
   const [form] = Form.useForm();
@@ -36,12 +37,12 @@ export default function KnowledgePage() {
     catch (e) { setActionError(errorMessage(e)); } finally { setSaving(false); }
   };
   return <div className="workspace-page">
-    <div className="page-heading"><div><h1>知识库</h1><p>让 Agent 使用你的笔记与资料，结果保留可追溯的原文引用。</p></div><Button icon={<SettingOutlined aria-hidden />} onClick={() => setSettingsOpen(true)} disabled={!data || workspace?.managedByPluginFile}>配置来源</Button></div>
+    <div className="page-heading"><div><h1>知识库</h1><p>让 Agent 使用你的笔记与资料，结果保留可追溯的原文引用。</p></div><Button icon={<SettingOutlined aria-hidden />} onClick={() => setSettingsOpen(true)} disabled={!data || sourceSettingsFromFile}>配置来源</Button></div>
     {error && <Alert type="error" title="知识配置加载失败" description={error.message} />}
     {sourceError && <Alert type="error" showIcon title="知识来源加载失败" description="无法确认当前插件选择的来源，请重试。" action={<Button onClick={() => refreshSource()}>重试</Button>} />}
     {notice && <Alert type="success" title={notice} showIcon />}
     {data?.restartRequired && !notice && <Alert type="warning" title="本地配置等待重启后端生效，当前仍使用已加载的来源" showIcon />}
-    {workspace?.managedByPluginFile && <Alert type="info" title="知识插件由自定义插件配置管理" description="请修改插件配置文件并重启本地后端来调整来源。" showIcon />}
+    {sourceSettingsFromFile && <Alert type="info" title="知识插件由自定义插件配置管理" description="请修改插件配置文件并重启本地后端来调整来源。" showIcon />}
     {isLoading || sourceLoading ? <Skeleton active /> : <>
       <section className="knowledge-search">
         <div className="connection-title"><span className="icon-tile"><FileSearchOutlined aria-hidden /></span><h2>从资料中找答案</h2></div>

@@ -88,7 +88,7 @@ flowchart TD
 
 ## 工作台来源组合
 
-HTTP 默认组合将所选来源、knowledge.answer 与 knowledge.impact 一起装配。回答详情的「检查引用变化」来自 impact 插件，显式核验旧结果实际引用的版本；状态刷新只读最近评估，原文与回答不重写。SDK 团队组合不默认装配知识功能，显式 AGENT_PLUGINS_FILE 仍完全管理插件选择。
+HTTP 默认组合将所选来源、knowledge.answer 与 knowledge.impact 一起装配。回答详情的「检查引用变化」来自 impact 插件，显式核验旧结果实际引用的版本；状态刷新只读最近评估，原文与回答不重写。SDK 团队组合不默认装配知识功能，未声明 base: personal 的显式 AGENT_PLUGINS_FILE 仍完全管理插件选择；个人基底按当前本机设置组合本插件与来源。
 
 ## 入口与触发
 
@@ -210,3 +210,7 @@ flowchart LR
 ```
 
 实现与限制见[评测功能卡](../../evaluations/FEATURE.md)。代码：backend/src/evaluations/、backend/src/scripts/evaluate.ts、frontend/src/pages/workspace/EvaluationsPage.tsx。验证：backend/test/evaluations.test.ts、既有模型/插件/RAG/工作台回归、前端类型/lint/build 与桌面/375px 浏览器验收。固定样例和本机 HTTP 协议服务不代表真实模型质量；无语义裁判、个人资料评测或历史业务环境回放。
+
+## 历史检索作为 Skill 输入
+
+Skill 工作台复用本目录 evidence.ts 的 retrievalEvidence 与 selectEvidence，读取已成功检索的私有历史产物，人工确认后提供片段。RAG 的生成、结构与 verifyCitations 核验保持；自由文本 Skill 不调用 verifyDraft/verifyCitations，不能沿用 RAG 的“引文存在已检查”标记。它只保存选入快照，不证明实际采用或来源仍最新。验证：backend/test/skillKnowledgeContext.test.ts 及既有 knowledgeAnswer.test.ts；实现见[Skill 功能卡](../../connectors/skill-workbench/FEATURE.md)。

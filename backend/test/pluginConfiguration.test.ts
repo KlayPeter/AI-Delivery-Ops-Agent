@@ -60,4 +60,23 @@ describe('trusted plugin configuration', () => {
             await expect(loadPluginConfiguration(file)).rejects.toThrow('expected boolean');
         });
     });
+
+    test('loads a personal base only when requested and never silently replaces its plugins', async () => {
+        await withConfiguration(async (directory, file) => {
+            let calls = 0;
+            const base = () => { calls++; return { plugins: [...deliveryTeamPlugins], config: { 'builtin.task': { label: 'base config' } } }; };
+            await writeFile(file, JSON.stringify({ apiVersion: '1.0', plugins: [] }));
+            expect((await loadPluginConfiguration(file, [], base)).plugins).toEqual([]); expect(calls).toBe(0);
+            await writeFile(path.join(directory, 'untrusted.ts'), 'throw new Error("must not import without a base provider");');
+            await writeFile(file, JSON.stringify({ apiVersion: '1.0', base: 'personal', plugins: [{ module: './untrusted.ts' }] }));
+            await expect(loadPluginConfiguration(file)).rejects.toThrow('本机工作台'); expect(calls).toBe(0);
+            await writeFile(file, JSON.stringify({ apiVersion: '1.0', base: 'personal', plugins: [] }));
+            const loaded = await loadPluginConfiguration(file, [], base);
+            expect(calls).toBe(1); expect(loaded.base).toBe('personal'); expect(loaded.plugins).toHaveLength(12); expect(loaded.config['builtin.task']).toEqual({ label: 'base config' });
+            await writeFile(file, JSON.stringify({ apiVersion: '1.0', base: 'personal', plugins: [{ module: 'builtin.task', config: { label: 'override attempt' } }] }));
+            await expect(loadPluginConfiguration(file, [], base)).rejects.toThrow('Duplicate plugin');
+            await writeFile(file, JSON.stringify({ apiVersion: '1.0', base: 'arbitrary-file.yaml', plugins: [{ module: './untrusted.ts' }] }));
+            await expect(loadPluginConfiguration(file, [], base)).rejects.toThrow(); expect(calls).toBe(2);
+        });
+    });
 });

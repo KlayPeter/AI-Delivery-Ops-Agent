@@ -157,7 +157,7 @@ const app = new Elysia()
             return { error: '本地管理 API 仅接受本机页面请求' };
         }
     })
-    .use(createWorkspaceApi(agentHost, localConnections, () => config))
+    .use(createWorkspaceApi(agentHost, localConnections, () => config, pluginSelection.base))
     .get('/healthz', () => livenessReport())
     .get('/readyz', async ({ set }) => {
         const report = await readinessReport({

@@ -32,7 +32,7 @@ export default function ReleasePage() {
   };
   return <div className="workspace-page">
     <div className="page-heading"><div><h1>发布准备</h1><p>对照你的发布规则和仓库变更，整理证据、草稿与待确认项。</p></div><Tag>只读</Tag></div>
-    {workspace?.managedByPluginFile ? <Alert type="info" showIcon title="来源由自定义插件配置管理" description="仓库和知识来源以 AGENT_PLUGINS_FILE 为准，页面保存的连接设置不会覆盖该组合。" />
+    {(workspace?.sourceSettingsManagedByPluginFile ?? workspace?.managedByPluginFile) ? <Alert type="info" showIcon title="来源由自定义插件配置管理" description="仓库和知识来源以 AGENT_PLUGINS_FILE 为准，页面保存的连接设置不会覆盖该组合。" />
       : connections?.restartRequired && <Alert type="warning" showIcon title="连接配置等待重启生效" description="本次任务仍使用启动时的仓库和知识来源。" />}
     <section className="knowledge-search">
       <div className="connection-title"><span className="icon-tile"><FileSearchOutlined aria-hidden /></span><h2>准备这次发布</h2></div>

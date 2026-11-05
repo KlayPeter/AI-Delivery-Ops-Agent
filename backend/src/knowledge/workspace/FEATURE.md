@@ -31,7 +31,7 @@ flowchart TD
     V --> MATCH{回答插件依赖同一来源且模型已配置?}
     MATCH -- 是 --> A[按需生成引用回答]
     A --> E
-    W --> CFG[仅默认组合：私有来源设置，重启生效]
+    W --> CFG[默认或 base personal：私有来源设置，重启生效]
     P --> STOP[释放页面和 API；历史与来源数据保留]
 ```
 
@@ -57,14 +57,14 @@ flowchart TD
 4. /knowledge 由 PluginPage 验证所有者后渲染已打包视图。核心 App/MainLayout 不再固定注册该路由与菜单。移除界面插件关闭描述 API 与入口，来源检索可单独保留。
 5. 页面使用描述中的明确 Capability。知识回答按钮仅在 knowledge.answer 声明同一来源依赖、对应 Agent 活跃且模型已配置时可用；不会根据插件顺序猜测资料去向。
 6. 描述 API 失败时显示重试并禁用检索，不能用旧来源状态冒充就绪。页面不执行第三方脚本或远端界面包。
-7. 默认应用的来源配置由 LocalConnections 保存，重启后切换。显式插件文件管理组合时禁用页面配置入口并解释以文件为准。
+7. 默认应用的来源配置由 LocalConnections 保存，重启后切换。未声明 base: personal 的显式插件文件管理组合时禁用页面配置入口并解释以文件为准；显式个人基底仍采用本机设置，允许保存并重启。sourceSettingsManagedByPluginFile 是来源所有权标记，managedByPluginFile 继续表示存在组合文件。
 8. 来源文本、引用和结果的验证、权限、数据留存及失败行为遵循各自功能卡；本插件不复制检索实现。
 
 ## 用户能力
 
 - 从选定来源检索原文，查看真实 Run、步骤和证据。
 - 对匹配来源按需生成回答，无模型时仍可体验检索。
-- 在默认应用中配置来源；在显式组合中按说明修改对应可信文件。
+- 在默认应用或 base: personal 组合中配置来源；在其他显式组合中按说明修改对应可信文件。
 
 ## 入口与触发
 
@@ -144,3 +144,5 @@ flowchart LR
 ## 本机任务体验
 
 本功能发起页使用持久启动回执，立即进入可轮询详情；手动根任务可请求停止，关闭页面后仍可从运行记录找回。停止沿既有执行信号传递，取消后不能继续或接受迟到成功，已保存产物与完成操作保留；子任务由父任务管理。CLI/SDK 与内联审查操作仍使用原同步接口。完整协议见[工作台功能卡](../../platform/workspace/FEATURE.md)；验证：backend/test/runControl.test.ts、localRunApi.test.ts 和本功能既有回归，frontend/src/api.test.mjs。
+
+选择个人基底接入 Skill 后，知识检索入口与历史仍保留；Skill 页面可显式预览并选择一次成功检索的历史片段，不改变本插件的检索或 RAG 契约。验证：backend/test/workspaceComposition.test.ts、skillKnowledgeContext.test.ts；流程见[Skill 功能卡](../../connectors/skill-workbench/FEATURE.md)。

@@ -62,6 +62,19 @@ plugins:
 
 配置文件属于部署者的受信任代码装配入口，修改后重启生效。模块导入会执行其顶层代码，因此只选择已审查的本地文件或依赖；HTTP、Git 和其他 URL 不直接执行，也不会自动安装包。新插件的 Secret 仍应使用引用。
 
+### 在个人工作台上追加插件
+
+```yaml
+apiVersion: '1.0'
+base: personal
+plugins:
+  - module: ./examples/plugins/echo.ts
+```
+
+显式配置只有声明 base: personal 才继承当前本机个人预设；未声明的旧文件仍完整替换。基底在重启时按本机来源与 GitHub 设置生成，不是冻结环境；追加插件重复 ID 拒绝，不覆盖基底，不递归继承其他文件或合并团队/自定义组合。 HTTP 与根目录 local 启动使用 loadWorkspacePlugins；直接调用 loadPluginConfiguration 时需提供可信 personalBase 回调，否则在模块导入前拒绝。未选择此基底时不读取个人设置。base 仅接受 personal，不接受路径或其他预设。新增插件可依赖基底插件，enabled:false 只跳过该追加项，不能移除基底。
+
+验证：backend/test/pluginConfiguration.test.ts、workspaceComposition.test.ts；实际 Skill 导出见 [GitHub Skills](GITHUB_SKILLS.md)。
+
 ## 声明字段
 
 | 字段 | 规则 |

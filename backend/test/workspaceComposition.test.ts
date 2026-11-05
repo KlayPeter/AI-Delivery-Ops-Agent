@@ -2,12 +2,13 @@ import { createKnowledgeWebPlugin } from '@/knowledge/web/plugin';
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { AgentHost } from '@/platform/bootstrap/agentHost';
 import { InMemoryPersistentKeyValueStore } from '@/platform/persistence/keyValueStore';
 import { buildConfig } from '@/core/config';
 import { loadWorkspacePlugins } from '@/platform/workspace/composition';
+import { createWorkspaceApi } from '@/platform/workspace/api';
 
 const profile = (name: string) => path.resolve(import.meta.dir, `../profiles/agents/${name}.yaml`);
 const environmentKeys = ['DATA_DIR', 'AGENT_PLUGINS_FILE', 'KNOWLEDGE_KIND', 'KNOWLEDGE_URLS', 'KNOWLEDGE_ROOT', 'KNOWLEDGE_VAULT_NAME', 'KNOWLEDGE_EXCLUDE', 'RELEASE_GITHUB_REPOSITORY', 'RELEASE_GITHUB_BRANCH', 'RELEASE_GITHUB_TOKEN'];
@@ -66,6 +67,36 @@ test('explicit team and empty files fully replace the default composition', asyn
     const empty = await createHost(undefined, profile('empty'));
     try { await empty.initialize(); expect(await empty.listAgents()).toEqual([]); expect(empty.web.pages()).toEqual([]); expect(empty.web.manualJobs()).toEqual([]); }
     finally { await empty.stop(); }
+});
+
+test('an explicit personal base retains actual source settings, adds plugins and exposes editable source ownership', async () => {
+    const file = path.join(root, 'personal.yaml');
+    await writeFile(file, JSON.stringify({ apiVersion: '1.0', base: 'personal', plugins: [{ module: path.resolve(import.meta.dir, '../examples/plugins/echo.ts') }] }));
+    process.env.AGENT_PLUGINS_FILE = file;
+    const selection = await loadWorkspacePlugins(directory), config = { ...buildConfig({}), data_path: directory };
+    expect(selection.base).toBe('personal'); expect(selection.plugins).toHaveLength(15);
+    const host = new AgentHost(() => ({ store: new InMemoryPersistentKeyValueStore(), config, feishu: {}, tapd: {} } as any), 1000, undefined, [], { plugins: selection.plugins, pluginConfig: selection.config });
+    try {
+        const result = await host.runLocal('knowledge.markdown.retrieve', { operation: 'search', query: 'API 迁移说明', limit: 5 }, randomUUID());
+        expect((result.execution!.result.data as any).hits).not.toHaveLength(0);
+        expect((await host.runLocal('example.echo', { text: 'extends personal workspace' }, randomUUID())).execution!.run.status).toBe('succeeded');
+        expect(await host.listAgents()).toHaveLength(10); expect(host.web.pages().some(page => page.path === '/knowledge')).toBe(true);
+        const app = createWorkspaceApi(host, {} as any, () => config, selection.base);
+        const state = await (await app.handle(new Request('http://localhost/api/workspace/state'))).json() as any;
+        expect(state).toMatchObject({ base: 'personal', managedByPluginFile: true, sourceSettingsManagedByPluginFile: false, knowledgeKind: 'sample' });
+        const standaloneState = await (await createWorkspaceApi(host, {} as any, () => config).handle(new Request('http://localhost/api/workspace/state'))).json() as any;
+        expect(standaloneState.sourceSettingsManagedByPluginFile).toBe(true);
+    } finally { await host.stop(); }
+    process.env.KNOWLEDGE_KIND = 'library';
+    const library = await loadWorkspacePlugins(directory);
+    expect(library.config['knowledge.markdown']!.sourceId).toBe('workspace-library');
+    expect(library.config['knowledge.markdown']!.root).toContain(directory);
+    expect(library.config['knowledge.markdown']!.root).not.toContain(process.env.DATA_DIR!);
+    process.env.RELEASE_GITHUB_REPOSITORY = 'example/project';
+    const github = await loadWorkspacePlugins(directory);
+    expect(github.plugins).toHaveLength(17); expect(github.config['connector.github']!.repository).toBe('example/project');
+    await writeFile(file, JSON.stringify({ apiVersion: '1.0', base: 'personal', plugins: [{ module: 'knowledge.markdown' }] }));
+    await expect(loadWorkspacePlugins(directory)).rejects.toThrow('Duplicate plugin');
 });
 
 test('switching profiles preserves successful run artifacts and does not re-enable their old agents', async () => {
