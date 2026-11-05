@@ -15,7 +15,7 @@ last_reviewed: 2026-11-06
 
 `knowledge.impact` 是独立确定性功能插件。选择 Markdown 或网页来源版本 Tool，通过现有 Run/Artifact 存储读取指定历史运行，并保存独立评估。它不调用模型、不复制来源读取、不修改原 Artifact。
 
-当前是显式选择 Run ID 的本地检查，不是全库自动监控或文件变更推送。本机工作台已提供原结果的显式复核入口；自动索引和全局变更提示仍待实现；本功能提供其来源身份、版本协议和评估记录。
+工作台提供「知识复核」集中入口，列出最近 50 次根运行中的成功回答/草稿，可按路径与上次状态筛选，一次明确检查最多 20 条。它仍是显式检查，不是全库自动监控、历史全量索引或文件变更推送。
 
 ## 实现流程图
 
@@ -23,6 +23,9 @@ last_reviewed: 2026-11-06
 flowchart TD
     FS[可选 CLI 状态：已有文件仅元数据检查] --> LK[SQLite 独占会话锁]
     LK --> U
+    CENTER[知识复核页面：最近 50 次根运行候选] --> CACHE[GET 批量摘要：先核对全部归属，仅取原引用与缓存]
+    CACHE --> SELECT[筛选并明确选择最多 20 条]
+    SELECT --> U
     U[本地 CLI --state --check-run / SDK / 工作台插件动作] --> P[Cordis: knowledge.impact]
     P --> V[校验个人 Scope、最多二十个 Run]
     V --> R[先核对所有目标 Run 的 workspace 与 bot]
@@ -76,6 +79,16 @@ flowchart TD
 
 应用资料库选作来源后，knowledge.impact 使用同一固定目录和 workspace-library 身份的 Markdown versions Tool。收录记录与原采集结果彼此独立；资料变动依真实文件版本要求复核，原回答不重写。backend/test/knowledgeLibrary.test.ts 验证 current 到 needs_review 及原证据保持。
 
+## 集中复核入口
+
+knowledge.impact 自己贡献 /knowledge-reviews、GET /api/knowledge-impact/reviews 与已打包视图。卸载后页面和 API 同时不可用，历史评估保留；不新增插件或 Agent，也不修改默认装配数量。Agent 目录的引用复核入口进入该页面。
+
+列表从既有工作台最近 50 次根运行中选出成功的 knowledge.answer/release.prepare，再按最多 50 个不同 runId 查询摘要。GET 不扫描历史前缀、读取来源、创建 Run 或改写评估；请求 URL 最多 15000 字符，只接受重复 runId 参数。服务先校验全部目标 workspace/bot 归属，再读取任何 Artifact；失败不返回部分私有结果。
+
+摘要只返回 Run 标识/类型/时间、经原引用验证得到的路径/来源类型、可检查标记及上次评估的状态/时间/检查 Run ID，不回传问题、回答、精确引文或完整 Artifact。没有实际引用时无需检查；原格式损坏、未知旧评估或缓存目标 ID 不一致时不能显示绿色状态。评估 Schema 由服务统一拥有；缓存目标 ID、current 的版本相等关系及 needs_review 的变化事实都需匹配，原单结果状态面板与 CLI status 共用校验，损坏缓存显式失败。
+
+页面将 current 标为“上次版本未变化”，明确显示时间；刷新列表不自动读取知识，不能冒充当前来源仍一致。搜索与状态切换会清空选择；批量动作只取当前筛选下仍可检查且不超过 20 条的 ID，通过普通 Run API 和同一 Native Agent 执行，继续遵守来源身份、共享预算、CAS 与错误语义。完成后刷新列表及所选原运行的动作缓存，可打开原结果或独立检查记录。不存在自动重新生成或语义验收。
+
 ## 用户能力
 
 - 保存回答/发布草稿，之后修改知识并按旧 Run ID 检查受影响结果。
@@ -86,6 +99,8 @@ flowchart TD
 
 | 入口 | 输入 | 输出 |
 | --- | --- | --- |
+| /knowledge-reviews | 最近 50 次根运行候选、路径/状态、最多 20 条选择 | 只读摘要与独立批量检查 |
+| GET /api/knowledge-impact/reviews | 最多 50 个不同 runId | 同一默认 workspace/bot 的只读引用/评估摘要 |
 | 工作台「检查引用变化」 | 当前成功回答/草稿 | 独立检查 Run、缓存状态与报告跳转 |
 | knowledge.impact.check | runIds、可选 operation=check/status | 独立评估、原 Artifact ID 与检查报告 |
 | knowledge.ts --check-run | 目录或网页、原状态文件、重复 Run ID | 刷新来源并检查 |
@@ -130,7 +145,8 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 - `backend/src/knowledge/impact/plugin.ts`：检查编排、协议核对、插件动作和 Artifact。
 - `backend/src/knowledge/impact/presentation.ts`：评估到通用文本面板，拒绝缺少证据/时间的绿色状态。
-- `backend/src/knowledge/impact/service.ts`：原引用提取、Scope、CAS 与缓存。
+- `backend/src/knowledge/impact/service.ts`：原引用提取、Scope、CAS、缓存 Schema 与只读批量摘要。
+- `frontend/src/pages/workspace/KnowledgeReviewsPage.tsx`、`knowledgeReviews.ts`：集中筛选、最多二十条批量动作、缓存刷新与历史跳转。
 - `backend/src/knowledge/impact/webPlugin.ts`：网页版本来源组合。
 - `backend/src/knowledge/versions.ts`：版本请求/响应协议。
 - `backend/src/knowledge/markdown/source.ts`、`backend/src/knowledge/web/source.ts`：来源身份与版本读取。
@@ -139,6 +155,9 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 - `backend/profiles/agents/knowledge-impact-demo.yaml`、`backend/profiles/agents/knowledge-web-impact-demo.yaml`：独立组合。
 
 ### 主要测试
+
+- `backend/test/knowledgeReviews.test.ts`：批量归属先于证据读取、缓存无写入/无来源读取、变化与未变化独立判断、非法旧记录、请求边界、页面/API 所有权。
+- `frontend/src/pages/workspace/knowledgeReviews.test.mjs`：状态、真实引用路径过滤、失效/不可查项剔除与二十条执行上限。
 
 - `backend/test/runActions.test.ts`、`backend/test/workspaceActions.test.ts`：状态不刷新、显式复核、原 Artifact 不变、独立报告与错误呈现。
 
@@ -150,6 +169,7 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-06 | 增加插件拥有的集中复核入口，批量检查与只读上次状态分离 | 服务/API 专项、前后端门禁、实际 SDK 协议样例与桌面/375px 验收 |
 | 2026-11-05 | 插件贡献工作台复核动作、检查时间与原结果/检查记录跳转，保持历史证据不变 | 插件动作/API 专项、后端回归、前端检查与桌面/375px 浏览器验收 |
 | 2026-11-05 | 修复已有 CLI 状态文件的文件检查释放 POSIX 会话锁，重复拒绝不能放行其他进程 | 本地状态与知识复核专项、类型检查、后端回归 |
 | 2026-11-05 | 新增显式历史知识复核、稳定来源身份与本地持久化 | 15 项新增专项；干净安装类型检查与后端 502 通过 / 1 TAPD 跳过；跨进程模拟模型验证，不连接服务器或执行外部写入 |

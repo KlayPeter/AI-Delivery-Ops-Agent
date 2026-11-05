@@ -124,7 +124,7 @@ HTTP 默认装配个人知识、采集、验收、工具接入、研究、配方
 | `community-developer-docs` | Context7 在线开发文档与标准 Agent Skills 导入 | active（显式安装） | `community.context7-docs` / `community.context7-assistant` | [查看](../../backend/src/connectors/context7/FEATURE.md) |
 | `mcp-tool-connector` | 本地 stdio / 公开 HTTPS MCP、显式工具、标准 Schema 与连接生命周期 | active | 无独立业务 Agent；可选读取示例 | [查看](../../backend/src/connectors/mcp/FEATURE.md) |
 | `github-project-facts` | GitHub 固定仓库的合并 PR、开放 Issue 与来源覆盖 | active | 无独立 Agent；只读连接 Tool | [查看](../../backend/src/connectors/github/FEATURE.md) |
-| `knowledge-change-impact` | 历史引用版本复核、来源身份与可选本地持久化 | active | `native.knowledge-impact`；本地显式检查 | [查看](../../backend/src/knowledge/impact/FEATURE.md) |
+| `knowledge-change-impact` | 集中历史引用复核、独立批量检查与可选本地持久化 | active | `native.knowledge-impact`；本地显式检查 | [查看](../../backend/src/knowledge/impact/FEATURE.md) |
 | `personal-markdown-knowledge` | 只读 Markdown/Obsidian 同步、笔记链接与版本化关键词检索；本地 CLI | active | `native.knowledge-markdown`；显式安装，默认团队不启用 | [查看](../../backend/src/knowledge/markdown/FEATURE.md) |
 | `personal-web-knowledge` | 公开单页 URL 抓取、正文提取、版本化检索与 RAG 组合 | active | `native.knowledge-web`；显式安装 | [查看](../../backend/src/knowledge/web/FEATURE.md) |
 | `personal-knowledge-answer` | 个人知识 RAG 回答、原文引用核验与不足表达；本地 CLI | active | `native.knowledge-answer`；显式安装，默认团队不启用 | [查看](../../backend/src/knowledge/answer/FEATURE.md) |

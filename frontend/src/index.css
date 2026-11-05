@@ -145,3 +145,28 @@ button, summary { cursor: pointer; }
   .ant-btn { min-height: 44px; } .run-drawer .ant-drawer-content-wrapper { width: 100% !important; max-width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+
+.review-filters { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 16px; margin: 24px 0 16px; }
+.review-filters label { display: block; margin-bottom: 8px; color: var(--muted); font-size: 13px; }
+.review-filters .ant-select { width: 100%; }
+.review-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.review-toolbar .form-actions { margin: 0; }
+.review-list { list-style: none; padding: 0; margin: 0 0 20px; }
+.review-row { display: flex; align-items: flex-start; gap: 16px; padding: 24px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); margin-bottom: 12px; }
+.review-row > .ant-checkbox-wrapper { min-width: 44px; min-height: 44px; align-items: center; }
+.review-content { flex: 1; min-width: 0; }
+.review-content p { margin: 8px 0 0; }
+.review-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; min-height: 44px; }
+.review-heading .ant-tag { margin: 0; }
+.review-paths { list-style: none; padding: 0; margin: 12px 0 0; font-size: 13px; line-height: 1.7; }
+.review-links { display: flex; flex-direction: column; gap: 8px; }
+@media (max-width: 600px) {
+  .review-filters { grid-template-columns: 1fr; }
+  .review-row { flex-wrap: wrap; gap: 10px; padding: 16px; }
+  .review-links { width: 100%; flex-direction: row; flex-wrap: wrap; padding-left: 54px; }
+  .review-toolbar .form-actions { width: 100%; }
+}
+
+.review-links .ant-btn { min-height: 44px; }
+
+.review-time { white-space: nowrap; }

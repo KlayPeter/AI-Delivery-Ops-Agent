@@ -63,6 +63,8 @@ are deferred while the local product is being validated.
 - [x] Add a knowledge retrieval plugin with citations, source versions and Obsidian links.
 - [x] Track actual source-to-artifact citations and explicitly check historical
   results for changed, missing or unavailable knowledge; retain the original result.
+  The review center filters successful answers/drafts among the latest 50 root runs and
+  checks up to 20 selected results; list refresh only reads dated cached assessments.
 - [x] Capture public pages and convert local documents through pinned Microsoft
   MarkItDown; explicitly collect results into a private searchable application library.
 - [x] Integrate the real Context7 MCP service and import its standard SKILL.md with

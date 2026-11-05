@@ -56,6 +56,7 @@ export const api = {
   fetchKnowledgeWorkspace: () => request(client.get('/knowledge-workspace')),
   fetchDocumentStatus: () => request(client.get('/documents/status')),
   fetchLibrary: () => request(client.get('/library')),
+  fetchKnowledgeReviews: (runIds: string[]) => request(client.get('/knowledge-impact/reviews?' + new URLSearchParams(runIds.map(id => ['runId', id])).toString())),
   fetchRunCheckContracts: () => request(client.get('/checks/contracts')),
   fetchMcpTools: () => request(client.get('/mcp-runner/tools')),
   exportMcpProfile: (input: Record<string, unknown>) => request(client.post('/mcp-setup/profile', input)),

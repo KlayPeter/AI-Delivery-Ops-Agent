@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { AgentManifest } from '@/platform/agents/contracts';
 import type { FeaturePlugin } from '@/platform/plugins/contracts';
+import { DEFAULT_BOT_INSTANCE_ID, DEFAULT_WORKSPACE_ID } from '@/platform/runtime/scope';
 import { RunToolCallBudget } from '@/platform/tools/budget';
 import { KNOWLEDGE_MARKDOWN_VERSIONS_TOOL } from '../markdown/plugin';
 import { requirePersonalScope } from '../scope';
@@ -10,6 +11,7 @@ import { knowledgeReviewPanel } from './presentation';
 
 export const KNOWLEDGE_IMPACT_CAPABILITY = 'knowledge.impact.check';
 const inputSchema = z.object({ runIds: z.array(z.string().min(1).max(256)).min(1).max(20).refine(ids => new Set(ids).size === ids.length, 'Duplicate target run ID'), operation: z.enum(['check', 'status']).default('check') }).strict();
+const reviewIds = z.array(z.string().min(1).max(256)).max(50).refine(ids => new Set(ids).size === ids.length);
 const referenceKey = (item: { path: string; sourceKey: string; documentVersion: string }) => JSON.stringify([item.sourceKey, item.path, item.documentVersion]);
 
 export function createKnowledgeImpactPlugin(source = { pluginId: 'knowledge.markdown', versionsTool: KNOWLEDGE_MARKDOWN_VERSIONS_TOOL, kind: 'markdown' as 'markdown' | 'web' | 'mixed' }): FeaturePlugin {
@@ -25,9 +27,22 @@ export function createKnowledgeImpactPlugin(source = { pluginId: 'knowledge.mark
         delivery: { allowedArtifactTypes: ['json'], directDelivery: false },
     };
     return {
-        manifest: { apiVersion: '1.0', id: 'knowledge.impact', name: manifest.name, version: '1.0.0', description: manifest.description, requires: [source.pluginId] },
+        manifest: { apiVersion: '1.0', id: 'knowledge.impact', name: manifest.name, version: '1.1.0', description: manifest.description, requires: [source.pluginId] },
         agents: [{ manifest, installationId: 'install-knowledge-impact' }],
         apply(ctx) {
+            ctx.delivery.web.register({ id: 'knowledge.impact', pages: [{ path: '/knowledge-reviews', label: '知识复核', section: 'workspace', view: { kind: 'builtin', id: 'knowledge-reviews', capability: KNOWLEDGE_IMPACT_CAPABILITY } }],
+                api: { prefix: '/api/knowledge-impact', routes: [{ method: 'GET', path: '/api/knowledge-impact/reviews' }], async handle(request) {
+                    const url = new URL(request.url);
+                    if (request.method !== 'GET' || url.pathname !== '/api/knowledge-impact/reviews') return Response.json({ error: '当前插件未提供此接口' }, { status: 404 });
+                    if (url.search.length > 15000) return Response.json({ error: '查询超过大小限制' }, { status: 413 });
+                    const input = reviewIds.safeParse(url.searchParams.getAll('runId'));
+                    if (!input.success || [...url.searchParams.keys()].some(key => key !== 'runId')) return Response.json({ error: '请选择最多 50 个不同的运行记录' }, { status: 400 });
+                    try {
+                        const reviews = await new KnowledgeImpactService(ctx.delivery.getContext().store).reviews({ workspaceId: DEFAULT_WORKSPACE_ID, botInstanceId: DEFAULT_BOT_INSTANCE_ID }, input.data);
+                        return Response.json({ reviews });
+                    } catch { return Response.json({ error: '无法读取所选历史记录，请刷新列表并确认运行属于当前工作区' }, { status: 400 }); }
+                } },
+            });
             ctx.delivery.runActions.register({
                 id: 'knowledge.review', label: '检查引用变化', description: '只检查此结果实际引用的资料，不修改原回答。',
                 capability: KNOWLEDGE_IMPACT_CAPABILITY, appliesTo: ['knowledge.answer', 'release.prepare'],

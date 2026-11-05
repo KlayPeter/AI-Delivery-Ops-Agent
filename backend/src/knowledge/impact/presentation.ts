@@ -1,12 +1,6 @@
-import { z } from 'zod';
+import { assessmentSchema } from './service';
 import { statusPanelSchema, type StatusPanel } from '@/platform/plugins/runActions';
 
-const assessmentSchema = z.object({
-    runId: z.string().min(1).max(256), checkRunId: z.string().min(1).max(256).optional(), checkedAt: z.string().datetime({ offset: true }).optional(),
-    state: z.enum(['current', 'needs_review', 'unverifiable', 'not_applicable']), reason: z.string().optional(),
-    references: z.array(z.object({ path: z.string().max(1024), documentVersion: z.string().length(64), currentVersion: z.string().length(64).optional(),
-        status: z.enum(['current', 'changed', 'missing', 'unavailable', 'out_of_scope', 'legacy_unverifiable']) })).max(10).default([]),
-}).refine(value => !['current', 'needs_review'].includes(value.state) || Boolean(value.checkedAt && value.checkRunId && value.references.length), 'A checked assessment requires its evidence and check time');
 
 const referenceLabels = { current: '版本未变化', changed: '内容已变化', missing: '原路径已缺失', unavailable: '无法读取', out_of_scope: '当前来源范围不匹配', legacy_unverifiable: '历史证据缺少来源身份' };
 export function knowledgeReviewPanel(value: unknown): StatusPanel {

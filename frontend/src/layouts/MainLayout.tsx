@@ -7,7 +7,7 @@ import { useWorkspace } from '@/pages/workspace/state';
 import { activePluginPage, hasTeamNavigation, type PluginPage } from '@/pages/workspace/pages';
 
 const link = (path: string, label: string) => <Link to={path}>{label}</Link>;
-const pluginIcons: Record<string, React.ReactNode> = { knowledge: <DatabaseOutlined aria-hidden />, standups: <CheckSquareOutlined aria-hidden />, dashboard: <DashboardOutlined aria-hidden />, 'human-gantt': <ScheduleOutlined aria-hidden />, 'weekly-reports': <FileTextOutlined aria-hidden />, 'meeting-summaries': <FileTextOutlined aria-hidden /> };
+const pluginIcons: Record<string, React.ReactNode> = { 'knowledge-reviews': <HistoryOutlined aria-hidden />, knowledge: <DatabaseOutlined aria-hidden />, standups: <CheckSquareOutlined aria-hidden />, dashboard: <DashboardOutlined aria-hidden />, 'human-gantt': <ScheduleOutlined aria-hidden />, 'weekly-reports': <FileTextOutlined aria-hidden />, 'meeting-summaries': <FileTextOutlined aria-hidden /> };
 const pluginLinks = (pages: PluginPage[], section: PluginPage['section']) => pages.filter(page => page.section === section && page.navigation !== false).map(page => ({ key: page.path, icon: page.view.kind === 'builtin' ? pluginIcons[page.view.id] || <RobotOutlined aria-hidden /> : <RobotOutlined aria-hidden />, label: link(page.path, page.label) }));
 const items = (pages: PluginPage[], manualJobs: string[]) => [
   { key: '/', icon: <AppstoreOutlined aria-hidden />, label: link('/', '工作台') },

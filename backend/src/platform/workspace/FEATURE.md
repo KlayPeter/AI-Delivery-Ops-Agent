@@ -307,3 +307,19 @@ flowchart LR
 ```
 
 代码与测试：scripts/local/launcher.ts、backend/src/index.ts、backend/test/localLauncher.test.ts。完整边界见[本地启动功能卡](../../../../scripts/local/FEATURE.md)。
+
+## 知识复核集中入口
+
+knowledge.impact 贡献 /knowledge-reviews 和 /api/knowledge-impact/reviews；前端按实际页面贡献挂载，移除插件后无法访问。列表复用既有最近 50 次根运行，显示成功回答/草稿的实际引用路径与带时间的上次检查状态。GET 按最多 50 个 ID 查询，先核对全部 workspace/bot 再读 Artifact，只返回摘要，不创建 Run、改写状态或读取来源。
+
+用户按路径/状态筛选并明确选择最多 20 条后，通过普通 Run API 调用 knowledge.impact.check，生成独立报告、共用版本 Tool 预算与 CAS 评估；原 Artifact 不变。界面刷新所选原动作缓存，分别链接原结果与检查记录。current 只标记上次版本未变化，损坏/未完成/未知记录不显示绿色；版本一致不证明语义正确。无历史全量扫描、后台监控或自动重生成。
+
+```mermaid
+flowchart LR
+    REV_UI[插件复核页面] --> REV_CACHE[读取归属核验后的原引用与缓存]
+    REV_UI -- 用户选择最多 20 条 --> REV_RUN[普通 Native Run 与共享来源预算]
+    REV_RUN --> REV_REPORT[独立报告及上次评估]
+    REV_REPORT --> REV_OLD[回到保留的原结果]
+```
+
+实现：backend/src/knowledge/impact/plugin.ts、service.ts，frontend/src/pages/workspace/KnowledgeReviewsPage.tsx、knowledgeReviews.ts。验证：backend/test/knowledgeReviews.test.ts、既有知识复核/动作回归，frontend/src/pages/workspace/knowledgeReviews.test.mjs，类型/lint/build 与桌面/375px 浏览器验收；真实模型效果未验证。

@@ -16,6 +16,16 @@ export interface ImpactReport {
     references: Array<ImpactReference & { status: 'current' | 'changed' | 'missing' | 'unavailable' | 'out_of_scope' | 'legacy_unverifiable'; currentVersion?: string }>;
     semanticImpact: 'not_assessed';
 }
+export const assessmentSchema = z.object({
+    runId: z.string().min(1).max(256), checkRunId: z.string().min(1).max(256).optional(), checkedAt: z.string().datetime({ offset: true }).optional(),
+    state: z.enum(['current', 'needs_review', 'unverifiable', 'not_applicable']), reason: z.string().optional(),
+    references: z.array(z.object({ path: z.string().max(1024), documentVersion: z.string().length(64), currentVersion: z.string().length(64).optional(),
+        status: z.enum(['current', 'changed', 'missing', 'unavailable', 'out_of_scope', 'legacy_unverifiable']) })).max(10).default([]),
+}).refine(value => !['current', 'needs_review'].includes(value.state) || Boolean(value.checkedAt && value.checkRunId && value.references.length), 'A checked assessment requires its evidence and check time')
+    .refine(value => value.state !== 'current' || value.references.every(reference => reference.status === 'current' && reference.currentVersion === reference.documentVersion), 'Current assessments require matching reference versions')
+    .refine(value => value.state !== 'needs_review' || value.references.some(reference => ['changed', 'missing'].includes(reference.status)), 'Review assessments require a changed or missing reference');
+
+
 const evidence = z.object({ citationId: contentVersion, excerpt: z.string().max(8192), path: z.string().min(1).max(1024), documentVersion: contentVersion,
     sourceKey: contentVersion.optional(), sourceKind: z.enum(['markdown', 'web']).optional(), kind: z.string().optional() });
 const claims = z.array(z.object({ citations: z.array(citationReference).min(1).max(4) })).max(200);
@@ -73,6 +83,23 @@ export class KnowledgeImpactService {
         return targets;
     }
 
+    async reviews(scope: Scope, runIds: readonly string[]) {
+        const targets = await this.targets(scope, runIds);
+        return Promise.all(targets.map(async target => {
+            const { run } = target;
+            let assessment: Pick<z.infer<typeof assessmentSchema>, 'state' | 'reason' | 'checkedAt' | 'checkRunId'>;
+            if (target.problem) assessment = { state: 'unverifiable', reason: target.problem };
+            else {
+                try {
+                    const value = assessmentSchema.parse(await this.latest(scope, run.id));
+                    assessment = { state: target.references.length ? value.state : 'not_applicable', reason: target.references.length ? value.reason : 'no_cited_knowledge', checkedAt: value.checkedAt, checkRunId: value.checkRunId };
+                } catch { assessment = { state: 'unverifiable', reason: 'invalid_assessment' }; }
+            }
+            return { id: run.id, capability: run.capability, createdAt: run.createdAt, canCheck: !target.problem && target.references.length > 0,
+                references: target.references.map(reference => ({ path: reference.path, sourceKind: reference.sourceKind })), assessment };
+        }));
+    }
+
     async begin(scope: Scope, runId: string, checkRunId: string): Promise<number> {
         const key = this.key(scope, runId);
         for (let attempt = 0; attempt < 5; attempt++) {
@@ -96,7 +123,10 @@ export class KnowledgeImpactService {
         const value = await this.store.getIdempotencyValue(this.key(scope, runId));
         if (!value) return { runId, state: 'unverifiable', reason: 'not_checked' };
         const current = reservation.parse(value);
-        return current.phase === 'checking' ? { runId, state: 'unverifiable', reason: 'check_incomplete', checkRunId: current.checkRunId } : current.report;
+        if (current.phase === 'checking') return { runId, state: 'unverifiable', reason: 'check_incomplete', checkRunId: current.checkRunId };
+        const report = assessmentSchema.parse(current.report);
+        if (report.runId !== runId) throw new Error('Assessment belongs to another target');
+        return current.report;
     }
 
     private key(scope: Scope, runId: string) {
