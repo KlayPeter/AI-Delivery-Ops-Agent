@@ -191,6 +191,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 修复通用 `logs/` 忽略规则误排除前端日志组件的问题；将筛选与表格源码纳入公开仓库，确保干净检出能构建 | 干净 Git 归档的前端类型检查、测试与构建；GitHub CI |
 | 2026-07-29 | 公司部署流水线替换为公共 GitHub Actions 质量门禁，不再自动推送镜像或修改集群 | Workflow YAML、Docker 构建验证 |
 | 2026-08-04 | 将 Swagger UI 和 OpenAPI JSON 从被前端 SPA 接管的 `/swagger` 移到生产代理可达的 `/api/swagger` 与 `/api/swagger/json` | `apiDocumentation.test.ts`、后端类型检查 |
 | 2026-08-04 | 修复定时报告生成超过 Outbox 租约后，后台 Worker 与主动 flush 并发重领造成的重复发送；所有 drain 串行化并以真实刷新时间领取，重复 Agent Trigger 改记“重复触发已跳过” | `deliveryOutbox.test.ts`、`scheduler.test.ts`、后端类型检查 |

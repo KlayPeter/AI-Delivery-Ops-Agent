@@ -16,6 +16,7 @@ data/
 .data/
 backend/data/
 logs/
+!frontend/src/components/logs/
 backups/
 artifacts/
 generated/
