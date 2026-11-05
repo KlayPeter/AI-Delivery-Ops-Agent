@@ -4,7 +4,7 @@ name: 公开网页知识源
 status: active
 agent_mapping:
   - native.knowledge-web
-last_reviewed: 2026-11-05
+last_reviewed: 2026-11-06
 ---
 
 # 公开网页知识源
@@ -176,3 +176,13 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 | 2026-11-05 | 来源身份参与引用，新增只读 versions Tool；支持独立历史引用复核与 CLI 可选持久化 | 来源回归、Impact 专项与跨进程 CLI |
 
 设计依据：[Mozilla Readability](https://github.com/mozilla/readability)、[LinkeDOM](https://github.com/WebReflection/linkedom)、[Node HTTPS](https://nodejs.org/api/https.html)、[IPv4 特殊地址](https://www.iana.org/assignments/iana-ipv4-special-registry)、[IPv6 特殊地址](https://www.iana.org/assignments/iana-ipv6-special-registry)。依赖固定为 Readability 0.6.0（Apache-2.0）和 LinkeDOM 0.18.15（ISC）。
+
+## 可选生成的模型组合
+
+网页 RAG 的公开配置显式加入标准模型插件，纯网页检索不需要模型。CLI 仅使用 KNOWLEDGE_*，Ollama 允许无密钥本机接口；网页抓取仍遵守原公开网络边界，不能借模型配置读取私网页面。 完整协议、实现与验证边界见[模型提供者功能卡](../../platform/models/FEATURE.md)。验证：backend/test/modelProviders.test.ts、knowledgeAnswer.test.ts、personalResearch.test.ts 及既有回归。
+
+```mermaid
+flowchart LR
+    MP_PLUGIN[显式模型插件] --> MP_REG[Host 共享模型网关]
+    MP_REG --> MP_RUN[原有 Agent 或生成管线]
+```

@@ -116,11 +116,11 @@ flowchart TD
 
 ## 本地工作台
 
-HTTP 应用首页提供任务、运行详情、Agent/插件清单和连接表单，复用现有 Host；本地请求固定默认 workspace/bot，最终结果不投递会话。HTTP 默认组合数量见[工作台功能卡](workspace/FEATURE.md)与[首页装配表](../../../README.md#能力与插件)，首页数量由回归对照实际声明校验；团队 SDK 组合保持九个插件、七个 Agent。管理 API 校验回环 Host/Origin；这不是多人认证。站会、看板、甘特、周报与隐藏纪要页面/API 已按插件装配；旧根查询和 HTML 链接同样核对所有者，甘特计划继续由 TaskService 保存。
+HTTP 应用首页提供任务、运行详情、Agent/插件清单和连接表单，复用现有 Host；本地请求固定默认 workspace/bot，最终结果不投递会话。HTTP 默认组合数量见[工作台功能卡](workspace/FEATURE.md)与[首页装配表](../../../README.md#能力与插件)，首页数量由回归对照实际声明校验；团队 SDK 组合保持十二个插件、七个 Agent。管理 API 校验回环 Host/Origin；这不是多人认证。站会、看板、甘特、周报与隐藏纪要页面/API 已按插件装配；旧根查询和 HTML 链接同样核对所有者，甘特计划继续由 TaskService 保存。
 
 ## 核心规则
 
-团队 SDK 组合为九个功能插件、七个 Agent。各插件拥有自己的消息指令与引用贡献；Router 无业务默认项，空组合无消息和群业务调度功能。私聊组合中的成员门槛继续保留，不表示已提供逐路由授权或 RBAC。
+团队 SDK 组合为十二个功能插件、七个 Agent。各插件拥有自己的消息指令与引用贡献；Router 无业务默认项，空组合无消息和群业务调度功能。私聊组合中的成员门槛继续保留，不表示已提供逐路由授权或 RBAC。
 
 原生插件现在可调用宿主 Orchestrator 和 Tool Gateway 组合受治理管线。知识回答用一个检索 Tool 和一次无 Tool 的模型生成，在发布前核验引用；两个个人知识插件均不进入默认团队组合。`allowHumanInput: false` 关闭模型执行器的默认人工输入函数，其他 Agent 保持原有默认暂停恢复行为。
 
@@ -188,7 +188,7 @@ HTTP 默认加入独立 mcp.setup 接入助手，公开 HTTPS 匿名发现、审
 
 ## HTTP 默认组合边界
 
-HTTP 仅默认加载个人知识、采集、资料库、验收、MCP 接入助手、个人研究及任务配方（十一插件/九 Agent）；SDK 团队默认不变，HTTP 团队通过既有可信文件显式选择。工作台根据实际 active Agent 和页面/手动任务贡献选择默认能力与导航，不将隐藏菜单作为 API 授权。默认没有站会/看板/周报插件接口或九项团队业务任务；切换保留成功历史，不自动重新启用旧插件。真实装配与保留历史验证见 backend/test/workspaceComposition.test.ts；首页数量由 featureIndex.test.ts 对照实际 HTTP 选择器检查。
+HTTP 仅默认加载个人知识、采集、资料库、验收、MCP 接入助手、个人研究及任务配方（十四插件/九 Agent）；SDK 团队默认不变，HTTP 团队通过既有可信文件显式选择。工作台根据实际 active Agent 和页面/手动任务贡献选择默认能力与导航，不将隐藏菜单作为 API 授权。默认没有站会/看板/周报插件接口或九项团队业务任务；切换保留成功历史，不自动重新启用旧插件。真实装配与保留历史验证见 backend/test/workspaceComposition.test.ts；首页数量由 featureIndex.test.ts 对照实际 HTTP 选择器检查。
 
 ## 个人研究与 Model Loop 守卫
 
@@ -360,3 +360,13 @@ personal.recipes 独立拥有任务配方页面/API 与私有 KV，默认个人�
 前端仅在装配配方时于页面内存保留有界候选输入，刷新/移除清空；明确保存才写本机完整参数。来源回执在插件 KV，避免向其他 Agent 注入越出 Manifest 的 Artifact；写回执失败返回真实 Run ID 与警告。RunDrawer 展示配方来源和参数变化，可回到原始结果；移除插件关闭入口但保留记录。
 
 实现/规则见 [任务配方功能卡](../recipes/FEATURE.md)，验证：backend/test/runRecipes.test.ts、frontend/src/runInputs.test.mjs、既有 Runtime/插件回归和桌面/375px 浏览器验收；本批不验证真实模型质量。
+
+## Agent 模型端口
+
+Host 持有空 ModelProviderRegistry，模型提供者由 model.openai/model.google/model.ollama 或自定义插件注册，Orchestrator 复用共享网关；未装配时 modelConfigured=false，不隐式恢复云端。停止等待在途任务后释放贡献，历史与连接保存不变。 完整协议、实现与验证边界见[模型提供者功能卡](models/FEATURE.md)。验证：backend/test/modelProviders.test.ts、knowledgeAnswer.test.ts、personalResearch.test.ts 及既有回归。
+
+```mermaid
+flowchart LR
+    MP_PLUGIN[显式模型插件] --> MP_REG[Host 共享模型网关]
+    MP_REG --> MP_RUN[原有 Agent 或生成管线]
+```

@@ -1,3 +1,4 @@
+import { standardModelPlugins } from '@/platform/models/providers';
 import { afterEach, describe, expect, test } from 'bun:test';
 import { createServer } from 'node:http';
 import { AgentHost } from '@/platform/bootstrap/agentHost';
@@ -148,7 +149,7 @@ describe('public web knowledge', () => {
 
     test('profile loading, real Host and RAG reuse the governed web Tool and preserve source metadata', async () => {
         const selection = await loadPluginConfiguration(`${import.meta.dir}/../profiles/agents/knowledge-web-answer-demo.yaml`);
-        expect(selection.plugins.map(plugin => plugin.manifest.id).sort()).toEqual(['knowledge.answer', 'knowledge.web']);
+        expect(selection.plugins.map(plugin => plugin.manifest.id).sort()).toEqual(['knowledge.answer', 'knowledge.web', 'model.google', 'model.ollama', 'model.openai']);
         let reads = 0;
         const modelRequests: any[] = [];
         const server = Bun.serve({ hostname: '127.0.0.1', port: 0, async fetch(request) {
@@ -163,7 +164,7 @@ describe('public web knowledge', () => {
         cleanup.push(() => server.stop(true));
         const store = new InMemoryPersistentKeyValueStore();
         const host = new AgentHost(() => ({ store, config: { feishu: { bot_name: 'Web test' }, groups: [], ai: { provider: 'openai-compatible', model: 'fixture', api_key: 'local-fixture', api_base: `${server.url}v1` } } }) as any,
-            10, undefined, [], { plugins: [knowledgeWebAnswerPlugin, createKnowledgeWebPlugin(async () => { reads++; return page(); })], pluginConfig: { 'knowledge.web': { urls: [url] } } });
+            10, undefined, [], { plugins: [...standardModelPlugins, knowledgeWebAnswerPlugin, createKnowledgeWebPlugin(async () => { reads++; return page(); })], pluginConfig: { 'knowledge.web': { urls: [url] } } });
         cleanup.push(() => host.stop());
         const input = { question: 'API migration' };
         const trigger = (id: string, extra = {}) => createTriggerEnvelope({ scope: createTriggerScope({ workspaceId: 'workspace-default', botInstanceId: 'bot-default', triggerType: 'manual', triggerId: id, ...extra }), occurredAt: new Date().toISOString(), payload: input, replyPolicy: { mode: 'none' } });

@@ -4,7 +4,7 @@ name: 个人知识 RAG 回答与引用核验
 status: active
 agent_mapping:
   - native.knowledge-answer
-last_reviewed: 2026-11-05
+last_reviewed: 2026-11-06
 ---
 
 # 个人知识 RAG 回答与引用核验
@@ -174,3 +174,13 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 | 2026-11-05 | 同一回答实现支持显式网页来源组合，保留提取文本定位与抓取时间 | 33 项知识专项、后端全量与类型检查 |
 | 2026-11-05 | 精确引文校验与 CLI 模型设置供发布准备复用，回答口径保持；拒绝重复证据 ID | 原知识专项与发布准备回归 |
 | 2026-11-05 | 保留稳定来源身份供历史引用复核，CLI 可选跨进程保存；原生成与引文核验保持 | 原知识回归与真实 CLI 模拟模型验证 |
+
+## 模型供应商装配
+
+RAG 通过共享 Host 网关选择已装配提供者，支持无密钥 Ollama，不复制模型调用逻辑。CLI 与生成配置档显式安装模型插件，纯检索不依赖它。原引用身份/精确引文核验继续生效，不证明真实模型语义质量。 完整协议、实现与验证边界见[模型提供者功能卡](../../platform/models/FEATURE.md)。验证：backend/test/modelProviders.test.ts、knowledgeAnswer.test.ts、personalResearch.test.ts 及既有回归。
+
+```mermaid
+flowchart LR
+    MP_PLUGIN[显式模型插件] --> MP_REG[Host 共享模型网关]
+    MP_REG --> MP_RUN[原有 Agent 或生成管线]
+```

@@ -1,3 +1,4 @@
+import { standardModelPlugins } from '@/platform/models/providers';
 import { afterEach, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -19,7 +20,7 @@ const disposers: Array<() => unknown | Promise<unknown>> = [];
 afterEach(async () => { for (const dispose of disposers.splice(0).reverse()) await dispose(); });
 type Mode = 'retrieve' | 'rag' | 'multi' | 'partial' | 'child-pause' | 'plain' | 'failed-child' | 'bad-citation' | 'empty-draft' | 'pause' | 'budget';
 
-async function fixture(mode: Mode = 'retrieve') {
+async function fixture(mode: Mode = 'retrieve', provider = 'openai-compatible') {
     const root = await mkdtemp(path.join(tmpdir(), 'personal-research-'));
     disposers.push(() => rm(root, { recursive: true, force: true }));
     const vault = path.join(root, 'vault'); await mkdir(vault, { mode: 0o700 });
@@ -53,13 +54,13 @@ async function fixture(mode: Mode = 'retrieve') {
     const store = new InMemoryPersistentKeyValueStore();
     const research = createPersonalResearchPlugin();
     if (mode === 'budget') research.agents = research.agents!.map(agent => ({ ...agent, manifest: { ...agent.manifest, limits: { ...agent.manifest.limits, maxAgentCalls: 1 } } }));
-    const config = { ...buildConfig({}), data_path: path.join(root, 'data'), ai: { provider: 'openai-compatible', model: 'local-research-fixture', api_key: 'local-fixture-key', api_base: `${server.url}v1` } };
+    const config = { ...buildConfig({}), data_path: path.join(root, 'data'), ai: { provider, model: 'local-research-fixture', api_key: provider === 'ollama' ? '' : 'local-fixture-key', api_base: `${server.url}v1` } };
     const source = mode === 'child-pause' ? { ...knowledgeMarkdownPlugin, apply(ctx: Parameters<typeof knowledgeMarkdownPlugin.apply>[0]) {
         const agent = knowledgeMarkdownPlugin.agents![0]!.manifest;
         ctx.delivery.nativeAgents.register(agent.id, agent.version, async () => ({ status: 'needs_human', data: { question: 'Choose a source' }, artifacts: [] }));
     } } : knowledgeMarkdownPlugin;
     const host = new AgentHost(() => ({ config, store, feishu: {}, tapd: {} } as any), 1000, undefined, [], {
-        plugins: [research, source, knowledgeAnswerPlugin, knowledgeImpactPlugin, webCapturePlugin],
+        plugins: [...standardModelPlugins, research, source, knowledgeAnswerPlugin, knowledgeImpactPlugin, webCapturePlugin],
         pluginConfig: { 'knowledge.markdown': { root: vault, sourceId: 'research-vault' } },
     });
     disposers.push(() => host.stop());
@@ -172,4 +173,13 @@ test('artifact selectors retain child evidence while rejecting malformed or dupl
     expect(duplicated.current.assertions.find(item => item.id === 'artifact:evidence-index')?.message).toContain('实际 2 个');
     const own = createPersonalResearchPlugin();
     expect(() => f.host.checks.register(own, { ...own.checks![0]!, id: 'personal.research.invalid-selector', artifacts: [{ id: 'bad', type: 'json', schema: { type: 'object' }, selector: { $ref: '#/missing' } }] })).toThrow('Invalid result check JSON Schema');
+});
+
+test('keyless Ollama can delegate research and persist actual child evidence', async () => {
+    const f = await fixture('rag', 'ollama'), result = await f.call();
+    expect(result.execution?.run.status).toBe('succeeded');
+    const details = (await f.host.getLocalRunDetails(result.execution!.run.id))!;
+    expect(details.children).toHaveLength(1); expect(details.children[0]?.status).toBe('succeeded');
+    expect(details.artifacts.some(artifact => artifact.metadata.artifactRole === 'personal.research.evidence')).toBe(true);
+    expect(f.requests).toHaveLength(3);
 });

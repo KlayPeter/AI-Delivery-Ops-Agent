@@ -26,7 +26,7 @@ pnpm dev --host 127.0.0.1
 
 打开 [本地界面](http://localhost:15173/)。[就绪检查](http://localhost:8090/readyz) 返回 `status: "ready"` 表示数据库、Agent Host 和已配置的入站机器人已就绪；未配置飞书时 `required: 0` 是正常状态。
 
-首页为个人 Agent 工作台，默认十一个插件、九个 Agent，不自动装配团队业务。个人知识使用仓库中的虚构示例，可在「知识库」直接检索，无需任何密钥。「连接与模型」可填写飞书、模型与 TAPD；「知识库 → 配置来源」可选择自己的目录或公开链接。配置保存在数据目录下的 connections.json（0600、本机明文），密钥不回显，重启后端后生效。工作台保存值覆盖同名环境值，模型与 TAPD 连接环境值优先于旧 config.json。
+首页为个人 Agent 工作台，默认十四个插件、九个 Agent，不自动装配团队业务。个人知识使用仓库中的虚构示例，可在「知识库」直接检索，无需任何密钥。「连接与模型」可填写飞书、模型与 TAPD；「知识库 → 配置来源」可选择自己的目录或公开链接。配置保存在数据目录下的 connections.json（0600、本机明文），密钥不回显，重启后端后生效。工作台保存值覆盖同名环境值，模型与 TAPD 连接环境值优先于旧 config.json。
 
 首次可在「知识库」检索 **API 迁移说明**，查看虚构 Release.md 的真实原文和版本。成功的知识回答详情可点击「检查引用变化」，生成独立检查记录；「刷新状态」只读取上次评估，显示检查时间，不自动扫描来源。原回答与引文保留，知识变化会提示复核。当前装配数量见[首页组合表](../README.md#能力与插件)，由回归测试对照实际插件声明校验。
 
@@ -56,7 +56,7 @@ pnpm dev --host 127.0.0.1
 AGENT_PLUGINS_FILE=profiles/agents/team.yaml bun run dev
 ```
 
-该组合保留七个团队 Agent 和九个插件，包含任务、站会、日报、周报、看板及原有九项手动任务；不是默认个人组合的叠加开关。前端据实际贡献显示团队页面和业务任务；默认个人组合没有这些入口，其站会/看板/周报插件 API 也不可用。`/config` 等核心管理接口仍由宿主提供，隐藏导航不构成额外授权。
+该组合保留七个团队 Agent 和十二个插件（含三个模型提供者），包含任务、站会、日报、周报、看板及原有九项手动任务；不是默认个人组合的叠加开关。前端据实际贡献显示团队页面和业务任务；默认个人组合没有这些入口，其站会/看板/周报插件 API 也不可用。`/config` 等核心管理接口仍由宿主提供，隐藏导航不构成额外授权。
 
 「连接与模型」的飞书、TAPD 仍可填写；凭据只保存连接配置，不会安装任务/报告 Agent。已保存的飞书凭据会在重启后尝试连接；使用群聊/私聊业务前请先选择提供对应能力的组合。
 
@@ -69,3 +69,23 @@ AGENT_PLUGINS_FILE=profiles/agents/team.yaml bun run dev
 已初始化的 backend 可用 AGENT_PLUGINS_FILE=examples/plugins.context7-http.yaml bun run dev 直接连接官方 HTTPS MCP，无需安装上游本地包；查询会发给 Context7。凭据、固定地址、DNS/TLS 与流预算见 [MCP 工具](MCP_TOOLS.md)。
 
 任务成功后可在运行详情保存为[任务配方](TASK_RECIPES.md)，核对原参数与执行版本；下次审查本次参数后创建新运行。最小无模型组合：在 backend 执行 `AGENT_PLUGINS_FILE=examples/plugins.recipes.yaml bun run dev`。
+
+## 使用本机 Ollama
+
+先在本机启动你自己的 Ollama，并用 `ollama list` 确认已有模型。打开「连接与模型」，选择 Ollama，填写模型名；默认地址是 `http://127.0.0.1:11434/v1`，无需 API Key。保存后重启后端。工作台不会安装 Ollama 或下载模型，“已保存参数”也不代表服务可达或模型可用。研究助手需要实际模型支持工具调用。
+
+也可在后端使用环境变量（已保存的连接配置仍优先）：
+
+```sh
+AI_PROVIDER=ollama AI_API_BASE=http://127.0.0.1:11434/v1 AI_MODEL='<已有模型名>' bun run dev
+```
+
+知识 CLI 使用独立 KNOWLEDGE_* 配置：
+
+```sh
+KNOWLEDGE_PROVIDER=ollama KNOWLEDGE_MODEL='<已有模型名>' bun run src/scripts/knowledge.ts --root examples/knowledge-vault --ask 'API 发布有什么要求？'
+```
+
+本机接口仅允许 HTTP 回环地址、固定 /v1 Chat Completions，不经过全局代理，也不发送旧云端密钥。Ollama 自身可以选择云端模型；如需本地推理，请确认你使用的是本机权重。当前测试采用真实 SDK 与本机协议服务，未在本机安装或验证真实 Ollama 推理。显式 YAML 需自行加入[模型提供者插件](PLUGIN_AUTHORING.md#模型提供者插件)；空组合不会隐式提供模型。
+
+接口来源：[Ollama OpenAI 兼容说明](https://github.com/ollama/ollama/blob/main/docs/api/openai-compatibility.mdx)、[本机与云端认证范围](https://github.com/ollama/ollama/blob/main/docs/api/authentication.mdx)。

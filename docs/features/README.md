@@ -19,7 +19,10 @@ flowchart LR
     D --> DS["日报构建与投递"]
     W --> WS["周报事实快照与 HTML"]
     P --> PS["看板快照与图片"]
-    FP["Cordis 所选功能插件"] --> MC["消息路由、上下文与帮助贡献"]
+    FP["Cordis 所选功能插件"] --> MP[独立模型提供者注册与释放]
+    MP --> MGW[共享模型网关：云端或本机 Ollama]
+    MGW --> RESEARCH
+    FP --> MC["消息路由、上下文与帮助贡献"]
     MC --> R
     R --> C["确定性 Handler 与配置调度"]
     C --> TS
@@ -90,12 +93,13 @@ flowchart LR
     QC --> O
 ```
 
-HTTP 默认只装配个人知识、采集、验收与工具接入插件。下表 active 表示能力可启用，不表示团队能力会自动装配；原团队组合通过 profiles/agents/team.yaml 显式选择。
+HTTP 默认装配个人知识、采集、验收、工具接入、研究、配方及模型提供者插件。下表 active 表示能力可启用，不表示团队能力会自动装配；原团队组合通过 profiles/agents/team.yaml 显式选择。
 
 ## 1. 当前功能
 
 | Feature ID | 功能 | 状态 | 运行时 Agent 映射 | 功能文档 |
 | --- | --- | --- | --- | --- |
+| `model-providers` | 模型提供者插件、配置诊断与无密钥本机 Ollama | active | 宿主模型端口，无独立 Agent | [查看](../../backend/src/platform/models/FEATURE.md) |
 | `run-recipes` | 原参数/版本核验、审查复用与运行来源关联 | active | 控制面插件，无独立 Agent | [查看](../../backend/src/recipes/FEATURE.md) |
 | `personal-research-agent` | 模型研究、专业子任务与真实资料完成门槛 | active | `personal.research-agent` | [查看](../../backend/src/agents/personal-research/FEATURE.md) |
 | `mcp-workbench` | MCP 工具发现、授权配置导出与通用运行 | active | `native.mcp-inspector` / `native.mcp-runner` | [查看](../../backend/src/connectors/mcp-workbench/FEATURE.md) |
@@ -193,7 +197,7 @@ HTTP 默认只装配个人知识、采集、验收与工具接入插件。下表
 | `backend/src/knowledge/modelConfiguration.ts` | `personal-markdown-knowledge`、`personal-web-knowledge`、`personal-knowledge-answer`、`release-preparation` |
 | `backend/src/knowledge/answer/**` | `personal-knowledge-answer`；共享引用/证据协议变化追加 `release-preparation`、`knowledge-change-impact`；Host/Tool 契约变化时追加平台文档 |
 | `backend/src/scripts/knowledge.ts` | `personal-markdown-knowledge`、`personal-web-knowledge`、`personal-knowledge-answer`、`knowledge-change-impact` |
-| `backend/src/platform/models/**` | `agent-platform`、`operations-observability`；同步受影响的模型调用功能 |
+| `backend/src/platform/models/**` | `model-providers`、`agent-platform`、`operations-observability`；同步受影响的模型调用功能 |
 | `domains/weeklyReport/**`、`native/weeklyReportAgent.ts`、`WeeklyReportHandler.ts`、`WeeklyReportsPage` | `weekly-report` |
 | Dashboard Service、Project Dashboard、`native/dashboardAgent.ts`、`native/project-dashboard/**`、`DashboardPage`、`HumanGanttPage`、`frontend/src/dashboardFiles.ts` | `project-visibility` |
 | Meeting Summary Handler、`services/messageHandler/meeting-summary/**`、Service、邮件分发、`MeetingSummariesPage` | `meeting-summary` |
@@ -224,5 +228,5 @@ HTTP 默认只装配个人知识、采集、验收与工具接入插件。下表
 - **推荐在功能代码 Owner 目录使用 `FEATURE.md`，不推荐再放业务型 `AGENTS.md`。** `FEATURE.md` 面向人和 AI 共同解释产品能力；根目录 `AGENTS.md` 统一约束 AI 的修改流程。这样代码与功能事实相邻，又不会让业务说明和开发规则混在一起。
 - **系统已经是 Agent 系统。** 它具备 Registry、三类 Adapter、Model Loop、Tool/Skill Runtime、委派、Session/Checkpoint、Run/Artifact、Outbox 和 Bot Binding，不只是“调用一次大模型”的普通业务系统。
 - **系统采用混合架构是正确的。** 自主决策和可插拔执行使用 Agent，强一致状态交给 Domain Service，确定性管理和查询保留为服务/控制面。强行把每个页面或函数 Agent 化会增加成本、随机性和数据冲突。
-- **当前功能文档覆盖 29 个能力。** 团队 SDK 组合包含 7 个 Agent；HTTP 个人默认十一插件、九个 Agent，包含来源检索、RAG、采集、导入、资料库、验收、MCP 接入与个人研究。明确配置 GitHub 后为十三插件、十个 Agent；团队组合通过显式文件选择，AI Hot 是可选外部 Agent；会议纪要处于 dormant，其余功能通过 Agent、领域服务和控制面协作完成。
+- **当前功能文档覆盖 30 个能力。** 团队 SDK 组合包含 7 个 Agent；HTTP 个人默认十四插件、九个 Agent，包含来源检索、RAG、采集、导入、资料库、验收、MCP 接入、个人研究、任务配方及三个模型提供者。明确配置 GitHub 后为十六插件、十个 Agent；团队组合通过显式文件选择，AI Hot 是可选外部 Agent；会议纪要处于 dormant，其余功能通过 Agent、领域服务和控制面协作完成。
 - **下一步维护重点**是保证功能卡与代码同提交更新，并继续把业务写入口收敛到 `TaskService`、`StandupService` 和受治理 Tool；新增机器人优先增加 Binding，新增自治能力再增加 Agent。

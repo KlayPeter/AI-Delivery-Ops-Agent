@@ -1,3 +1,4 @@
+import { standardModelPlugins } from '@/platform/models/providers';
 import { aiNewsPlugin } from './aiNews';
 import { dailySummaryPlugin } from './dailySummary';
 import { dashboardPlugin } from './dashboard';
@@ -9,5 +10,6 @@ import { meetingSummaryPlugin } from './meetingSummary';
 import { aiHotSchedulePlugin } from './aiHotSchedule';
 
 export const deliveryTeamPlugins = [
+    ...standardModelPlugins,
     aiNewsPlugin, dailySummaryPlugin, dashboardPlugin, weeklyReportPlugin, taskPlugin, standupPlugin, orchestratorPlugin, meetingSummaryPlugin, aiHotSchedulePlugin,
 ] as const;

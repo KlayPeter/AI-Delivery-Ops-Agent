@@ -259,9 +259,10 @@ export function buildConfig(raw: any): AppConfig {
     };
 
     const aiRaw = raw.ai || {};
+    const aiProvider = envString("AI_PROVIDER", aiRaw.provider || "openai");
     const ai: AIConfig = {
-        provider: envString("AI_PROVIDER", aiRaw.provider || "openai"),
-        api_base: envString("AI_API_BASE", aiRaw.api_base || "https://api.openai.com/v1"),
+        provider: aiProvider,
+        api_base: envString("AI_API_BASE", aiRaw.api_base || (aiProvider === "ollama" ? "http://127.0.0.1:11434/v1" : "https://api.openai.com/v1")),
         api_key: envString("AI_API_KEY"),
         model: envString("AI_MODEL", aiRaw.model || ""),
         max_tokens: Number(aiRaw.max_tokens ?? envNumber("AI_MAX_TOKENS", 4096)),

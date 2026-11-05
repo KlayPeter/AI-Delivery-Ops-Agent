@@ -1,3 +1,4 @@
+import { localModelEndpoint } from '@/platform/models/providers/ollama';
 import { constants } from 'node:fs';
 import { mkdir, open, rename, unlink } from 'node:fs/promises';
 import * as path from 'node:path';
@@ -53,7 +54,7 @@ export class LocalConnections {
         return { values, secrets, restartRequired: connectionKeys.some(key => (this.saved[key] ?? this.active[key] ?? '') !== this.active[key]) };
     }
 
-    save(input: unknown): Promise<ReturnType<LocalConnections['snapshot']>> {
+    save(input: unknown, modelProviderIds: readonly string[] = []): Promise<ReturnType<LocalConnections['snapshot']>> {
         const task = this.tail.then(async () => {
             const update = updateSchema.parse(input);
             const next = { ...this.saved };
@@ -64,7 +65,11 @@ export class LocalConnections {
             const merged = { ...this.active, ...next };
             if (Boolean(merged.FEISHU_APP_ID) !== Boolean(merged.FEISHU_APP_SECRET)) throw new Error('请同时填写飞书 App ID 和 App Secret');
             if (merged.FEISHU_APP_ID && !/^cli_[0-9a-fA-F]{16}$/.test(merged.FEISHU_APP_ID)) throw new Error('飞书 App ID 格式不正确');
-            if (merged.AI_PROVIDER && !['openai', 'deepseek', 'google', 'gemini'].includes(merged.AI_PROVIDER)) throw new Error('不支持的模型供应商');
+            if (merged.AI_PROVIDER && !['openai', 'openai-compatible', 'deepseek', 'google', 'gemini', 'ollama', ...modelProviderIds].includes(merged.AI_PROVIDER)) throw new Error('不支持的模型供应商');
+            if (merged.AI_PROVIDER === 'ollama') {
+                localModelEndpoint(merged.AI_API_BASE || '');
+                if (!merged.AI_MODEL) throw new Error('请填写已在 Ollama 中准备的模型名称');
+            }
             if (merged.AI_API_KEY && !merged.AI_MODEL) throw new Error('请填写模型名称');
             if (merged.TAPD_WORKSPACE_ID && !/^\d+$/.test(merged.TAPD_WORKSPACE_ID)) throw new Error('TAPD Workspace ID 必须是数字');
             for (const key of ['AI_API_BASE', 'TAPD_API_BASE'] as const) {

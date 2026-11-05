@@ -1,3 +1,4 @@
+import { ollamaModelPlugin } from '@/platform/models/providers';
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -205,4 +206,29 @@ test('local human continuation stays on the original run and refuses completed o
         await new PersistentAgentRunStore(store).create(foreign);
         await expect(host.resumeLocal(foreign.id, { text: 'rejected' }, randomUUID())).rejects.toThrow('local workspace');
     } finally { await host.stop(); }
+});
+
+test('Ollama connection save takes effect only after reload and availability follows installed providers', async () => {
+    const file = path.join(directory, 'connections.json');
+    const connections = new LocalConnections(file); await connections.initialize();
+    let config = { ...buildConfig({}), data_path: directory };
+    const store = new InMemoryPersistentKeyValueStore();
+    const makeHost = (plugins: FeaturePlugin[]) => new AgentHost(() => ({ store, config, feishu: {}, tapd: {} } as any), 1000, undefined, [], { plugins });
+    const host = makeHost([ollamaModelPlugin]);
+    try {
+        const app = createWorkspaceApi(host, connections, () => config);
+        const response = await app.handle(new Request('http://localhost/api/workspace/connections', { method: 'PUT', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ AI_PROVIDER: 'ollama', AI_API_BASE: '', AI_MODEL: 'existing-local-model' }) }));
+        expect(response.status).toBe(200); expect(await response.json()).toMatchObject({ restartRequired: true, secrets: { AI_API_KEY: false } });
+        expect(await (await app.handle(new Request('http://localhost/api/workspace/state'))).json()).toMatchObject({ modelConfigured: false });
+    } finally { await host.stop(); }
+    const restarted = new LocalConnections(file); await restarted.initialize(); config = { ...buildConfig({}), data_path: directory };
+    expect(config.ai.api_base).toBe('http://127.0.0.1:11434/v1'); expect(config.ai.api_key).toBe('');
+    for (const installed of [true, false]) {
+        const next = makeHost(installed ? [ollamaModelPlugin] : []);
+        try {
+            const state = await (await createWorkspaceApi(next, restarted, () => config).handle(new Request('http://localhost/api/workspace/state'))).json();
+            expect(state).toMatchObject({ modelConfigured: installed, modelProviders: installed ? [{ id: 'ollama', name: 'Ollama 本机模型' }] : [] });
+        } finally { await next.stop(); }
+    }
 });

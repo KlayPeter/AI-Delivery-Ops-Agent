@@ -30,7 +30,7 @@ const createHost = async (store = new InMemoryPersistentKeyValueStore(), file = 
 
 test('HTTP default loads personal plugins without implicit team agents, routes or manual jobs', async () => {
     const selected = await loadWorkspacePlugins(directory, '');
-    expect(selected.plugins).toHaveLength(11);
+    expect(selected.plugins).toHaveLength(14);
     expect(selected.plugins.some(plugin => plugin.manifest.id.startsWith('builtin.'))).toBe(false);
     const host = await createHost();
     try {
@@ -49,9 +49,9 @@ test('HTTP default loads personal plugins without implicit team agents, routes o
 test('explicit team and empty files fully replace the default composition', async () => {
     process.env.KNOWLEDGE_KIND = 'web'; process.env.KNOWLEDGE_URLS = '';
     process.env.AGENT_PLUGINS_FILE = profile('team');
-    expect((await loadWorkspacePlugins(directory)).plugins).toHaveLength(9);
+    expect((await loadWorkspacePlugins(directory)).plugins).toHaveLength(12);
     const team = await loadWorkspacePlugins(directory, profile('team'));
-    expect(team.plugins).toHaveLength(9); expect(team.plugins.every(plugin => plugin.manifest.id.startsWith('builtin.'))).toBe(true);
+    expect(team.plugins).toHaveLength(12); expect(team.plugins.every(plugin => ['builtin.', 'model.'].some(prefix => plugin.manifest.id.startsWith(prefix)))).toBe(true);
     const host = await createHost(undefined, profile('team'));
     try {
         await host.initialize();

@@ -197,7 +197,7 @@ HTTP 默认加入独立 mcp.setup 接入助手，公开 HTTPS 匿名发现、审
 
 ## HTTP 默认组合边界
 
-HTTP 仅默认加载个人知识、采集、资料库、验收、MCP 接入助手、个人研究及任务配方（十一插件/九 Agent）；SDK 团队默认不变，HTTP 团队通过既有可信文件显式选择。工作台根据实际 active Agent 和页面/手动任务贡献选择默认能力与导航，不将隐藏菜单作为 API 授权。默认没有站会/看板/周报插件接口或九项团队业务任务；切换保留成功历史，不自动重新启用旧插件。真实装配与保留历史验证见 backend/test/workspaceComposition.test.ts；首页数量由 featureIndex.test.ts 对照实际 HTTP 选择器检查。
+HTTP 仅默认加载个人知识、采集、资料库、验收、MCP 接入助手、个人研究及任务配方（十四插件/九 Agent）；SDK 团队默认不变，HTTP 团队通过既有可信文件显式选择。工作台根据实际 active Agent 和页面/手动任务贡献选择默认能力与导航，不将隐藏菜单作为 API 授权。默认没有站会/看板/周报插件接口或九项团队业务任务；切换保留成功历史，不自动重新启用旧插件。真实装配与保留历史验证见 backend/test/workspaceComposition.test.ts；首页数量由 featureIndex.test.ts 对照实际 HTTP 选择器检查。
 
 ## 研究执行与阶段产物
 
@@ -381,3 +381,13 @@ personal.recipes 独立拥有任务配方页面/API 与私有 KV，默认个人�
 前端仅在装配配方时于页面内存保留有界候选输入，刷新/移除清空；明确保存才写本机完整参数。来源回执在插件 KV，避免向其他 Agent 注入越出 Manifest 的 Artifact；写回执失败返回真实 Run ID 与警告。RunDrawer 展示配方来源和参数变化，可回到原始结果；移除插件关闭入口但保留记录。
 
 实现/规则见 [任务配方功能卡](../../recipes/FEATURE.md)，验证：backend/test/runRecipes.test.ts、frontend/src/runInputs.test.mjs、既有 Runtime/插件回归和桌面/375px 浏览器验收；本批不验证真实模型质量。
+
+## 模型可用性与执行记录
+
+modelConfigured 依据当前 Host 实际注册的提供者和参数判断，仅表示配置齐全；不探测服务或模型。Ollama 无需密钥，生成仍保存既有 Model Step、子运行和引用证据，连接错误沿原失败链路返回。 完整协议、实现与验证边界见[模型提供者功能卡](../models/FEATURE.md)。验证：backend/test/modelProviders.test.ts、knowledgeAnswer.test.ts、personalResearch.test.ts 及既有回归。
+
+```mermaid
+flowchart LR
+    MP_PLUGIN[显式模型插件] --> MP_REG[Host 共享模型网关]
+    MP_REG --> MP_RUN[原有 Agent 或生成管线]
+```

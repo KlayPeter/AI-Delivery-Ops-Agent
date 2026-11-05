@@ -14,7 +14,7 @@ export interface WorkspaceState {
   agents: AgentInfo[]; runs: RunInfo[];
   plugins: { id: string; name: string; description: string; version: string; requires?: string[]; agents: string[] }[];
   health: { started: boolean; initialized: boolean }; modelConfigured: boolean; knowledgeKind: string; managedByPluginFile: boolean;
-  pages: PluginPage[]; manualJobs: string[];
+  pages: PluginPage[]; manualJobs: string[]; modelProviders?: { id: string; name: string }[];
 }
 export interface ConnectionState { values: Record<string, string>; secrets: Record<string, boolean>; restartRequired: boolean }
 

@@ -45,7 +45,7 @@ await host.stop();
 AGENT_PLUGINS_FILE=profiles/agents/team.yaml bun run dev
 ```
 
-团队 SDK 未指定插件时仍为九个功能插件、七个 Agent；HTTP 工作台默认只装配选定知识来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收、MCP 接入助手、个人研究及任务配方，共十一个插件、九个 Agent；配置 GitHub 发布组合后为 13 个插件、10 个 Agent。HTTP 不再隐式装配团队能力；使用 profiles/agents/team.yaml 可显式选择原九个团队插件。会议纪要和外部 AI Hot 调度插件没有独立 Agent。会议纪要仍受原有模块开关控制，外部 AI Hot 能力仍需另行安装。示例还包括 `profiles/agents/native-demo.yaml`、`profiles/agents/empty.yaml` 和 `backend/examples/plugins.collectors.yaml`，分别选择 Echo 模板、零业务插件和采集/资料库三个插件。显式插件文件完全决定组合；未装配的插件页面和 API 不开放，基础服务仍由应用拥有。
+团队 SDK 未指定插件时仍为十二个功能插件、七个 Agent；HTTP 工作台默认只装配选定知识来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收、MCP 接入助手、个人研究及任务配方，共十四个插件、九个 Agent；配置 GitHub 发布组合后为 16 个插件、10 个 Agent。HTTP 不再隐式装配团队能力；使用 profiles/agents/team.yaml 可显式选择九个团队功能插件及三个模型插件。会议纪要和外部 AI Hot 调度插件没有独立 Agent。会议纪要仍受原有模块开关控制，外部 AI Hot 能力仍需另行安装。示例还包括 `profiles/agents/native-demo.yaml`、`profiles/agents/empty.yaml` 和 `backend/examples/plugins.collectors.yaml`，分别选择 Echo 模板、零业务插件和采集/资料库三个插件。显式插件文件完全决定组合；未装配的插件页面和 API 不开放，基础服务仍由应用拥有。
 
 ```yaml
 apiVersion: '1.0'
@@ -268,3 +268,20 @@ PluginHostServices 增加可选 runLocal(capability, input, triggerId, expected?
 Host 将 expected 放入可信上下文 reserved expectedExecution，Runtime 在实际解析根 Agent 后再次核对；普通客户端 input 不能写该上下文。子委派与人工继续保持既有协议，不能据此声称环境被冻结。Manifest 指纹不是 Tool/模型/配置的完整代码快照。配方使用既有 execution 1.0 的单次身份与输入指纹，多轮或旧记录不补造凭证。
 
 配方来源回执归配方插件，不能向其他 Agent 保存 Manifest 未允许的 Artifact。候选输入仅在当前页面内存，明确审查保存后才持久化完整参数；它不是自动 Secret 脱敏或共享市场。
+
+## 模型提供者插件
+
+ModelProviderDefinition 的 id/name/isConfigured(AIConfig)/create(AIConfig) 构成模型端口；create 返回当前 AI SDK LanguageModel。可直接调用 ctx.delivery.modelProviders.register(definition)，或复用 modelProviderPlugin(definition) 生成 FeaturePlugin。注册随 Cordis effect 释放与回滚，最多 30 项、ID 唯一。供应商选择使用 AI_PROVIDER；未知 ID 只匹配同 ID 已装配插件，不回退 OpenAI。
+
+```ts
+import { modelProviderPlugin } from '@/platform/models/providers';
+import { createOpenAI } from '@ai-sdk/openai';
+
+export default modelProviderPlugin({
+    id: 'example.gateway', name: 'My model gateway',
+    isConfigured: config => Boolean(config.api_key && config.model),
+    create: config => createOpenAI({ apiKey: config.api_key, baseURL: config.api_base }).chat(config.model),
+});
+```
+
+在可信 YAML 中像其他插件一样选择模块，无需修改 Host。原生插件代码自行负责其传输与凭据边界。Host 从空注册表开始，显式组合需要自行选择模型；标准默认导出位于 backend/src/platform/models/providers/{openai,google,ollama}Plugin.ts。独立 new AiSdkModelGateway(getConfig) 保留标准供应商方便 SDK 使用，Host 始终显式传自己的注册表。configured 只验证参数，不能当作连接成功或模型效果证明。Ollama 的直连限制与测试见[功能卡](../backend/src/platform/models/FEATURE.md)。

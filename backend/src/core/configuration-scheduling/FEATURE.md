@@ -3,7 +3,7 @@ feature_id: configuration-scheduling
 name: 配置、通讯录与定时调度
 status: active
 agent_mapping: []
-last_reviewed: 2026-11-05
+last_reviewed: 2026-11-06
 ---
 
 # 配置、通讯录与定时调度
@@ -121,7 +121,7 @@ flowchart TD
 
 Debug 与 /api/jobs 统一使用 PluginWebRegistry 的 manualJobs。站会声明六项，任务/日报/看板各声明一项，默认仍为九项；空组合拒绝所有原有业务手动任务，不再回退全局执行器。执行遵守原有日期、工作日、预览与 sendToGroup；Host 停止等待在途任务。它是原有确定性 Job 的选择协议，不是另一种工作流语言或任意命令入口。
 
-来源设置新增 library，明确选择应用资料库；不接受另一个写入目录。宿主用启动时实际 data_path 装配对应 Markdown 来源；保存后仍需重启。资料库插件创建独立范围目录并在启动时恢复自身暂存，无新增定时器。默认 HTTP 为十一个插件/九个 Agent，显式组合优先。验证：backend/test/knowledgeLibrary.test.ts 及 workspace.test.ts。
+来源设置新增 library，明确选择应用资料库；不接受另一个写入目录。宿主用启动时实际 data_path 装配对应 Markdown 来源；保存后仍需重启。资料库插件创建独立范围目录并在启动时恢复自身暂存，无新增定时器。默认 HTTP 为十四个插件/九个 Agent，显式组合优先。验证：backend/test/knowledgeLibrary.test.ts 及 workspace.test.ts。
 
 默认个人组合增加独立结果验收插件，无新增定时器或外部连接；SDK 默认组合保持。规则来自已装配 FeaturePlugin.checks，不能经页面上传新 Schema 或脚本。卸载提供者释放规则，卸载 quality.checks 关闭页面/API/Agent。验证：backend/test/pluginChecks.test.ts。
 
@@ -252,3 +252,13 @@ HTTP 不再隐式加载团队插件。团队导航与定时配置入口仅在可
 | 2026-07-22 | 超期扫描从每日一次调整为每小时一次，并按实际小时建立调度幂等键 | `scheduler.test.ts`、`jobs.test.ts`、类型检查 |
 | 2026-07-22 | 补充配置保存、调度重载、成员同步和 Secret 规则，精简文档结构 | CodeGraph 与配置调度测试 |
 | 2026-07-22 | 建立配置与调度功能卡，明确调度不承载业务规则 | CodeGraph 架构审查 |
+
+## 模型提供者配置
+
+AI_PROVIDER=ollama 且 API 地址为空时使用 http://127.0.0.1:11434/v1，不要求 AI_API_KEY。默认/团队组合显式增加三个模型插件，Agent 和业务任务数量不变；连接文件仍按原私有保存与重启规则生效，配置诊断不等于连接探测。 完整协议、实现与验证边界见[模型提供者功能卡](../../platform/models/FEATURE.md)。验证：backend/test/modelProviders.test.ts、knowledgeAnswer.test.ts、personalResearch.test.ts 及既有回归。
+
+```mermaid
+flowchart LR
+    MP_PLUGIN[显式模型插件] --> MP_REG[Host 共享模型网关]
+    MP_REG --> MP_RUN[原有 Agent 或生成管线]
+```

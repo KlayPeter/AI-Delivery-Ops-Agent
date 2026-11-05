@@ -28,6 +28,7 @@ Obsidian、公开网页或本地文档开始，检索原文、生成带引用的
 | --- | --- |
 | Agent 工作台 | 任务发起、运行历史、步骤、产物、错误及人工补充后继续 |
 | 任务配方 | 核对成功运行的原参数与执行版本；审查后复用，保留新旧运行关联 |
+| 模型插件 | 独立 OpenAI / Gemini / Ollama 提供者；本机 HTTP 接口无需 Key，模型由用户准备 |
 | 个人研究助手 | 模型规划、受限子任务委派、人工继续与真实资料完成门槛；研究稿需复核 |
 | 个人知识 | 只读 Markdown/Obsidian 与公开 URL，关键词检索、版本、原文定位；可选模型生成引用回答 |
 | 资料收集 | 单篇公开网页；微软 MarkItDown 0.1.9 转换 PDF、DOCX、PPTX、XLSX 等本地文件 |
@@ -37,13 +38,13 @@ Obsidian、公开网页或本地文档开始，检索原文、生成带引用的
 | 可靠执行 | Agent/Tool/Skill 预算、委派、Session/Checkpoint、Run/Artifact 与 Outbox |
 | 可选团队能力 | GitHub 发布准备、飞书任务与报告、TAPD 同步、多机器人路由 |
 
-默认 HTTP 工作台只装配个人知识、资料收集、验收与 MCP 接入助手。团队能力按需选择，显式 `AGENT_PLUGINS_FILE` 完全控制组合，不自动叠加默认插件。
+默认 HTTP 工作台装配个人知识、研究、任务配方、资料收集、验收、MCP 接入助手及三个模型提供者。团队能力按需选择，显式 `AGENT_PLUGINS_FILE` 完全控制组合，不自动叠加默认插件。
 
 | 组合 | 插件数 | Agent 数 |
 | --- | --- | --- |
-| 默认 HTTP 工作台 | 11 | 9 |
-| 配置 GitHub 后 | 13 | 10 |
-| 团队 SDK | 9 | 7 |
+| 默认 HTTP 工作台 | 14 | 9 |
+| 配置 GitHub 后 | 16 | 10 |
+| 团队 SDK | 12 | 7 |
 
 [插件规范与作者模板](docs/PLUGIN_AUTHORING.md)描述当前支持的接口。
 默认「接入工具」可发现公开 HTTPS MCP、勾选读取工具并导出本地配置；重启所选组合后可直接运行，无需另写适配页面。详见 [MCP 接入流程](docs/MCP_TOOLS.md)。
@@ -94,6 +95,7 @@ curl http://127.0.0.1:8090/readyz
 - 「网页收集」可直接使用；「文档导入」需先安装
   [MarkItDown 转换环境](docs/DOCUMENT_IMPORT.md)，未安装时页面显示状态。
 - 「连接与模型」可填写自己的模型、飞书、TAPD 与 GitHub 设置，保存后重启后端。
+  Ollama 本机接口无需 Key，见[本机模型配置](docs/LOCAL_DEVELOPMENT.md#使用本机-ollama)。
   设置保存在本机 `connections.json`，权限 0600，密钥不回显；本机文件未加密。
 - 体验 [Context7 与标准 Skill](docs/COMMUNITY_PLUGINS.md)，或按
   [MCP 指南](docs/MCP_TOOLS.md)连接经审查的本地工具。独立配置档需显式选择。

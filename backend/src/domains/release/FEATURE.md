@@ -4,7 +4,7 @@ name: 个人知识驱动的发布准备
 status: active
 agent_mapping:
   - native.release-prepare
-last_reviewed: 2026-11-05
+last_reviewed: 2026-11-06
 ---
 
 # 个人知识驱动的发布准备
@@ -170,3 +170,13 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 | 2026-11-05 | 修复已有 CLI 状态文件的文件检查释放 POSIX 会话锁，重复拒绝不能放行其他进程 | 本地状态与知识复核专项、类型检查、后端回归 |
 | 2026-11-05 | 新增只读发布准备插件、网页组合、CLI 与共享引用核验 | 17 项发布专项、干净安装类型检查与后端 487 通过 / 1 TAPD 跳过；真实公开仓库 collect；生成使用本地模拟模型，不声明真实模型质量 |
 | 2026-11-05 | 发布 CLI 可选保存记录，原知识身份供独立 impact 复核；不修改原发布草稿 | 发布回归与跨进程状态验证 |
+
+## 模型供应商装配
+
+生成配置档与 CLI 显式安装标准模型插件，KNOWLEDGE_PROVIDER=ollama 时无需密钥；collect CLI 保持无模型。发布生成复用共享网关，保留既有 PR/引用核验和人工审查，不添加 GitHub 写入。 完整协议、实现与验证边界见[模型提供者功能卡](../../platform/models/FEATURE.md)。验证：backend/test/modelProviders.test.ts、knowledgeAnswer.test.ts、personalResearch.test.ts 及既有回归。
+
+```mermaid
+flowchart LR
+    MP_PLUGIN[显式模型插件] --> MP_REG[Host 共享模型网关]
+    MP_REG --> MP_RUN[原有 Agent 或生成管线]
+```

@@ -1,3 +1,4 @@
+import { standardModelPlugins } from '@/platform/models/providers';
 import { parseArgs } from 'node:util';
 import { AgentHost } from '@/platform/bootstrap/agentHost';
 import { InMemoryPersistentKeyValueStore } from '@/platform/persistence/keyValueStore';
@@ -21,7 +22,7 @@ async function main() {
         state: { type: 'string' },
     } });
     if (values.help) {
-        console.log('Usage: bun run src/scripts/release.ts --repository owner/repo --since <ISO timestamp> [--until <ISO timestamp>] (--root <folder> | --url <public-url> ...) [--collect] [--policy-query <text>] [--token-ref env://GITHUB_TOKEN] [--base-branch <name>] [--exclude <prefix>] [--vault-name <name>] [--limit 1..10] [--state <private-sqlite-file>]\n--collect reads repository facts and policy snippets without a model. Otherwise, explicit KNOWLEDGE_API_BASE/MODEL/API_KEY are required; repository facts and selected personal excerpts are sent to that model. Read-only preparation: no GitHub writes. Records remain in memory unless --state is supplied; saved records include private facts and excerpts.');
+        console.log('Usage: bun run src/scripts/release.ts --repository owner/repo --since <ISO timestamp> [--until <ISO timestamp>] (--root <folder> | --url <public-url> ...) [--collect] [--policy-query <text>] [--token-ref env://GITHUB_TOKEN] [--base-branch <name>] [--exclude <prefix>] [--vault-name <name>] [--limit 1..10] [--state <private-sqlite-file>]\n--collect reads repository facts and policy snippets without a model. Otherwise, explicit KNOWLEDGE_API_BASE/MODEL/API_KEY are required (Ollama needs no key); repository facts and selected personal excerpts are sent to that model. Read-only preparation: no GitHub writes. Records remain in memory unless --state is supplied; saved records include private facts and excerpts.');
         return;
     }
     const web = values.url !== undefined;
@@ -36,7 +37,7 @@ async function main() {
     if (store instanceof SQLitePersistentKeyValueStore) console.error(`Runtime records are saved in ${store.filename}; the file contains private repository facts and excerpts.`);
     const source = web ? knowledgeWebPlugin : knowledgeMarkdownPlugin;
     const host = new AgentHost(() => ({ store, config: { feishu: { bot_name: 'Local release preparation' }, groups: [], ai } }) as any,
-        1000, undefined, [], { plugins: [web ? webReleasePlugin : releasePlugin, githubPlugin, source],
+        1000, undefined, [], { plugins: [...(ai ? standardModelPlugins : []), web ? webReleasePlugin : releasePlugin, githubPlugin, source],
             pluginConfig: { 'connector.github': connectorConfig, [source.manifest.id]: sourceConfig } });
     try {
         const scope = createTriggerScope({ workspaceId: DEFAULT_WORKSPACE_ID, botInstanceId: DEFAULT_BOT_INSTANCE_ID, triggerType: 'manual', triggerId: crypto.randomUUID() });

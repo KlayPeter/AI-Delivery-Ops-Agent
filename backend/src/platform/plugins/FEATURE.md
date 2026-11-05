@@ -14,7 +14,7 @@ last_reviewed: 2026-11-06
 
 插件拥有能力定义与装配逻辑；Host 提供受治理的 Agent、Tool、Skill 和持久化执行服务。当前七个内置 Agent 均由独立插件注册，应用默认组合放在 `agents/plugins/builtins.ts`，Host 不导入具体业务 Agent。
 
-当前阶段覆盖 Agent、Tool、Skill、消息路由、群业务调度、运行后续动作和新闻机器人配置装配。默认组合为九个功能插件、七个 Agent；会议纪要和外部 AI Hot 调度插件没有独立 Agent，会议纪要保留 dormant 开关，外部 AI Hot 能力仍需单独安装。全局维护/成员同步、业务 API、页面和基础服务还未全部改为插件贡献；不能把本阶段描述为“整个产品已完全插件化”。
+当前阶段覆盖 Agent、Tool、Skill、消息路由、群业务调度、运行后续动作和新闻机器人配置装配。默认组合为十二个功能插件、七个 Agent；会议纪要和外部 AI Hot 调度插件没有独立 Agent，会议纪要保留 dormant 开关，外部 AI Hot 能力仍需单独安装。全局维护/成员同步、业务 API、页面和基础服务还未全部改为插件贡献；不能把本阶段描述为“整个产品已完全插件化”。
 
 ## 实现流程图
 
@@ -85,14 +85,14 @@ flowchart TD
 
 ## HTTP 工作台组合
 
-团队 SDK 默认仍为九个插件、七个 Agent；HTTP 通过 workspace/composition.ts 默认只加载个人来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收、MCP 接入助手、个人研究及任务配方，共十一个插件、九个 Agent。GitHub 配置后增加连接和发布插件，为 13 个插件、10 个 Agent。原团队组合用 profiles/agents/team.yaml 显式选择，显式文件完全覆盖默认，不隐式叠加个人能力；历史数据保留。页面从真实已装配贡献显示，团队分区仅在可见团队页面或手动任务存在时出现；默认没有团队业务 API/手动任务。来源设置仍在默认个人组合中保存并重启生效。
+团队 SDK 默认仍为十二个插件、七个 Agent；HTTP 通过 workspace/composition.ts 默认只加载个人来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收、MCP 接入助手、个人研究及任务配方，共十四个插件、九个 Agent。GitHub 配置后增加连接和发布插件，为 13 个插件、10 个 Agent。原团队组合用 profiles/agents/team.yaml 显式选择，显式文件完全覆盖默认，不隐式叠加个人能力；历史数据保留。页面从真实已装配贡献显示，团队分区仅在可见团队页面或手动任务存在时出现；默认没有团队业务 API/手动任务。来源设置仍在默认个人组合中保存并重启生效。
 
 ## 核心规则
 
 1. `manifest.apiVersion` 必须为 `1.0`；ID 唯一，版本采用 SemVer 形式，名称与说明不能为空。配置可使用 Cordis Standard Schema 接口，如 Zod。
 2. `requires` 声明插件依赖；缺失、重复或循环在调用任何 `apply` 前拒绝。Cordis 注入对应的就绪服务。
 3. Agent ID、安装 ID、Capability、默认 Binding ID 和领域行为在迁移中保留；团队 SDK 默认组合继续提供七个 Agent。
-4. `ctx.delivery.tools`、`nativeAgents`、`modelAgents`、`skills`、`messageRoutes`、`schedules` 和 `runActions` 的注册返回 disposer，并自动归属当前插件的 Cordis effect。连接、定时器等自有资源显式使用 `ctx.effect`。
+4. `ctx.delivery.tools`、`nativeAgents`、`modelAgents`、`skills`、`modelProviders`、`messageRoutes`、`schedules` 和 `runActions` 的注册返回 disposer，并自动归属当前插件的 Cordis effect。连接、定时器等自有资源显式使用 `ctx.effect`。
 5. 插件声明的 Skill 包必须存在。路径限定为 Skill 根目录的直接子包名，指令引用继续执行原有目录边界校验。
 6. `delivery/restored` 在外部 Agent 和持久化 Bot 配置恢复后触发。新闻机器人配置由新闻插件维护，Host 不包含新闻业务规则。
 7. 移除插件后，它的 Agent/Tool/Skill/消息路由/群业务调度不装配；历史引用、免 @ 回复和帮助也不会恢复该功能。引用缺失安装的持久化 Binding 保留在数据库、暂不投影。缺少可用入口 Capability 的 Bot 在本次内存投影中停用，不删除用户配置。
@@ -264,3 +264,13 @@ personal.recipes 独立拥有任务配方页面/API 与私有 KV，默认个人�
 前端仅在装配配方时于页面内存保留有界候选输入，刷新/移除清空；明确保存才写本机完整参数。来源回执在插件 KV，避免向其他 Agent 注入越出 Manifest 的 Artifact；写回执失败返回真实 Run ID 与警告。RunDrawer 展示配方来源和参数变化，可回到原始结果；移除插件关闭入口但保留记录。
 
 实现/规则见 [任务配方功能卡](../../recipes/FEATURE.md)，验证：backend/test/runRecipes.test.ts、frontend/src/runInputs.test.mjs、既有 Runtime/插件回归和桌面/375px 浏览器验收；本批不验证真实模型质量。
+
+## 模型提供者贡献
+
+ctx.delivery.modelProviders.register 接受唯一 id/name/isConfigured/create，返回随 Cordis effect 回滚与释放的 disposer。modelProviderPlugin 是三种标准供应商与第三方的同一工厂，提供者不新增 Agent。空 Host/显式空配置无模型；业务插件不隐式安装模型。 完整协议、实现与验证边界见[模型提供者功能卡](../models/FEATURE.md)。验证：backend/test/modelProviders.test.ts、knowledgeAnswer.test.ts、personalResearch.test.ts 及既有回归。
+
+```mermaid
+flowchart LR
+    MP_PLUGIN[显式模型插件] --> MP_REG[Host 共享模型网关]
+    MP_REG --> MP_RUN[原有 Agent 或生成管线]
+```

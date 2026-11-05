@@ -20,7 +20,7 @@ export function createPluginApi(host: AgentHost, applicationRoutes: readonly { p
     return api.all('/api/*', ({ request }) => host.handlePluginRequest(request), { parse: 'none' });
 }
 
-export function createWorkspaceApi(host: AgentHost, connections: LocalConnections, getConfig: () => AppConfig) {
+export function createWorkspaceApi(host: AgentHost, connections: LocalConnections, _getConfig: () => AppConfig) {
     return new Elysia({ prefix: '/api/workspace', name: 'local-agent-workspace' })
         .onBeforeHandle(({ request, set }) => {
             if (!isLocalWorkspaceRequest(request)) {
@@ -34,15 +34,14 @@ export function createWorkspaceApi(host: AgentHost, connections: LocalConnection
         })
         .get('/state', async () => {
             const [agents, runs] = await Promise.all([host.listAgents(), host.listLocalRuns()]);
-            const config = getConfig();
             const plugins = host.listPlugins();
             const managedByPluginFile = Boolean(process.env.AGENT_PLUGINS_FILE);
             const knowledgeKind = plugins.some(plugin => plugin.id === 'knowledge.web') ? 'web'
                 : plugins.some(plugin => plugin.id === 'knowledge.markdown') ? (managedByPluginFile ? 'markdown' : process.env.KNOWLEDGE_KIND || 'sample') : 'none';
-            return { agents, runs, plugins, pages: host.web.pages(), manualJobs: host.web.manualJobs(), health: host.health(), modelConfigured: Boolean(config.ai.api_key && config.ai.model), knowledgeKind, managedByPluginFile };
+            return { agents, runs, plugins, pages: host.web.pages(), manualJobs: host.web.manualJobs(), health: host.health(), modelConfigured: host.isModelAvailable(), modelProviders: host.modelProviders.list(), knowledgeKind, managedByPluginFile };
         })
         .get('/connections', () => connections.snapshot())
-        .put('/connections', async ({ body }) => connections.save(body))
+        .put('/connections', async ({ body }) => connections.save(body, host.modelProviders.list().map(provider => provider.id)))
         .post('/runs', async ({ body }) => {
             const input = runInput.parse(body);
             const result = await host.runLocal(input.capability, input.input, input.triggerId || randomUUID());

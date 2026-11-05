@@ -4,7 +4,7 @@ name: 站会管理
 status: active
 agent_mapping:
   - built-in.standup-agent
-last_reviewed: 2026-11-05
+last_reviewed: 2026-11-06
 ---
 
 # 站会管理
@@ -221,3 +221,14 @@ builtin.standup 在 Cordis 作用域中贡献 /standups 页面、/api/standups �
 | 2026-07-23 | 新增 `StandupService.buildSummaryView`，统一正式汇总、确定性兜底与项目看板的团队重点、昨日、今日、阻塞、风险、决策和未提交口径 | `jobs.test.ts`、`projectDashboard.test.ts`、`dashboardHtml.test.ts`、全量回归 |
 | 2026-07-22 | 补充群、成员、业务日期、重交和汇总口径，精简文档结构 | CodeGraph 与站会测试 |
 | 2026-07-22 | 建立站会功能卡并收敛统一服务口径 | CodeGraph 架构审查 |
+
+## Agent 模型供应商边界
+
+Standup 的 Model Loop 使用 Host 已装配的模型提供者，团队组合显式包含三个标准模型插件；移除对应提供者后不隐式回退云端。确定性 Handler、领域状态和原 LLMAdapter 兼容入口不变，后者未迁移为本机模型端口。规则与验证见[模型功能卡](../../platform/models/FEATURE.md)；既有业务及模型回归保持通过。
+
+```mermaid
+flowchart LR
+    MP_PLUG[显式模型插件] --> MP_GATE[Host 模型网关]
+    MP_GATE --> MP_AGENT[Standup Model Loop]
+    MP_AGENT --> MP_TOOL[既有 Tool 与领域服务]
+```

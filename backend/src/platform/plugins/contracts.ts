@@ -11,6 +11,7 @@ import type { HandlerContext } from '@/services/messageHandler/types';
 import type { MessageRoute, MessageRouteRegistry } from '@/services/messageHandler/routes';
 import type { GroupSchedule, ScheduleRegistry } from '@/platform/scheduling/registry';
 import type { OrchestratorAdapter } from '@/platform/models/contracts';
+import type { ModelProviderRegistry } from '@/platform/models/registry';
 import type { ToolGateway } from '@/platform/tools/gateway';
 import type { RunActionRegistry } from './runActions';
 import type { PluginWebRegistry } from './web';
@@ -32,6 +33,7 @@ export interface PluginAgent {
 
 export interface PluginHostServices {
     getContext: () => HandlerContext;
+    modelProviders?: Pick<ModelProviderRegistry, 'register'>;
     runLocal?: (capability: string, input: unknown, triggerId: string, expected?: { installationId: string; manifestHash: string }) => Promise<{ runId?: string; status: string; error?: { code?: string; message: string } }>;
     agents: AgentRegistry;
     nativeAgents: Pick<NativeAgentAdapter, 'register'>;

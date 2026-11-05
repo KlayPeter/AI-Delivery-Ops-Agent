@@ -134,3 +134,13 @@ flowchart TD
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
 | 2026-11-05 | 增加个人研究插件、资料完成门槛与角色验收；修复人工继续重置委派额度 | 本机模拟模型与真实 SDK/子任务专项、类型/前端检查、全量回归及浏览器验收；真实模型未联调 |
+
+## 本机模型组合
+
+研究 Model Loop 与 RAG 子任务复用同一 Host 网关；Ollama 可无密钥接入，但实际模型必须支持所需工具调用。完成门槛仍读取真实子 Run，不能由本机或云端模型伪造资料索引。 完整协议、实现与验证边界见[模型提供者功能卡](../../platform/models/FEATURE.md)。验证：backend/test/modelProviders.test.ts、knowledgeAnswer.test.ts、personalResearch.test.ts 及既有回归。
+
+```mermaid
+flowchart LR
+    MP_PLUGIN[显式模型插件] --> MP_REG[Host 共享模型网关]
+    MP_REG --> MP_RUN[原有 Agent 或生成管线]
+```

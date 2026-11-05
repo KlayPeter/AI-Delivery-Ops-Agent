@@ -14,7 +14,7 @@ const cleanup: Array<() => Promise<unknown> | unknown> = [];
 afterEach(async () => { for (const dispose of cleanup.splice(0).reverse()) await dispose(); });
 
 type Mode = 'valid' | 'unknown-id' | 'wrong-quote' | 'invalid-json' | 'provider-failure' | 'abstain';
-async function fixture(mode: Mode = 'valid') {
+async function fixture(mode: Mode = 'valid', provider = 'openai-compatible') {
     const root = await mkdtemp(path.join(tmpdir(), 'knowledge-answer-test-'));
     cleanup.push(() => rm(root, { recursive: true, force: true }));
     await writeFile(path.join(root, 'Migration.md'), '# Migration\nAPI migration notes are mandatory before release.');
@@ -47,7 +47,7 @@ async function fixture(mode: Mode = 'valid') {
     cleanup.push(() => server.stop(true));
     const selection = await loadPluginConfiguration(`${import.meta.dir}/../profiles/agents/knowledge-answer-demo.yaml`);
     const store = new InMemoryPersistentKeyValueStore();
-    const ai = { provider: 'openai-compatible', model: 'fixture-model', api_key: 'fixture-local-key', api_base: `${server.url}v1` };
+    const ai = { provider, model: 'fixture-model', api_key: provider === 'ollama' ? '' : 'fixture-local-key', api_base: `${server.url}v1` };
     const ctx: any = { store, config: { feishu: { bot_name: 'Local test' }, groups: [], ai } };
     const host = new AgentHost(() => ctx, 10, undefined, [], { plugins: selection.plugins,
         pluginConfig: { ...selection.config, 'knowledge.markdown': { root, sourceId: 'test-vault', vaultName: 'Private Vault Name' } } });
@@ -61,6 +61,18 @@ async function fixture(mode: Mode = 'valid') {
 }
 
 describe('personal knowledge RAG', () => {
+    test('keyless Ollama follows the same retrieval, citation verification and CLI paths', async () => {
+        const f = await fixture('valid', 'ollama');
+        const result = await f.call();
+        expect(result.execution?.run.status).toBe('succeeded');
+        expect(result.execution!.result.data).toMatchObject({ status: 'answered', verification: { citationIdentityAndQuotePresence: 'checked' } });
+        const child = Bun.spawn([process.execPath, '--no-env-file', 'run', `${import.meta.dir}/../src/scripts/knowledge.ts`, '--root', f.root, '--ask', 'API migration'], {
+            env: { ...process.env, KNOWLEDGE_PROVIDER: 'ollama', KNOWLEDGE_MODEL: f.ai.model, KNOWLEDGE_API_KEY: '', KNOWLEDGE_API_BASE: f.ai.api_base }, stdout: 'pipe', stderr: 'pipe',
+        });
+        const [stdout, stderr, exit] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
+        expect(exit).toBe(0); expect(JSON.parse(stdout).result.status).toBe('answered'); expect(stderr).toContain(f.ai.api_base);
+    });
+
     test('uses the real SDK and Tool Gateway and retains validated citation evidence', async () => {
         const f = await fixture();
         const result = await f.call('API migration', 'first');

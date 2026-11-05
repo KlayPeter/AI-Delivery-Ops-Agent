@@ -1,3 +1,4 @@
+import { standardModelPlugins } from '@/platform/models/providers';
 import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -52,7 +53,7 @@ async function fixture(mode: Mode = 'valid', web = false) {
     const host = new AgentHost(() => ({ store, config: { feishu: { bot_name: 'Release test' }, groups: [], ai: {
         provider: 'openai-compatible', model: 'fixture', api_key: 'fixture-local-key', api_base: `${model.url}v1`,
     } } }) as any, 10, undefined, [], {
-        plugins: [web ? webReleasePlugin : releasePlugin, createGitHubPlugin(github), web ? createKnowledgeWebPlugin(async () => ({ url: 'https://example.com/policy', body: Buffer.from(policy), contentType: 'text/markdown' })) : knowledgeMarkdownPlugin],
+        plugins: [...standardModelPlugins, web ? webReleasePlugin : releasePlugin, createGitHubPlugin(github), web ? createKnowledgeWebPlugin(async () => ({ url: 'https://example.com/policy', body: Buffer.from(policy), contentType: 'text/markdown' })) : knowledgeMarkdownPlugin],
         pluginConfig: { 'connector.github': { repository, maxPages: 1 }, [web ? 'knowledge.web' : 'knowledge.markdown']: web ? { urls: ['https://example.com/policy'] } : { root, vaultName: 'Private Vault' } },
     });
     cleanup.push(() => host.stop());
@@ -169,7 +170,7 @@ describe('knowledge-backed release preparation', () => {
         for (const profile of ['release-demo.yaml', 'release-web-demo.yaml']) {
             const selection = await loadPluginConfiguration(`${import.meta.dir}/../profiles/agents/${profile}`);
             expect(selection.plugins.map(plugin => plugin.manifest.id)).toContain('release.prepare');
-            expect(selection.plugins).toHaveLength(3);
+            expect(selection.plugins).toHaveLength(6);
         }
     });
 

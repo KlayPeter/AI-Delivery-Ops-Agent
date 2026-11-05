@@ -25,6 +25,7 @@ import { TriggerRuntime } from '@/platform/runtime/triggerRuntime';
 import { EnvironmentSecretResolver } from '@/platform/secrets/resolver';
 import { AiSdkOrchestratorAdapter } from '@/platform/models/aiSdkOrchestrator';
 import { AiSdkModelGateway } from '@/platform/models/gateway';
+import { ModelProviderRegistry } from '@/platform/models/registry';
 import { PersistentAgentSessionStore } from '@/platform/session/persistentStore';
 import { OrchestratedPromptSkillExecutor } from '@/platform/skills/promptExecutor';
 import { SkillRegistry } from '@/platform/skills/registry';
@@ -77,6 +78,8 @@ export interface AgentHostOptions {
 }
 
 export class AgentHost {
+    readonly modelProviders = new ModelProviderRegistry();
+    readonly modelGateway = new AiSdkModelGateway(() => this.getContext().config.ai, this.modelProviders);
     readonly messageRoutes: MessageRouteRegistry;
     readonly schedules: ScheduleRegistry;
     readonly runActions = new RunActionRegistry();
@@ -225,8 +228,7 @@ export class AgentHost {
     }
 
     isModelAvailable(): boolean {
-        const ai = this.getContext().config.ai;
-        return Boolean(ai?.api_key && ai?.model);
+        return Boolean(this.getContext().config.ai && this.modelGateway.diagnostics().configured);
     }
 
     canDispatch(capability: string, workspaceId = DEFAULT_WORKSPACE_ID, botInstanceId = DEFAULT_BOT_INSTANCE_ID): boolean {
@@ -497,7 +499,7 @@ export class AgentHost {
         }
         this.runStore = runStore;
         this.sessionStore = new PersistentAgentSessionStore(ctx.store);
-        const orchestrator = new AiSdkOrchestratorAdapter(new AiSdkModelGateway(() => this.getContext().config.ai));
+        const orchestrator = new AiSdkOrchestratorAdapter(this.modelGateway);
         this.toolGateway = new ToolGateway(this.toolRegistry, toolCallStore, runStore);
         const promptSkillExecutor = new OrchestratedPromptSkillExecutor(orchestrator, this.toolRegistry, runStore);
         this.skillRuntime = new SkillRuntime(this.skillRegistry, this.toolGateway, runStore, promptSkillExecutor);
@@ -512,6 +514,7 @@ export class AgentHost {
         );
         this.pluginRuntime = new PluginRuntime(this.options.plugins || [], {
             getContext: this.getContext,
+            modelProviders: this.modelProviders,
             runLocal: async (capability, input, triggerId, expected) => {
                 if (!this.initialized || this.stopped) throw new Error('Host 尚未就绪或已停止');
                 const result = await this.runLocal(capability, input, triggerId, expected);

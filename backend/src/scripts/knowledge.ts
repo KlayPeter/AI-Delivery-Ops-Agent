@@ -1,3 +1,4 @@
+import { standardModelPlugins } from '@/platform/models/providers';
 import { parseArgs } from 'node:util';
 import { AgentHost } from '@/platform/bootstrap/agentHost';
 import { InMemoryPersistentKeyValueStore } from '@/platform/persistence/keyValueStore';
@@ -23,7 +24,7 @@ async function main() {
         },
     });
     if (values.help) {
-        console.log('Usage: bun run src/scripts/knowledge.ts (--root <folder> | --url <public-url> [--url <public-url> ...]) [--query <text> | --ask <question> | --check-run <run-id> ...] [--state <private-sqlite-file>] [--impact-status] [--limit 1..10] [--exclude <relative-prefix>] [--vault-name <name>]\nWithout --query/--ask/--check-run, refresh the index. --query uses keyword retrieval without a model. --url reads only configured public pages (up to 5). --check-run requires --state and checks actual cited document versions; --impact-status reads the last assessment without refreshing. --ask sends selected snippets to explicit KNOWLEDGE_API_BASE/MODEL/API_KEY (optional KNOWLEDGE_PROVIDER). Records are in memory unless --state is supplied; the index is always rebuilt.');
+        console.log('Usage: bun run src/scripts/knowledge.ts (--root <folder> | --url <public-url> [--url <public-url> ...]) [--query <text> | --ask <question> | --check-run <run-id> ...] [--state <private-sqlite-file>] [--impact-status] [--limit 1..10] [--exclude <relative-prefix>] [--vault-name <name>]\nWithout --query/--ask/--check-run, refresh the index. --query uses keyword retrieval without a model. --url reads only configured public pages (up to 5). --check-run requires --state and checks actual cited document versions; --impact-status reads the last assessment without refreshing. --ask sends selected snippets to explicit KNOWLEDGE_API_BASE/MODEL/API_KEY (KNOWLEDGE_PROVIDER=ollama allows a keyless loopback endpoint). Records are in memory unless --state is supplied; the index is always rebuilt.');
         return;
     }
     const useWeb = values.url !== undefined;
@@ -45,7 +46,7 @@ async function main() {
     if (store instanceof SQLitePersistentKeyValueStore) console.error(`Runtime records are saved in ${store.filename}; the file contains private questions and excerpts.`);
     const host = new AgentHost(() => ({ store, config: { feishu: { bot_name: 'Local knowledge' }, groups: [], ai } }) as any,
         1000, undefined, [], { plugins: values['check-run'] ? [sourcePlugin, useWeb ? knowledgeWebImpactPlugin : knowledgeImpactPlugin]
-            : values.ask === undefined ? [sourcePlugin] : [sourcePlugin, answerPlugin], pluginConfig: { [sourcePlugin.manifest.id]: config } });
+            : values.ask === undefined ? [sourcePlugin] : [...standardModelPlugins, sourcePlugin, answerPlugin], pluginConfig: { [sourcePlugin.manifest.id]: config } });
     try {
         const input = values['check-run'] ? { runIds: values['check-run'], operation: values['impact-status'] ? 'status' : 'check' }
             : values.ask !== undefined ? { question: values.ask, limit: values.limit === undefined ? 5 : Number(values.limit) } : values.query === undefined ? { operation: 'sync' } : {
