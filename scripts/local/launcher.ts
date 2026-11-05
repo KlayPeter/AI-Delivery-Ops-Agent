@@ -26,7 +26,7 @@ async function main() {
     let interrupted = false, interrupt!: () => void;
     const stopped = new Promise<void>(resolve => { interrupt = resolve; });
     const onSignal = () => { interrupted = true; interrupt(); };
-    process.once('SIGINT', onSignal); process.once('SIGTERM', onSignal);
+    process.on('SIGINT', onSignal); process.on('SIGTERM', onSignal);
     const stop = (child: ChildProcess, force = false) => {
         if (!child.pid) return;
         try {
@@ -69,7 +69,6 @@ async function main() {
             const code = await Promise.race([running.exited, stopped.then(() => { throw new Error('启动已中止'); })]);
             if (code) throw new Error(`${label}失败（退出码 ${code}），请检查上方输出后重试。`);
         } finally {
-            stop(running.child);
             if (!alive(running.child)) children.delete(running.child);
         }
     };

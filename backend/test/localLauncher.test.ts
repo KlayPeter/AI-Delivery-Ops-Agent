@@ -51,7 +51,7 @@ process.once('SIGTERM', () => setTimeout(() => { writeFileSync('../drained', 'ye
     await writeFile(pnpm, `#!/usr/bin/env bun
 import { writeFileSync } from 'node:fs';
 if (process.argv.includes('--version')) {
-    if (process.env.HOLD_CHECK) { writeFileSync('checking.pid', String(process.pid)); setInterval(() => {}, 1000); }
+    if (process.env.HOLD_CHECK) { writeFileSync('checking.pid', String(process.pid)); setInterval(() => {}, 1000); process.once('SIGTERM', () => setTimeout(() => { writeFileSync('checking-drained', 'yes'); process.exit(0); }, 700)); }
     else console.log('10.33.2');
 } else {
     writeFileSync('../frontend.pid', String(process.pid));
@@ -71,7 +71,11 @@ if (process.argv.includes('--version')) {
         while (true) { const chunk = await reader.read(); if (chunk.done) break; output += decoder.decode(chunk.value, { stream: true }); }
     };
     const streams = Promise.all([collect(processHandle.stdout), collect(processHandle.stderr)]);
-    const stop = async () => { processHandle.kill('SIGINT'); await processHandle.exited; await streams; };
+    const stop = async (repeat = false) => {
+        processHandle.kill('SIGINT');
+        if (repeat) { await Bun.sleep(60); processHandle.kill('SIGINT'); }
+        await processHandle.exited; await streams;
+    };
     return { directory, processHandle, streams, stop, output: () => output };
 }
 
@@ -128,4 +132,14 @@ processTest('interrupting a prerequisite command stops that process too', async 
     finally { await f.stop(); }
     expect(alive(Number(await readFile(path.join(f.directory, 'checking.pid'), 'utf8')))).toBe(false);
     expect(await exists(path.join(f.directory, 'backend.pid'))).toBe(false);
+    expect(await readFile(path.join(f.directory, 'checking-drained'), 'utf8')).toBe('yes');
+});
+
+processTest('repeated interruption still lets the owned backend finish draining', async () => {
+    const f = await fixture();
+    try { await waitFor(() => /FRONTEND_READY (\d+)/.test(f.output())); }
+    finally { await f.stop(true); }
+    expect(await f.processHandle.exited).toBe(0);
+    expect(await readFile(path.join(f.directory, 'drained'), 'utf8')).toBe('yes');
+    expect(alive(Number(await readFile(path.join(f.directory, 'backend.pid'), 'utf8')))).toBe(false);
 });

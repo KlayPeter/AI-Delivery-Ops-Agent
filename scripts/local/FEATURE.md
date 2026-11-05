@@ -50,7 +50,7 @@ flowchart TD
 3. 本地启动前检查必要依赖，缺少时给出初始化提示。直接执行 backend/src/index.ts，避免包脚本包装层重复转发停止信号；固定 HOST=127.0.0.1；保留 PORT、DATA_DIR 与插件选择。
 4. 仅监听成功后，后端在 LOCAL_DEV_SESSION 存在时输出 JSON 标记。前端启动要求 event/session/hostname 匹配、port 为 1–65535 整数；忽略其他日志和超过 8 KiB 的行。60 秒未确认则失败清理。
 5. VITE_API_BASE 显式覆盖为本次后端实际端口，Vite 同样绑定回环；前端实际页面端口由 Vite 输出。
-6. 任一服务结束均停止另一端；异常退出返回非零。SIGINT/SIGTERM 是正常停止。POSIX 为独立进程组，先 SIGTERM 等待最多 10 秒，再强制停止未结束组，不查杀其他端口。中断安装步骤同样受清理管理。
+6. 任一服务结束均停止另一端；异常退出返回非零。SIGINT/SIGTERM 是正常停止。POSIX 为独立进程组，先 SIGTERM 等待最多 10 秒，再强制停止未结束组，不查杀其他端口。中断安装步骤同样受清理管理，停止信号只发一次；收尾完成前持续接收重复中断，避免提前退出丢失强制清理。
 7. 后端源代码、插件与连接更新需要退出并重启；前端热更新保持。
 
 ## 用户能力与入口
@@ -78,7 +78,7 @@ flowchart TD
 - scripts/local/launcher.ts：配置初始化、锁定安装、实际端口握手、联合生命周期。
 - backend/src/index.ts：可选的本次会话监听标记。
 - backend/src/scripts/dbPush.ts：复用的安全数据库同步。
-- backend/test/localLauncher.test.ts：标记边界、配置保留、动态端口、失败、中断、后代清理与大于 300ms 的收尾。
+- backend/test/localLauncher.test.ts：标记边界、配置保留、动态端口、失败、中断、后代清理、重复中断与大于 300ms 的服务/前置命令收尾。
 - backend/test/sqliteDeployment.test.ts：已有数据库安全契约。
 - docs/LOCAL_DEVELOPMENT.md：使用与手动排障。
 
