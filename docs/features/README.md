@@ -53,6 +53,8 @@ flowchart LR
     WEB --> UI
     WEB --> STAPI[站会统计与历史汇总 API]
     STAPI --> SS
+    WEB --> PVAPI[看板文件与甘特计划 API]
+    PVAPI --> TS
     FP --> MCP[可选本地 MCP 连接插件]
     MCP --> MG[显式白名单 / 标准 Schema / Tool Gateway]
     MG --> MS[已审查的 stdio 服务]
@@ -134,7 +136,7 @@ flowchart LR
 | `backend/src/scripts/knowledge.ts` | `personal-markdown-knowledge`、`personal-web-knowledge`、`personal-knowledge-answer`、`knowledge-change-impact` |
 | `backend/src/platform/models/**` | `agent-platform`、`operations-observability`；同步受影响的模型调用功能 |
 | `domains/weeklyReport/**`、`native/weeklyReportAgent.ts`、`WeeklyReportHandler.ts` | `weekly-report` |
-| Dashboard Service、Project Dashboard、`native/dashboardAgent.ts`、`HumanGanttPage` | `project-visibility` |
+| Dashboard Service、Project Dashboard、`native/dashboardAgent.ts`、`native/project-dashboard/**`、`DashboardPage`、`HumanGanttPage`、`frontend/src/dashboardFiles.ts` | `project-visibility` |
 | Meeting Summary Handler、Service、邮件分发、`MeetingSummariesPage` | `meeting-summary` |
 | `core/config`、Scheduler、`jobs.ts`、群成员同步、`ConfigPage` | `configuration-scheduling`；同时更新被调度的业务功能 |
 | `backend/src/platform/scheduling/**` | `plugin-runtime`、`configuration-scheduling`、`operations-observability`；同步对应业务功能 |

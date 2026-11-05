@@ -11,6 +11,18 @@ test('only installed plugin pages resolve, including a trailing slash', () => {
   assert.equal(findPluginPage([page], '/standups-other'), undefined);
 });
 
+test('dashboard and Gantt links require their installed owner, including legacy aliases', () => {
+  const dashboard = { path: '/dashboard', label: '项目看板', section: 'team', view: { kind: 'builtin', id: 'dashboard' } };
+  const gantt = { ...dashboard, path: '/human-gantt', view: { kind: 'builtin', id: 'human-gantt' } };
+  for (const [path, search, expected] of [['/dashboard', '', dashboard], ['/human-gantt/', '', gantt], ['/', '?groupId=oc_demo', dashboard], ['/', '?dashboardId=old', dashboard], ['/delivery-dashboard-2026-07-07.html', '', dashboard], ['/中文快照.html', '', dashboard]]) {
+    assert.equal(findPluginPage([dashboard, gantt], path, search), expected);
+    assert.equal(activePluginPage([dashboard, gantt], path, search), expected);
+    assert.equal(findPluginPage([], path, search), undefined);
+  }
+  for (const path of ['/other/nested.html', '/bad%2fname.html', '/broken%ZZ.html']) assert.equal(findPluginPage([dashboard], path), undefined);
+  assert.equal(findPluginPage([dashboard], '/', '?capability=example.run'), undefined);
+});
+
 test('agent entries keep their active navigation after opening the task composer', () => {
   const page = { path: '/mcp-reader', label: 'MCP 文件读取', section: 'workspace', view: { kind: 'agent', capability: 'example.mcp.read' } };
   assert.equal(activePluginPage([page], '/', '?capability=example.mcp.read'), page);

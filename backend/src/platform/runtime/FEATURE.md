@@ -31,6 +31,8 @@ flowchart TD
     SJ --> Z
     S --> A["消息 / Scheduler / API"]
     A --> WOWN[插件声明的 Web 页面、API 与手动任务]
+    WOWN --> PV[看板文件读取与甘特计划；缺少所有者返回 404]
+    PV --> PA[TaskService 计划审计；保留历史数据]
     WOWN --> B["Trigger / Job Execution"]
     B --> C["Agent Run / 业务服务"]
     C --> SC[Agent / Tool / Skill 标准 JSON Schema 校验]
@@ -263,6 +265,8 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 - `backend/test/health.test.ts`：存活、数据库异常和 Agent Host 未启动时的就绪判定。
 - `backend/test/apiDocumentation.test.ts`：Swagger UI、OpenAPI JSON 与已注册 API 路由生成。
 - `backend/test/multiBotIngress.test.ts`、`triggerRuntime.test.ts`：跨 Bot 幂等和显式 private 投递目标。
+
+本批验证：`backend/test/projectVisibilityApi.test.ts` 覆盖插件关闭后的读写拒绝、文件边界、计划校验和审计；`frontend/src/pages/workspace/pages.test.mjs` 覆盖旧看板链接的所有权。配合后端全量回归、前端门禁和桌面/移动端浏览器验收。
 
 ## 变更记录
 

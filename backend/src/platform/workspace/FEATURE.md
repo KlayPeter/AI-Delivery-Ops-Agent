@@ -35,6 +35,8 @@ flowchart TD
     K --> EV[带行号、内容版本和原文定位的结果]
     EV --> V
     PL --> WEB[插件页面元数据、API 与手动任务授权]
+    WEB --> ALIAS[旧根查询与 HTML 链接也核对看板所有者]
+    ALIAS --> NAV
     WEB --> NAV[动态导航与已打包视图 / 指定 Agent 入口]
     NAV --> V
     WEB --> JOBS[手动任务必须有已装配所有者]
@@ -72,7 +74,7 @@ flowchart TD
 8. HTTP 入口默认在原九个团队插件上增加示例 Markdown 来源、回答与复核插件，合计 12 个插件、10 个 Agent。选择公开网页时替换来源组合。SDK 团队工厂仍为九个插件、七个 Agent。显式 AGENT_PLUGINS_FILE 完全管理组合，不自动叠加页面知识配置。
 9. 知识请求保留无 chat/conversation 的个人手动 Scope。检索不调用模型，生成回答使用当前宿主模型并发送所选片段；证据沿用来源和引用核验协议。
 10. 结果 Markdown 不执行 HTML，不自动加载远端图片；原文链接仅允许 HTTP/HTTPS 和 Obsidian open。原始 JSON 放在详情，不作为主要操作入口。
-11. 首页新工作台保留 `?groupId` / `?dashboardId` 的既有看板入口，以及旧 HTML 长链接兜底；项目看板新增 `/dashboard` 导航。
+11. 首页新工作台保留 `?groupId` / `?dashboardId` 的既有看板入口，以及旧根目录 HTML 长链接；这些入口都核对看板插件是否装配，项目看板使用 `/dashboard` 导航。
 
 ## 插件后续动作
 
@@ -84,9 +86,9 @@ flowchart TD
 
 HTTP 装配先核对现有 API 命名空间，插件声明冲突时拒绝启动，防止覆盖尚未迁移的接口。
 
-工作台 state 增加 pages 和 manualJobs，由真实 Cordis 注册表提供。前端按页面元数据生成导航，支持已打包站会视图或指定 Agent 的入口；不执行第三方 HTML/JS。入口失效显示恢复链接，连接失败提供重试，Agent 入口跳转后保留导航选中状态。旧 .html 看板链接与根查询参数兼容保留。
+工作台 state 增加 pages 和 manualJobs，由真实 Cordis 注册表提供。前端按页面元数据生成导航，支持已打包站会、看板和甘特视图或指定 Agent 的入口；不执行第三方 HTML/JS。入口失效显示恢复链接，连接失败提供重试，Agent 入口跳转后保留导航选中状态。旧根查询参数与根目录 .html 看板链接共享插件检查，只有看板插件启用时才可打开；导航保持对应页面选中。
 
-站会页面和统计 API 随 builtin.standup 装配；移除后旧地址不能访问数据。Debug 页面只显示已声明的任务，后端 /api/jobs 同样校验所有者，不能靠手写请求绕过。默认九项任务保持，空组合没有这些任务。当前只迁移站会页面/API；其他旧页面和服务仍按路线图迁移。
+站会页面和统计 API 随 builtin.standup 装配；移除后旧地址不能访问数据。Debug 页面只显示已声明的任务，后端 /api/jobs 同样校验所有者，不能靠手写请求绕过。默认九项任务保持，空组合没有这些任务。当前已迁移站会、项目看板与人力甘特图页面/API；看板文件读取和甘特计划写入都经插件所有权检查。其他旧页面和服务仍按路线图迁移。
 
 ## 用户能力
 
@@ -171,6 +173,8 @@ HTTP 装配先核对现有 API 命名空间，插件声明冲突时拒绝启动�
 - `backend/test/workspace.test.ts`：私有配置、重启生效、串行保存、坏配置拒绝、本机 Origin、真实插件 API、Scope、幂等、示例知识与人工继续。
 - `frontend/src/pages/workspace/input.test.mjs`：知识请求契约、旧看板链接与原文协议限制。
 - 浏览器验收：本地检索到真实引文、保存飞书设置反馈、桌面和 375px 导航/表单；后端全量回归与前端类型/lint/构建。
+
+本批验证：`backend/test/projectVisibilityApi.test.ts` 覆盖插件关闭后的读写拒绝、文件边界、计划校验和审计；`frontend/src/pages/workspace/pages.test.mjs` 覆盖旧看板链接的所有权。配合后端全量回归、前端门禁和桌面/移动端浏览器验收。
 
 ## 变更记录
 

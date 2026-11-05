@@ -30,6 +30,8 @@ flowchart TD
     D --> SJ[注册插件拥有的群业务计划与轮询]
     SJ --> E
     D --> WEB[注册页面、API 与原有手动任务授权]
+    WEB --> VIS[看板文件与甘特计划 API；卸载保留事实数据]
+    VIS --> E
     WEB --> E
     D --> RA[注册成功 Run 的后续动作与文本状态]
     RA --> E
@@ -91,7 +93,7 @@ connector.mcp 通过现有 FeaturePlugin/Config/effect 接入，无需修改 Hos
 
 ctx.delivery.web.register 注册唯一贡献 ID、页面元数据、API 前缀/路由/Fetch handler 和可手动执行的原有任务名称。注册随 Cordis 回滚与释放。页面路径、任务名和 API 前缀不能重复或覆盖保留入口；前端只支持已打包视图或跳到指定 Agent 的入口，不执行远端 UI 包。
 
-站会已把统计页面与 API 从全局组合移入自己的插件。任务、日报、看板插件各自声明原有手动任务；缺少所有者时旧 /api/jobs 不执行，默认仍为九个原有任务。MCP 读取示例通过元数据增加页面入口，不修改前端业务表。其他旧业务页面/API、全局维护和基础服务仍待逐项迁移，当前不宣称全产品已经插件化。
+站会、项目看板和人力甘特图已把页面与 API 从全局组合移入各自所有者；builtin.dashboard 使用两个 Web 贡献分别声明文件与甘特命名空间，卸载时一起释放。旧根查询与 HTML 链接也不能绕过插件检查。任务、日报、看板插件各自声明原有手动任务；缺少所有者时旧 /api/jobs 不执行，默认仍为九个原有任务。MCP 读取示例通过元数据增加页面入口，不修改前端业务表。其他旧业务页面/API、全局维护和基础服务仍待逐项迁移，当前不宣称全产品已经插件化。
 
 ## 用户能力
 
@@ -182,6 +184,8 @@ ctx.delivery.web.register 注册唯一贡献 ID、页面元数据、API 前缀/�
 - `backend/test/messagePlugins.test.ts`：关闭功能后的历史上下文与帮助、第三方私聊、确定性消息在途停止。
 - `backend/test/agentControlPlane.test.ts`：持久化控制面兼容。
 - 现有 Agent、Tool、Skill、调度和业务测试：迁移行为回归。
+
+本批验证：`backend/test/projectVisibilityApi.test.ts` 覆盖插件关闭后的读写拒绝、文件边界、计划校验和审计；`frontend/src/pages/workspace/pages.test.mjs` 覆盖旧看板链接的所有权。配合后端全量回归、前端门禁和桌面/移动端浏览器验收。
 
 ## 变更记录
 

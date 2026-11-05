@@ -3,6 +3,7 @@ import type { FeaturePlugin } from '@/platform/plugins/contracts';
 import { pluginJobs, scheduledPluginJobs } from './jobs';
 import { DashboardHandler } from '@/services/messageHandler/handlers/DashboardHandler';
 import { localTimePlan } from '@/platform/scheduling/calendar';
+import { createDashboardApi, createHumanGanttApi } from '@/agents/native/project-dashboard/api';
 
 export const dashboardPlugin: FeaturePlugin = {
     manifest: { apiVersion: '1.0', id: 'builtin.dashboard', name: 'Project dashboard', version: '1.0.0', description: 'Project snapshots through the dashboard domain service.' },
@@ -23,7 +24,15 @@ export const dashboardPlugin: FeaturePlugin = {
         handle: ({ ctx, message }) => DashboardHandler.maybeHandle(ctx, message, 'group'),
     }],
     apply(ctx) {
-        ctx.delivery.web.register({ id: 'builtin.dashboard', manualJobs: ['dashboard'] });
+        const dashboards = createDashboardApi(ctx.delivery.getContext), gantt = createHumanGanttApi(ctx.delivery.getContext);
+        ctx.delivery.web.register({ id: 'builtin.dashboard', manualJobs: ['dashboard'],
+            pages: [{ path: '/dashboard', label: '项目看板', section: 'team', view: { kind: 'builtin', id: 'dashboard' } }],
+            api: { prefix: '/api/dashboards', routes: dashboards.routes.map(route => ({ method: route.method, path: route.path })), handle: request => dashboards.handle(request) },
+        });
+        ctx.delivery.web.register({ id: 'builtin.dashboard.gantt',
+            pages: [{ path: '/human-gantt', label: '人力甘特图', section: 'team', view: { kind: 'builtin', id: 'human-gantt' } }],
+            api: { prefix: '/api/human-gantt', routes: gantt.routes.map(route => ({ method: route.method, path: route.path })), handle: request => gantt.handle(request) },
+        });
         registerDashboardAgent(ctx.delivery.nativeAgents, () => pluginJobs(ctx.delivery.getContext));
     },
 };

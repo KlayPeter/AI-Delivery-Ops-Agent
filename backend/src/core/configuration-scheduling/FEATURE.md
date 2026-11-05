@@ -24,6 +24,8 @@ flowchart TD
     LF --> BOOT[重启注入环境配置]
     BOOT --> PH
     PC["可信插件配置 / 重启生效"] --> PH["Agent、Tool、Skill、消息与群调度装配"]
+    PH --> VIS[站会、看板与甘特 Web 入口按插件装配]
+    VIS --> E
     PH --> E
     A["Config Page / API"] --> B["Schema 校验与持久化"]
     C["飞书通讯录与群"] --> D["带页数/时长/总请求预算的成员同步"]
@@ -193,6 +195,8 @@ Debug 与 /api/jobs 统一使用 PluginWebRegistry 的 manualJobs。站会声明
 - `backend/test/dataRetention.test.ts`、`maintenanceScheduler.test.ts`：维护配置、每日领取和失败隔离。
 - `backend/test/jobs.test.ts`、`jobExecution.test.ts`：业务 Job 和记录。
 - `backend/test/groupMembers.test.ts`、`companyMembers.test.ts`：成员同步、完整目录快照和离职停用。
+
+本批验证：`backend/test/projectVisibilityApi.test.ts` 覆盖插件关闭后的读写拒绝、文件边界、计划校验和审计；`frontend/src/pages/workspace/pages.test.mjs` 覆盖旧看板链接的所有权。配合后端全量回归、前端门禁和桌面/移动端浏览器验收。
 
 ## 变更记录
 

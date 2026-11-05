@@ -58,6 +58,8 @@ flowchart TD
     CLAIM --> N["飞书私聊主负责人"]
     V -- "否" --> Z["记录负责人未解析并按槽去重"]
     N --> T["记录成功槽位"]
+    WEB[看板插件的甘特 API] --> GV[形状、日期、布尔开关校验]
+    GV --> D
     D --> E["Action / Mutation / Workflow Policy"]
     E --> F["任务与进度持久化"]
     F --> G{"需要 TAPD 同步?"}
@@ -84,6 +86,8 @@ flowchart TD
 本地工作台可填写飞书、模型与 TAPD 连接，重启后生效。模型供应商/地址/名称及 TAPD 项目/地址/工作项环境值优先于旧 config.json；工作台保存值在启动时覆盖同名环境设置。既有领域规则与消息/定时执行链路保持，详情见 docs/LOCAL_DEVELOPMENT.md。
 
 ## 核心规则
+
+甘特 API 随 builtin.dashboard 装配，包含查询、计划保存与删除；Task Agent 插件不拥有这些 Web 路由。API 先校验输入，继续通过 TaskService 进入 HumanGanttService，保留参与者、角色、半天范围和任务审计。移除看板插件返回 404，不删除任务或个人计划。
 
 通过 Agent Tool 进入任务域时，Tool Gateway 在调用前检查取消信号；预取消或领取账本期间取消时不进入业务 Handler。取消不等于已发外部写入回滚，任务业务仍依靠原有幂等、状态规则和结果核验。
 
@@ -216,6 +220,8 @@ builtin.task 显式声明 overdue-scan 的手动入口。Debug 页面和 /api/jo
 - `backend/test/weeklyReport.test.ts`：TAPD 字段级变更的幂等留痕与周报消费。
 - `backend/test/humanGantt.test.ts`：甘特人员映射、时间段、工作项类别和父级标识投影。
 - `backend/test/dashboardData.test.ts`：项目刷新并发合并、短缓存、强制刷新与全量同步。
+
+本批验证：`backend/test/projectVisibilityApi.test.ts` 覆盖插件关闭后的读写拒绝、文件边界、计划校验和审计；`frontend/src/pages/workspace/pages.test.mjs` 覆盖旧看板链接的所有权。配合后端全量回归、前端门禁和桌面/移动端浏览器验收。
 
 ## 变更记录
 

@@ -23,7 +23,6 @@ import { AgentHost } from './platform/bootstrap/agentHost';
 import { ScheduledJobs } from './services/jobs';
 import { GroupMemberSyncService } from './services/groupMembers';
 import { CompanyMemberService } from './services/companyMembers';
-import { TaskService } from './services/taskService';
 import dayjs from 'dayjs';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -339,21 +338,6 @@ const app = new Elysia()
 
         return { success: true };
     })
-    .get('/api/dashboards', () => {
-        const dir = path.join(config.data_path, 'dashboards');
-        if (!fs.existsSync(dir)) return { dashboards: [] };
-        const files = fs.readdirSync(dir).filter(f => f.endsWith('.html'));
-        return { dashboards: files.sort().reverse() };
-    })
-    .get('/api/dashboards/:filename', ({ params: { filename }, set }) => {
-        const filepath = path.join(config.data_path, 'dashboards', decodeURIComponent(filename));
-        if (fs.existsSync(filepath) && filepath.endsWith('.html')) {
-            set.headers['Content-Type'] = 'text/html; charset=utf-8';
-            return fs.readFileSync(filepath, 'utf8');
-        }
-        set.status = 404;
-        return { error: 'not_found' };
-    })
     .get('/api/weekly-reports', async ({ query }) => {
         const groupId = typeof query.groupId === 'string' ? query.groupId : undefined;
         const reports = await store.listWeeklyReports(groupId);
@@ -528,39 +512,6 @@ const app = new Elysia()
             return { members };
         } catch (e: any) {
             set.status = 500;
-            return { error: e.message || String(e) };
-        }
-    })
-    .get('/api/human-gantt', async ({ query, set }) => {
-        try {
-            const from = query.from as string || undefined;
-            const to = query.to as string || undefined;
-            const includeImplemented = String(query.includeImplemented || '') === 'true';
-            const sync = String(query.sync || 'true') === 'false'
-                ? null
-                : await TaskService.syncProjectScope({ config, tapd, store });
-            const data = await TaskService.humanGantt(store, config, { from, to, includeImplemented });
-            return { ...data, sync };
-        } catch (e: any) {
-            set.status = 500;
-            return { error: '人力甘特图加载失败', details: e.message || String(e) };
-        }
-    })
-    .post('/api/human-gantt/tasks/:taskId/plan', async ({ params: { taskId }, body, set }) => {
-        try {
-            const plan = await TaskService.updateGanttPlan(store, taskId, body as any);
-            return { ok: true, plan };
-        } catch (e: any) {
-            set.status = /不存在|不是任务参与人|无效|必须/.test(e.message || '') ? 400 : 500;
-            return { error: e.message || String(e) };
-        }
-    })
-    .delete('/api/human-gantt/tasks/:taskId/plan', async ({ params: { taskId }, body, set }) => {
-        try {
-            const plan = await TaskService.deleteGanttPlan(store, taskId, body as any);
-            return { ok: true, plan };
-        } catch (e: any) {
-            set.status = /不存在|无效/.test(e.message || '') ? 400 : 500;
             return { error: e.message || String(e) };
         }
     })

@@ -43,6 +43,7 @@ flowchart TD
     MR --> Q
     X --> WEB[页面、API 与手动任务贡献]
     WEB --> WREQ[本机请求与 Host 在途跟踪]
+    WREQ --> PV[看板文件 API / TaskService 甘特与计划审计]
     WREQ --> J
     X --> RA[成功 Run 的插件动作与状态面板]
     UI --> RA
@@ -93,7 +94,7 @@ flowchart TD
 
 ## 本地工作台
 
-HTTP 应用首页提供任务、运行详情、Agent/插件清单和连接表单，复用现有 Host；本地请求固定默认 workspace/bot，最终结果不投递会话。HTTP 入口在团队组合之外默认装配示例知识来源、回答与复核插件（12 个插件、10 个 Agent）；团队 SDK 组合保持九个插件、七个 Agent。管理 API 校验回环 Host/Origin；这不是多人认证。详见 [工作台功能卡](workspace/FEATURE.md)。
+HTTP 应用首页提供任务、运行详情、Agent/插件清单和连接表单，复用现有 Host；本地请求固定默认 workspace/bot，最终结果不投递会话。HTTP 入口在团队组合之外默认装配示例知识来源、回答与复核插件（12 个插件、10 个 Agent）；团队 SDK 组合保持九个插件、七个 Agent。管理 API 校验回环 Host/Origin；这不是多人认证。站会、看板与甘特页面/API 已按插件装配；旧根查询和 HTML 链接同样核对所有者，甘特计划继续由 TaskService 保存。详见 [工作台功能卡](workspace/FEATURE.md)。
 
 ## 核心规则
 
@@ -262,6 +263,8 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 - `backend/test/externalAgent.test.ts`：HTTP Agent。
 - `backend/test/agentControlPlane.test.ts`、`platformScope.test.ts`：控制面与隔离。
 - `backend/test/multiBotIngress.test.ts`、`aiNewsRadar.test.ts`：多 Bot 入站和专用 Native Agent。
+
+本批验证：`backend/test/projectVisibilityApi.test.ts` 覆盖插件关闭后的读写拒绝、文件边界、计划校验和审计；`frontend/src/pages/workspace/pages.test.mjs` 覆盖旧看板链接的所有权。配合后端全量回归、前端门禁和桌面/移动端浏览器验收。
 
 ## 变更记录
 

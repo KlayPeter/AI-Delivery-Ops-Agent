@@ -24,6 +24,10 @@ flowchart TD
     PL["Cordis: builtin.dashboard"] --> B
     PL --> MR["插件消息路由与帮助"]
     PL --> GS["插件贡献：看板计划"]
+    PL --> WEB[页面、文件 API 与甘特计划 API]
+    WEB --> GW[Host 本机检查与在途跟踪]
+    GW --> FILE[只读历史 HTML；目录与符号链接边界]
+    GW --> TS[TaskService 查询、保存/删除计划与审计]
     PL --> MJ[原有手动任务授权]
     MJ --> MG[Host 校验插件并跟踪在途执行]
     MG --> B
@@ -62,13 +66,13 @@ flowchart TD
 
 ## 工作台导航
 
-项目看板移入团队交付入口 /dashboard；首页成为 Agent 工作台。旧根路径的 groupId/dashboardId 查询及 HTML 长链接继续展示看板。宿主模型与 TAPD 连接可在本地「连接与模型」保存，重启后加载；管理 API 采用本机 Host/Origin 边界。
+项目看板移入团队交付入口 /dashboard；首页成为 Agent 工作台。旧根路径的 groupId/dashboardId 查询及根目录 HTML 长链接仅在插件已装配时展示看板；HTML 链接精确选择对应文件，不回退到最新快照。页面使用统一页头、历史抽屉、筛选与可恢复空态。甘特页使用浅色表面和高对比文字，筛选栏按窗口重排；移动端只在表格内部横向滚动，页面本身不被固定列撑宽。宿主模型与 TAPD 连接可在本地「连接与模型」保存，重启后加载；管理 API 采用本机 Host/Origin 边界。
 
 ## 核心规则
 
-运行时装配由 `builtin.dashboard` 插件负责，拥有 项目看板 Native Agent、群消息与看板计划的装配和清理。移除插件关闭对应消息和群业务调度，历史数据保留；页面、业务 API、全局维护/成员同步与基础服务尚未全部迁为插件贡献。
+运行时装配由 `builtin.dashboard` 插件负责，拥有 项目看板 Native Agent、群消息与看板计划的装配和清理。移除插件同时关闭消息、群调度、手动任务、看板/甘特页面与业务 API，历史数据保留。全局维护/成员同步与基础服务仍按后续路线图迁移。
 
-看板插件拥有日期、时刻和模块开关判定；提供 Dispatcher 时继续通过 Agent Runtime 生成和投递。移除后不再触发看板计划，现有业务 API 与人力甘特图页面仍待独立插件化。
+看板插件拥有日期、时刻和模块开关判定；提供 Dispatcher 时继续通过 Agent Runtime 生成和投递。移除后不再触发看板计划或访问看板/甘特 API，包括计划保存和删除。甘特任务真相源继续归 TaskService，不要求同时装配 Task Agent。
 
 自动调度统一通过 `backend/src/core/scheduleCalendar.ts` 判断群级 `schedule.calendar`。指定日期的触发/暂停优先于基础策略；`workdays` 使用中国工作日（含调休），`every_day` 不限制节假日，`selected_dates` 仅执行指定触发日。日期放行不绕过模块开关、任务开关或原定时刻，手动触发不受该日历限制。未配置或 `legacy` 保留原有 `workdays_only` 规则及周报、承诺到期提醒的例外；无效日期与非布尔覆盖值在读取配置时丢弃。
 
@@ -98,7 +102,7 @@ flowchart TD
 
 ## 手动任务所有权
 
-builtin.dashboard 显式声明 dashboard 的手动入口。Debug 页面和 /api/jobs 都按实际装配过滤；移除插件时请求返回 404，不创建执行器。原有生成、更新、预览与投递开关语义保持。此项只迁移手动任务授权，其他尚未迁移的页面/API 仍见路线图边界。
+builtin.dashboard 显式声明 dashboard 的手动入口。Debug 页面和 /api/jobs 都按实际装配过滤；移除插件时请求返回 404，不创建执行器。原有生成、更新、预览与投递开关语义保持。同一插件同时声明 /dashboard、/human-gantt 和两个 API 命名空间；关闭插件不能通过旧请求绕过。
 
 ## 用户能力
 
@@ -110,11 +114,12 @@ builtin.dashboard 显式声明 dashboard 的手动入口。Debug 页面和 /api/
 
 | 入口 | 输入 | 输出 |
 | --- | --- | --- |
-| 2026-11-05 | 修复历史甘特图被当前日期截断的问题；迁移通用调度、API 预算和投递修复，保留公开版地址默认值 | `humanGantt.test.ts`、后端全量回归、前端门禁 |
 | 飞书看板命令/主 Agent | 群、项目、业务日期 | 看板 Artifact 与回复 |
 | Scheduler/API | 项目和执行上下文 | 持久化快照 |
 | Debug/API 手动触发 | 群、日期、`sendToGroup` | 看板快照与生成结果；按开关决定是否群投递 |
-| 管理后台 | 人员、项目、日期筛选 | 看板列表或甘特图数据 |
+| `/dashboard`、旧根查询与根 HTML 链接 | 群组、快照、月份 | 已安装插件提供的历史快照；缺失文件明确提示 |
+| `/human-gantt`、`/api/human-gantt` | 人员、日期、计划 | TaskService 投影及个人计划审计 |
+| `/api/dashboards`、`/api/dashboards/:filename` | 根目录 HTML 文件名 | 普通文件列表/正文；禁止路径越界与符号链接 |
 
 ## 运行逻辑
 
@@ -143,13 +148,16 @@ builtin.dashboard 显式声明 dashboard 的手动入口。Debug 页面和 /api/
 
 - 图片渲染失败时保留结构化快照并可降级为 HTML 或文本链接。
 - 外部 TAPD 不可用时必须标注数据时间，避免展示为实时真相。
-- 后台文件读取必须限制在看板产物目录，不能接受任意路径。
+- 后台文件读取仅接受单段 HTML 文件名，参数不做二次解码；列表排除目录和符号链接，打开使用 O_NOFOLLOW 并检查普通文件。
+- 甘特查询拒绝非法日期、反向区间和非布尔开关；计划正文先校验形状，再复用 TaskService 的参与者/角色/半天范围与审计规则。内部错误不返回数据库路径。
+- 这是本机可信工作区，employee_open_id 表示被编辑的计划参与者，不代表已经实现用户登录或多人权限认证。
 
 ## 代码地图
 
 ### 主要实现
 
-- `backend/src/agents/plugins/dashboard.ts`：Agent 与功能消息贡献的独立装配。
+- `backend/src/agents/plugins/dashboard.ts`：Agent、消息、调度、页面和两个 API 命名空间的独立装配。
+- `backend/src/agents/native/project-dashboard/api.ts`：历史文件读取与甘特 API，任务状态仍由 TaskService 拥有。
 
 - `backend/src/agents/native/dashboardAgent.ts`：Project Dashboard Agent。
 - `backend/src/services/projectDashboard.ts`：项目快照与历史。
@@ -158,9 +166,12 @@ builtin.dashboard 显式声明 dashboard 的手动入口。Debug 页面和 /api/
 - `backend/src/domains/task/humanGantt.ts`：人力甘特投影、在职人员解析和工作项类别。
 - `backend/src/domains/task/overduePolicy.ts`：看板超期天数和档位投影。
 - `backend/src/domains/task/tapdHierarchy.ts`：父子完成继承与活跃叶子项投影。
-- `frontend/src/pages/DashboardPage.tsx`、`HumanGanttPage.tsx`、`humanGanttView.ts`：后台页面、甘特人员折叠、流转状态和工作项类别标签。
+- `frontend/src/pages/DashboardPage.tsx`、`HumanGanttPage.tsx`、`HumanGanttPage.css`、`humanGanttView.ts`：后台页面、甘特人员折叠、流转状态和工作项类别标签。
 
 ### 主要测试
+
+- `backend/test/projectVisibilityApi.test.ts`：看板/甘特路由所有权、移除后拒绝读写、OpenAPI、文件越界/链接拒绝、计划校验与审计。
+- `frontend/src/pages/workspace/pages.test.mjs`：普通页面与旧看板链接共享插件装配检查。
 
 - `backend/test/pluginWeb.test.ts`：默认九项手动任务、空组合拒绝、原有预览/投递与在途停止。
 
@@ -181,6 +192,8 @@ builtin.dashboard 显式声明 dashboard 的手动入口。Debug 页面和 /api/
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 看板与甘特页面/API 归属插件；旧 HTML 精确打开快照，统一历史页界面并收紧文件边界 | projectVisibilityApi、dashboardFiles、pluginWeb、前端别名测试与本地浏览器验收 |
+| 2026-11-05 | 修复历史甘特图被当前日期截断的问题；迁移通用调度、API 预算和投递修复，保留公开版地址默认值 | `humanGantt.test.ts`、后端全量回归、前端门禁 |
 | 2026-11-05 | 手动任务由所属插件声明，移除插件后旧 API 不再执行 | 插件 Web/站会 API 专项、后端回归、前端检查及默认/空配置/MCP 浏览器验收 |
 | 2026-11-05 | 看板移入团队导航，保留旧根查询和 HTML 长链接 | 工作台专项、后端回归、前端检查与本地浏览器验收 |
 | 2026-11-05 | 看板计划改为插件贡献，业务日期、幂等、重试和持久化契约保留 | 原调度与插件回归、后端 428 通过 / 1 TAPD 跳过、类型检查 |

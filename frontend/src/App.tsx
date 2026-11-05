@@ -1,18 +1,16 @@
-import { lazy, Suspense } from 'react';
+import { lazy } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
-import { App as AntdApp, ConfigProvider, Spin, theme } from 'antd';
+import { App as AntdApp, ConfigProvider, theme } from 'antd';
 import { MainLayout } from '@/layouts/MainLayout';
 import { isLegacyDashboardSearch } from '@/pages/workspace/input';
 
 // 页面组件
 import ConfigPage from '@/pages/ConfigPage';
-import DashboardPage from '@/pages/DashboardPage';
 import LogsPage from '@/pages/LogsPage';
 import DebugPage from '@/pages/DebugPage';
 import ContextsPage from '@/pages/ContextsPage';
 import MeetingSummariesPage from '@/pages/MeetingSummariesPage';
 import WeeklyReportsPage from '@/pages/WeeklyReportsPage';
-const HumanGanttPage = lazy(() => import('@/pages/HumanGanttPage'));
 const WorkspacePage = lazy(() => import('@/pages/workspace/WorkspacePage'));
 const CatalogPage = lazy(() => import('@/pages/workspace/CatalogPage'));
 const ConnectionsPage = lazy(() => import('@/pages/workspace/ConnectionsPage'));
@@ -20,7 +18,7 @@ const KnowledgePage = lazy(() => import('@/pages/workspace/KnowledgePage'));
 const PluginPage = lazy(() => import('@/pages/workspace/PluginPage'));
 
 function WorkspaceEntry() {
-  return isLegacyDashboardSearch(useLocation().search) ? <DashboardPage /> : <WorkspacePage />;
+  return isLegacyDashboardSearch(useLocation().search) ? <PluginPage /> : <WorkspacePage />;
 }
 
 function App() {
@@ -41,8 +39,6 @@ function App() {
             <Route path="plugins" element={<CatalogPage key="plugins" plugins />} />
             <Route path="connections" element={<ConnectionsPage />} />
             <Route path="knowledge" element={<KnowledgePage />} />
-            <Route path="dashboard" element={<DashboardPage />} />
-            <Route path="human-gantt" element={<Suspense fallback={<Spin size="large" style={{ margin: '120px auto' }} />}><HumanGanttPage /></Suspense>} />
             <Route path="weekly-reports" element={<WeeklyReportsPage />} />
             <Route path="logs" element={<LogsPage />} />
             <Route path="debug" element={<DebugPage />} />

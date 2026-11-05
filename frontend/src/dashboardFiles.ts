@@ -5,6 +5,13 @@ export interface DashboardFileMeta {
   sortKey: string;
 }
 
+export const dashboardFilenameFromPath = (pathname: string): string | undefined => {
+  try {
+    const filename = decodeURIComponent(pathname.slice(1));
+    return filename.length <= 255 && !/[\\/\p{Cc}]/u.test(filename) && filename.endsWith('.html') ? filename : undefined;
+  } catch { return undefined; }
+};
+
 export const parseDashboardFilename = (filename: string): DashboardFileMeta => {
   const date = filename.match(/(\d{4}-\d{2}-\d{2})/)?.[1] || '';
   const snapshot = filename.match(/-(\d{8})T(\d{9})-[^.]+\.html$/)?.[2] || '';

@@ -395,6 +395,7 @@ const HumanGanttPage = () => {
 
   return (
     <div className="hg-page">
+      <div className="page-heading"><div><h1>人力甘特图</h1><p>按人员查看任务阶段与时间安排，拖拽计划条调整个人排期。</p></div></div>
       <section className="hg-control-panel">
         <div className="hg-control-group hg-view-control">
           <span className="hg-control-label">视角切换</span>

@@ -72,7 +72,11 @@ test('team defaults declare exactly the existing manual jobs and an empty profil
     try {
         await defaults.initialize(); await empty.initialize(); await withoutStandup.initialize();
         expect(new Set(defaults.web.manualJobs())).toEqual(MANUAL_JOB_NAMES);
-        expect(defaults.web.pages()).toMatchObject([{ path: '/standups', view: { id: 'standups' } }]);
+        expect(defaults.web.pages()).toEqual(expect.arrayContaining([
+            expect.objectContaining({ path: '/standups', view: { kind: 'builtin', id: 'standups' } }),
+            expect.objectContaining({ path: '/dashboard', view: { kind: 'builtin', id: 'dashboard' } }),
+            expect.objectContaining({ path: '/human-gantt', view: { kind: 'builtin', id: 'human-gantt' } }),
+        ]));
         expect(empty.web.pages()).toEqual([]);
         let called = false;
         await expect(empty.executePluginJob('standup-summary', async () => { called = true; })).rejects.toThrow('未启用');
