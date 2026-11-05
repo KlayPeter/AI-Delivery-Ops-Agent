@@ -5,7 +5,7 @@ import type { SkillManifest } from './contracts';
 import type { SkillRegistry } from './registry';
 
 export class SkillPackageLoader {
-    constructor(private readonly registry: SkillRegistry) {}
+    constructor(private readonly registry: Pick<SkillRegistry, 'register'>) {}
 
     async loadDirectory(root: string): Promise<number> {
         let entries;
@@ -18,22 +18,23 @@ export class SkillPackageLoader {
 
         let loaded = 0;
         for (const entry of entries.filter(item => item.isDirectory()).sort((left, right) => left.name.localeCompare(right.name))) {
-            const packageRoot = path.resolve(root, entry.name);
-            const manifestPath = path.join(packageRoot, 'manifest.yaml');
-            let manifestText: string;
-            try {
-                manifestText = await readFile(manifestPath, 'utf8');
-            } catch (error: any) {
-                if (error?.code === 'ENOENT') continue;
-                throw error;
-            }
-            const manifest = parse(manifestText) as SkillManifest;
-            const instructionsPath = this.resolveInside(packageRoot, manifest.instructionsRef || 'SKILL.md');
-            const instructions = await readFile(instructionsPath, 'utf8');
-            this.registry.register(manifest, instructions);
-            loaded++;
+            if (await this.loadPackage(path.resolve(root, entry.name))) loaded++;
         }
         return loaded;
+    }
+
+    async loadPackage(packageRoot: string): Promise<(() => void) | undefined> {
+        let manifestText: string;
+        try {
+            manifestText = await readFile(path.join(packageRoot, 'manifest.yaml'), 'utf8');
+        } catch (error: any) {
+            if (error?.code === 'ENOENT') return undefined;
+            throw error;
+        }
+        const manifest = parse(manifestText) as SkillManifest;
+        const instructionsPath = this.resolveInside(packageRoot, manifest.instructionsRef || 'SKILL.md');
+        const instructions = await readFile(instructionsPath, 'utf8');
+        return this.registry.register(manifest, instructions);
     }
 
     private resolveInside(root: string, relativePath: string): string {

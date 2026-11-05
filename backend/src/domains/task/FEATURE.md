@@ -21,6 +21,7 @@ Task Agent 负责理解“用户想做什么”，`TaskService` 负责决定“�
 
 ```mermaid
 flowchart TD
+    PL["Cordis: builtin.task"] --> B
     A["任务命令 / 主 Agent 委派"] --> B["Task Agent 或确定性 Handler"]
     B --> AI{"任务命令 AI 前置解析成功?"}
     AI -- "是" --> C["Task Tool Gateway"]
@@ -71,6 +72,8 @@ flowchart TD
 - 人力甘特图只读取任务域数据，展示逻辑归 `project-visibility`。
 
 ## 核心规则
+
+运行时装配由 `builtin.task` 插件负责，拥有Task Agent、三个 Task Tool 与 task-management Skill的注册与清理。Agent/Capability/安装 ID 和领域行为保持原契约；确定性 Handler、页面与调度入口尚未全部迁为插件贡献。
 
 自动调度统一通过 `backend/src/core/scheduleCalendar.ts` 判断群级 `schedule.calendar`。指定日期的触发/暂停优先于基础策略；`workdays` 使用中国工作日（含调休），`every_day` 不限制节假日，`selected_dates` 仅执行指定触发日。日期放行不绕过模块开关、任务开关或原定时刻，手动触发不受该日历限制。未配置或 `legacy` 保留原有 `workdays_only` 规则及周报、承诺到期提醒的例外；无效日期与非布尔覆盖值在读取配置时丢弃。
 
@@ -189,6 +192,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 将Task Agent、三个 Task Tool 与 task-management Skill装配移入 `builtin.task`，保留业务与持久化契约 | 插件/Host 测试、后端全量回归 |
 | 2026-11-05 | 迁移公司版通用修复与任务型站会；甘特历史查询移除依赖当前日期的三个月截断，保留按查询区间投影 | 后端全量回归、前端门禁 |
 | 2026-07-29 | 移除特定公司团队名的角色映射，改用产品、设计、研发、开发和内容等通用关键词识别团队职责 | `statusUpdates.test.ts`、`taskWorkflow.test.ts`、后端类型检查 |
 | 2026-10-05 | 自动调度增加群级节假日策略与日历日期覆盖，保留旧配置兼容 | `scheduleCalendar.test.ts`、`scheduler.test.ts`、`config.test.ts`、前后端类型检查 |

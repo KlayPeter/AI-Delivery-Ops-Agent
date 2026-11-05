@@ -16,7 +16,7 @@ export const dashboardManifest: AgentManifest = {
     delivery: { allowedArtifactTypes: ['image', 'markdown'], directDelivery: false },
 };
 
-export function registerDashboardAgent(adapter: NativeAgentAdapter, jobs: () => ScheduledJobs): void {
+export function registerDashboardAgent(adapter: Pick<NativeAgentAdapter, 'register'>, jobs: () => ScheduledJobs): void {
     adapter.register(dashboardManifest.id, dashboardManifest.version, async (request, _resolved, signal) => {
         if (signal.aborted) return { status: 'failed', artifacts: [], error: { code: 'CANCELLED', message: 'Dashboard generation cancelled', retryable: true } };
         const input = request.input as { groupId: string; dayIso: string }; const day = new Date(input.dayIso);

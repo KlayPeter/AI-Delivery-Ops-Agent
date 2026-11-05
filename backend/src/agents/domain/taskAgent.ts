@@ -51,14 +51,14 @@ const taskAgentInstructions = `你是任务领域 Agent，只负责创建、查�
 若缺少负责人、标题、任务标识等关键字段，必须通过 request_human_input 请求补充，禁止猜测。
 不要处理站会、日报、看板或闲聊；遇到越界请求要明确说明应交给对应 Agent。`;
 
-export function registerTaskAgent(adapter: ModelLoopAgentAdapter): void {
+export function registerTaskAgent(adapter: Pick<ModelLoopAgentAdapter, 'register'>): void {
     adapter.register(TASK_AGENT_ID, taskAgentManifest.version, {
         instructions: taskAgentInstructions,
         artifactTitle: '任务处理结果',
     });
 }
 
-export function registerTaskTools(registry: ToolRegistry, getContext: () => HandlerContext): void {
+export function registerTaskTools(registry: Pick<ToolRegistry, 'register'>, getContext: () => HandlerContext): void {
     registry.register({
         id: TASK_QUERY_TOOL_ID,
         version: '1.0.0',

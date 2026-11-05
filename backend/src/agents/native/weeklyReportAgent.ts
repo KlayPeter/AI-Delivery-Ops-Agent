@@ -39,7 +39,7 @@ export const weeklyReportManifest: AgentManifest = {
     delivery: { allowedArtifactTypes: ["markdown"], directDelivery: false },
 };
 
-export function registerWeeklyReportAgent(adapter: NativeAgentAdapter, jobs: () => ScheduledJobs): void {
+export function registerWeeklyReportAgent(adapter: Pick<NativeAgentAdapter, 'register'>, jobs: () => ScheduledJobs): void {
     adapter.register(weeklyReportManifest.id, weeklyReportManifest.version, async (request, _resolved, signal) => {
         if (signal.aborted) {
             return { status: "failed", artifacts: [], error: { code: "CANCELLED", message: "Weekly report cancelled", retryable: true } };

@@ -9,12 +9,13 @@ export class AgentRegistry {
     private readonly installations = new Map<string, AgentInstallation>();
     private readonly bindings = new Map<string, BotAgentBinding>();
 
-    register(manifest: AgentManifest): void {
+    register(manifest: AgentManifest): () => void {
         if (!manifest.id || !manifest.version || manifest.capabilities.length === 0) throw new Error('Agent manifest identity and capabilities are required');
         if (manifest.delivery.directDelivery !== false) throw new Error('Direct delivery is not allowed');
         const key = definitionKey(manifest.id, manifest.version);
         if (this.definitions.has(key)) throw new Error(`Agent already registered: ${key}`);
         this.definitions.set(key, clone(manifest));
+        return () => { this.definitions.delete(key); };
     }
 
     registerOrVerify(manifest: AgentManifest): void {
@@ -29,10 +30,16 @@ export class AgentRegistry {
         }
     }
 
-    install(installation: AgentInstallation): void {
+    install(installation: AgentInstallation): () => void {
         if (!this.definitions.has(definitionKey(installation.agentId, installation.version))) throw new Error('Agent definition is not registered');
         if (this.installations.has(installation.id)) throw new Error(`Agent installation already exists: ${installation.id}`);
         this.installations.set(installation.id, clone(installation));
+        return () => {
+            for (const binding of this.bindings.values()) {
+                if (binding.agentInstallationId === installation.id) this.bindings.delete(binding.id);
+            }
+            this.installations.delete(installation.id);
+        };
     }
 
     upsertInstallation(installation: AgentInstallation): void {
@@ -40,10 +47,11 @@ export class AgentRegistry {
         this.installations.set(installation.id, clone(installation));
     }
 
-    bind(binding: BotAgentBinding): void {
+    bind(binding: BotAgentBinding): () => void {
         if (!this.installations.has(binding.agentInstallationId)) throw new Error('Agent installation does not exist');
         if (this.bindings.has(binding.id)) throw new Error(`Agent binding already exists: ${binding.id}`);
         this.bindings.set(binding.id, clone(binding));
+        return () => { this.bindings.delete(binding.id); };
     }
 
     upsertBinding(binding: BotAgentBinding): void {

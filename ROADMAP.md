@@ -10,13 +10,14 @@ complete; they are not current product claims or release-date promises.
 - [x] Import sanitized delivery workflows and public CI.
 - [x] Migrate reusable standup, report, calendar and reliability updates.
 - [x] Run local regression, frontend quality gates and secret scanning.
-- [ ] Confirm remote CI for the migration batch.
+- [x] Confirm remote CI for the migration batch.
 
 ## B. Every capability is a plugin
 
-- [ ] Use Cordis lifecycle and dependency composition, following DeepSeek Harness.
-- [ ] Publish a versioned plugin contract and one tested authoring template.
-- [ ] Move business features, integrations, runtime services, triggers and UI
+- [x] Use Cordis lifecycle and dependency composition, following DeepSeek Harness.
+- [x] Publish a versioned plugin contract and one tested authoring template.
+- [x] Split the seven built-in Agent registrations into independently composed plugins.
+- [ ] Move remaining business entrypoints, integrations, runtime services, triggers and UI
   contributions behind plugin registration, preserving current behavior.
 - [ ] Provide minimal, GitHub-team and Feishu-team composition profiles.
 - [ ] Verify missing dependencies, disabled plugins, setup failure and cleanup.

@@ -21,6 +21,7 @@ last_reviewed: 2026-07-29
 
 ```mermaid
 flowchart TD
+    PL["Cordis: builtin.ai-news"] --> A
     U["成员私聊现有系统机器人"] --> I["FeishuBotMessageIngress"]
     S["可选独立新闻机器人"] --> W["独立飞书长连接"]
     W --> I
@@ -59,6 +60,8 @@ flowchart TD
 - 可选的第二个机器人不处理群聊、任务命令或成员通讯录映射。
 
 ## 核心规则
+
+运行时装配由 `builtin.ai-news` 插件负责，拥有新闻 Native Agent 与恢复后的 Bot 配置的注册与清理。Agent/Capability/安装 ID 和领域行为保持原契约；确定性 Handler、页面与调度入口尚未全部迁为插件贡献。
 
 1. Capability 固定为 `knowledge.ai.news.fetch`，Agent ID 固定为 `native.ai-news-radar`。
 2. 默认查询最近 24 小时精选；用户明确说“全部/完整/所有/全量”才查询全量，明确说“日报”才使用日报端点。
@@ -154,6 +157,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 将新闻 Native Agent 与恢复后的 Bot 配置装配移入 `builtin.ai-news`，保留业务与持久化契约 | 插件/Host 测试、后端全量回归 |
 | 2026-11-05 | 同步公开版外部 API 预算、幂等投递和报告降级基础设施，业务开关与能力入口保持原语义 | 后端全量回归、类型检查 |
 | 2026-07-29 | 默认提升到 15 条，增加同会话 cursor 续页、任意关键词、来源筛选、多源 AI 信号和卡片尾部操作提示；Provider 迁移至 AI HOT v1 | `aiNewsRadar.test.ts`、`routedFeishuDelivery.test.ts`、`config.test.ts`、后端全量回归 |
 | 2026-07-29 | 默认复用系统现有飞书机器人和凭证；增加确定性私聊意图分流，并保留独立机器人作为可选模式 | `config.test.ts`、`aiNewsRadar.test.ts`、`multiBotIngress.test.ts`、`agentHost.test.ts` |

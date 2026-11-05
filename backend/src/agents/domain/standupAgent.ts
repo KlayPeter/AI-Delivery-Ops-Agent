@@ -49,14 +49,14 @@ const standupAgentInstructions = `你是站会领域 Agent，只负责站会提�
 群组归属或日期不明确时必须通过 request_human_input 请求补充，禁止猜测。
 不要创建普通任务，不要生成日报或看板；遇到越界请求要交给对应 Agent。`;
 
-export function registerStandupAgent(adapter: ModelLoopAgentAdapter): void {
+export function registerStandupAgent(adapter: Pick<ModelLoopAgentAdapter, 'register'>): void {
     adapter.register(STANDUP_AGENT_ID, standupAgentManifest.version, {
         instructions: standupAgentInstructions,
         artifactTitle: '站会处理结果',
     });
 }
 
-export function registerStandupTools(registry: ToolRegistry, getContext: () => HandlerContext): void {
+export function registerStandupTools(registry: Pick<ToolRegistry, 'register'>, getContext: () => HandlerContext): void {
     registry.register({
         id: STANDUP_QUERY_TOOL_ID,
         version: '1.0.0',

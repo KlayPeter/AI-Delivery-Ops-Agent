@@ -21,6 +21,7 @@ last_reviewed: 2026-08-12
 
 ```mermaid
 flowchart TD
+    PL["Cordis: builtin.orchestrator"] --> G
     A["飞书消息"] --> B["标准化消息上下文"]
     B --> N{"p2p 确定性 Capability 路由?"}
     N -- "默认 Bot 明确 AI 新闻意图" --> NA["直接派发 AI News Native Agent"]
@@ -53,6 +54,8 @@ flowchart TD
 - 不允许模型直接绕过 Tool 和领域服务写业务状态。
 
 ## 核心规则
+
+运行时装配由 `builtin.orchestrator` 插件负责，拥有主编排 Agent的注册与清理。Agent/Capability/安装 ID 和领域行为保持原契约；确定性 Handler、页面与调度入口尚未全部迁为插件贡献。
 
 1. **引用上下文优先。** 用户回复任务卡片、机器人追问或历史消息时，系统先恢复引用链，再判断当前文字；不能只看当前一句话。
 2. **一次消息只选择一条主链路。** `ContextRouter` 或某个 Handler 返回结果后，后续 Handler 不再执行，防止一条消息同时创建任务又触发日报。
@@ -134,6 +137,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 将主编排 Agent装配移入 `builtin.orchestrator`，保留业务与持久化契约 | 插件/Host 测试、后端全量回归 |
 | 2026-07-29 | 日报忽略规则移除公司品牌特判，改为识别公开机器人名称与通用“机器人”称呼 | `summaries.test.ts`、`messageHandler.test.ts` |
 | 2026-08-13 | 站会路由支持引用任务模板时不重复 @机器人，并在任务提醒回复中校验 @ 人与回复人一致 | `standupHandler.test.ts`、`messageHandler.test.ts` |
 | 2026-08-12 | 站会路由新增任务型站会登记及提醒引用上下文；显式 TAPD 创建语句保持原任务链路，能力提示同步更新 | `standupHandler.test.ts`、`messageHandler.test.ts` |

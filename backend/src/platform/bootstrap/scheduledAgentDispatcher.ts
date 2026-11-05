@@ -9,6 +9,7 @@ import { createTriggerEnvelope, createTriggerScope, DEFAULT_BOT_INSTANCE_ID, DEF
 import type { MessageHandler } from '@/services/messageHandler';
 import type { BotInstance } from '@/platform/bots/contracts';
 import { AgentHost } from './agentHost';
+import { createDeliveryOpsHost } from '@/agents/host';
 
 export class ScheduledAgentDispatcher {
     private readonly host: AgentHost;
@@ -16,7 +17,7 @@ export class ScheduledAgentDispatcher {
     constructor(hostOrGetHandler: AgentHost | (() => MessageHandler)) {
         this.host = hostOrGetHandler instanceof AgentHost
             ? hostOrGetHandler
-            : new AgentHost(() => (hostOrGetHandler() as any).ctx);
+            : createDeliveryOpsHost(() => (hostOrGetHandler() as any).ctx);
     }
 
     async dailySummary(groupId: string, day: Date, retryAttempt: number = 0): Promise<Record<string, unknown>> {

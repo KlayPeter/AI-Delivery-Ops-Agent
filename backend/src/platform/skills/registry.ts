@@ -6,7 +6,7 @@ const clone = <T>(value: T): T => structuredClone(value);
 export class SkillRegistry {
     private readonly skills = new Map<string, RegisteredSkill>();
 
-    register(manifest: SkillManifest, instructions: string, handler?: SkillHandler): void {
+    register(manifest: SkillManifest, instructions: string, handler?: SkillHandler): () => void {
         if (!manifest.id.trim() || !manifest.version.trim()) throw new Error('Skill id and version are required');
         if (!manifest.name.trim() || !manifest.description.trim()) throw new Error('Skill name and description are required');
         if (!instructions.trim()) throw new Error(`Skill instructions are required: ${manifest.id}`);
@@ -16,6 +16,7 @@ export class SkillRegistry {
         const definitionKey = key(manifest.id, manifest.version);
         if (this.skills.has(definitionKey)) throw new Error(`Skill already registered: ${definitionKey}`);
         this.skills.set(definitionKey, { manifest: clone(manifest), instructions, handler });
+        return () => { this.skills.delete(definitionKey); };
     }
 
     resolve(id: string, agentId: string, version?: string): RegisteredSkill {

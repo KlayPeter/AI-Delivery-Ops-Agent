@@ -1,3 +1,4 @@
+import { createDeliveryOpsHost } from './agents/host';
 import { Elysia } from 'elysia';
 import { cors } from '@elysiajs/cors';
 import { AppConfig, loadConfig } from './core/config';
@@ -100,7 +101,7 @@ let intentParser = new MessageIntentParser(llm);
 
 await reloadConfig();
 
-agentHost = new AgentHost(() => (handler as any).ctx);
+agentHost = createDeliveryOpsHost(() => (handler as any).ctx);
 await agentHost.initialize();
 await agentHost.start();
 

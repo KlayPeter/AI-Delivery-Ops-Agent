@@ -23,7 +23,8 @@ flowchart TD
     R["Host 启动"] --> S["收敛上次进程遗留的运行中记录"]
     R --> Q["/healthz 进程存活"]
     R --> OAPI["/api/swagger API 文档"]
-    S --> Z["/readyz 数据库 + Agent Host 就绪"]
+    S --> P["Cordis 插件装配与配置恢复"]
+    P --> Z["/readyz 数据库 + Agent Host 就绪"]
     S --> A["消息 / Scheduler / API"]
     A --> B["Trigger / Job Execution"]
     B --> C["Agent Run / 业务服务"]
@@ -191,6 +192,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | Host 改为选择插件组合后接入 Runtime；启动失败释放贡献，停止先等待在途 Run 与 Worker，再释放插件，持久化历史保留 | 插件/Host 测试、后端全量回归 |
 | 2026-11-05 | 修复通用 `logs/` 忽略规则误排除前端日志组件的问题；将筛选与表格源码纳入公开仓库，确保干净检出能构建 | 干净 Git 归档的前端类型检查、测试与构建；GitHub CI |
 | 2026-07-29 | 公司部署流水线替换为公共 GitHub Actions 质量门禁，不再自动推送镜像或修改集群 | Workflow YAML、Docker 构建验证 |
 | 2026-08-04 | 将 Swagger UI 和 OpenAPI JSON 从被前端 SPA 接管的 `/swagger` 移到生产代理可达的 `/api/swagger` 与 `/api/swagger/json` | `apiDocumentation.test.ts`、后端类型检查 |

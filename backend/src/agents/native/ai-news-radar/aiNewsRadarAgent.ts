@@ -46,7 +46,7 @@ export const aiNewsRadarManifest: AgentManifest = {
     delivery: { allowedArtifactTypes: ['article_list'], directDelivery: false },
 };
 
-export function registerAiNewsRadarAgent(adapter: NativeAgentAdapter, provider: () => AiNewsProvider): void {
+export function registerAiNewsRadarAgent(adapter: Pick<NativeAgentAdapter, 'register'>, provider: () => AiNewsProvider): void {
     const continuations = new Map<string, NewsContinuation>();
     adapter.register(aiNewsRadarManifest.id, aiNewsRadarManifest.version, async (request, _resolved, signal) => {
         try {

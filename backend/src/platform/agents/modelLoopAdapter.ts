@@ -46,11 +46,12 @@ export class ModelLoopAgentAdapter implements AgentRuntimeAdapter {
         private readonly runs?: AgentRunStore,
     ) {}
 
-    register(agentId: string, version: string, definition: ModelLoopAgentDefinition): void {
+    register(agentId: string, version: string, definition: ModelLoopAgentDefinition): () => void {
         const key = `${agentId}@${version}`;
         if (this.definitions.has(key)) throw new Error(`Model Loop Agent already registered: ${key}`);
         if (!definition.instructions.trim()) throw new Error(`Model Loop Agent instructions are required: ${key}`);
         this.definitions.set(key, { ...definition });
+        return () => { this.definitions.delete(key); };
     }
 
     setDelegateExecutor(executor: AgentDelegateExecutor): void {

@@ -16,7 +16,7 @@ export const dailySummaryManifest: AgentManifest = {
     delivery: { allowedArtifactTypes: ['markdown'], directDelivery: false },
 };
 
-export function registerDailySummaryAgent(adapter: NativeAgentAdapter, jobs: () => ScheduledJobs): void {
+export function registerDailySummaryAgent(adapter: Pick<NativeAgentAdapter, 'register'>, jobs: () => ScheduledJobs): void {
     adapter.register(dailySummaryManifest.id, dailySummaryManifest.version, async (request, _resolved, signal) => {
         if (signal.aborted) return { status: 'failed', artifacts: [], error: { code: 'CANCELLED', message: 'Daily summary cancelled', retryable: true } };
         const input = request.input as { groupId: string; dayIso: string };

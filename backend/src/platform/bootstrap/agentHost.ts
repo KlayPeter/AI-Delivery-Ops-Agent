@@ -1,13 +1,5 @@
-import { DAILY_SUMMARY_CAPABILITY, dailySummaryManifest, registerDailySummaryAgent } from '@/agents/native/dailySummaryAgent';
-import { DASHBOARD_CAPABILITY, dashboardManifest, registerDashboardAgent } from '@/agents/native/dashboardAgent';
-import { WEEKLY_REPORT_CAPABILITY, registerWeeklyReportAgent, weeklyReportManifest } from '@/agents/native/weeklyReportAgent';
-import {
-    AI_NEWS_RADAR_CAPABILITY,
-    aiNewsRadarManifest,
-    registerAiNewsRadarAgent,
-} from '@/agents/native/ai-news-radar/aiNewsRadarAgent';
-import { AiHotNewsProvider } from '@/agents/native/ai-news-radar/provider';
-import { DELIVERY_OPS_CAPABILITY, deliveryOpsAgentManifest, registerDeliveryOpsAgent } from '@/agents/orchestrator/deliveryOpsAgent';
+import { PluginRuntime } from '@/platform/plugins/runtime';
+import type { FeaturePlugin } from '@/platform/plugins/contracts';
 import type { SourceMessage } from '@/models/types';
 import type { AgentManifest } from '@/platform/agents/contracts';
 import { PersistentAgentCatalog } from '@/platform/agents/catalog';
@@ -31,7 +23,6 @@ import { EnvironmentSecretResolver } from '@/platform/secrets/resolver';
 import { AiSdkOrchestratorAdapter } from '@/platform/models/aiSdkOrchestrator';
 import { AiSdkModelGateway } from '@/platform/models/gateway';
 import { PersistentAgentSessionStore } from '@/platform/session/persistentStore';
-import { SkillPackageLoader } from '@/platform/skills/packageLoader';
 import { OrchestratedPromptSkillExecutor } from '@/platform/skills/promptExecutor';
 import { SkillRegistry } from '@/platform/skills/registry';
 import { SkillRuntime } from '@/platform/skills/runtime';
@@ -39,31 +30,7 @@ import type { SkillExecutionRequest } from '@/platform/skills/contracts';
 import { PersistentToolCallStore } from '@/platform/tools/callStore';
 import { ToolGateway } from '@/platform/tools/gateway';
 import { ToolRegistry } from '@/platform/tools/registry';
-import { DashboardService } from '@/services/dashboard';
 import type { HandlerContext } from '@/services/messageHandler/types';
-import { ScheduledJobs } from '@/services/jobs';
-import {
-    registerStandupAgent,
-    registerStandupTools,
-    STANDUP_AGENT_CAPABILITY,
-    standupAgentManifest,
-} from '@/agents/domain/standupAgent';
-import {
-    registerTaskAgent,
-    registerTaskTools,
-    TASK_AGENT_CAPABILITY,
-    taskAgentManifest,
-} from '@/agents/domain/taskAgent';
-
-const BUILT_IN_AGENTS: ReadonlyArray<{ manifest: AgentManifest; capability: string; installationId: string }> = [
-    { manifest: aiNewsRadarManifest, capability: AI_NEWS_RADAR_CAPABILITY, installationId: 'install-native-ai-news-radar' },
-    { manifest: dailySummaryManifest, capability: DAILY_SUMMARY_CAPABILITY, installationId: 'install-native-daily-summary' },
-    { manifest: dashboardManifest, capability: DASHBOARD_CAPABILITY, installationId: 'install-native-dashboard' },
-    { manifest: weeklyReportManifest, capability: WEEKLY_REPORT_CAPABILITY, installationId: 'install-native-weekly-report' },
-    { manifest: taskAgentManifest, capability: TASK_AGENT_CAPABILITY, installationId: 'install-built-in-task-agent' },
-    { manifest: standupAgentManifest, capability: STANDUP_AGENT_CAPABILITY, installationId: 'install-built-in-standup-agent' },
-    { manifest: deliveryOpsAgentManifest, capability: DELIVERY_OPS_CAPABILITY, installationId: 'install-built-in-delivery-ops-agent' },
-];
 
 export interface AgentConversationOutcome {
     runId: string;
@@ -96,6 +63,12 @@ export interface AgentHostExtension {
     register: (context: AgentHostExtensionContext) => void | Promise<void>;
 }
 
+export interface AgentHostOptions {
+    plugins?: readonly FeaturePlugin[];
+    pluginConfig?: Readonly<Record<string, Record<string, unknown>>>;
+    conversationCapability?: string;
+}
+
 export class AgentHost {
     readonly registry = new AgentRegistry();
     readonly nativeAdapter = new NativeAgentAdapter();
@@ -115,21 +88,30 @@ export class AgentHost {
     private modelLoopAdapter?: ModelLoopAgentAdapter;
     private runStore?: PersistentAgentRunStore;
     private sessionStore?: PersistentAgentSessionStore;
+    private pluginRuntime?: PluginRuntime;
+    private stopped = false;
+    private readonly inFlight = new Set<Promise<unknown>>();
 
     constructor(
         private readonly getContext: () => HandlerContext,
         private readonly deliveryPollIntervalMs: number = 1000,
         private readonly skillRoot: string = `${import.meta.dir}/../../../skills`,
         private readonly extensions: readonly AgentHostExtension[] = [],
+        private readonly options: AgentHostOptions = {},
     ) {}
 
     initialize(): Promise<void> {
-        if (!this.initializePromise) this.initializePromise = this.initializeOnce();
+        if (this.stopped) return Promise.reject(new Error('Agent Host is stopped; create a new host to restart'));
+        if (!this.initializePromise) this.initializePromise = this.initializeOnce().catch(async error => {
+            await this.pluginRuntime?.dispose();
+            throw error;
+        });
         return this.initializePromise;
     }
 
     async start(): Promise<void> {
         await this.initialize();
+        if (this.stopped) throw new Error('Agent Host is stopped');
         if (this.started) return;
         this.started = true;
         this.deliveryWorker!.start(this.deliveryPollIntervalMs, error => {
@@ -141,7 +123,12 @@ export class AgentHost {
 
     async stop(): Promise<void> {
         this.started = false;
+        this.stopped = true;
+        await this.initializePromise?.catch(() => {});
+        await Promise.allSettled(this.inFlight);
         await this.deliveryWorker?.stop();
+        await this.pluginRuntime?.dispose();
+        this.initialized = false;
     }
 
     health(): AgentHostHealth {
@@ -173,12 +160,12 @@ export class AgentHost {
 
     async dispatch(trigger: Parameters<TriggerRuntime['dispatch']>[0], capability: string, input: unknown) {
         await this.initialize();
-        return this.triggerRuntime!.dispatch(trigger, capability, input);
+        return this.track(() => this.triggerRuntime!.dispatch(trigger, capability, input));
     }
 
     async resume(trigger: Parameters<TriggerRuntime['resume']>[0], runId: string, input: unknown) {
         await this.initialize();
-        return this.triggerRuntime!.resume(trigger, runId, input);
+        return this.track(() => this.triggerRuntime!.resume(trigger, runId, input));
     }
 
     async dispatchBotMessage(input: {
@@ -213,7 +200,7 @@ export class AgentHost {
             trustedContext: { source: 'private', message: structuredClone(safeMessage) },
             replyPolicy: { mode: 'configured_target', channel: 'private', targetId: input.targetOpenId },
         });
-        const result = await this.triggerRuntime!.dispatch(trigger, input.capability, payload);
+        const result = await this.dispatch(trigger, input.capability, payload);
         if (result.status === 'failed') throw Object.assign(new Error(result.claim.error?.message || 'Bot Agent failed'), result.claim.error || {});
         return result;
     }
@@ -351,7 +338,7 @@ export class AgentHost {
 
     async listAgents(): Promise<Array<Record<string, unknown>>> {
         await this.initialize();
-        const nativeAgents = BUILT_IN_AGENTS.map(agent => ({
+        const nativeAgents = (this.options.plugins || []).flatMap(plugin => (plugin.agents || []).map(agent => ({
             agentId: agent.manifest.id,
             name: agent.manifest.name,
             version: agent.manifest.version,
@@ -360,9 +347,10 @@ export class AgentHost {
             status: 'active',
             capabilities: agent.manifest.capabilities,
             botInstanceId: DEFAULT_BOT_INSTANCE_ID,
-            source: 'built-in',
+            source: plugin.manifest.id.startsWith('builtin.') ? 'built-in' : 'plugin',
+            pluginId: plugin.manifest.id,
             secretNames: [] as string[],
-        }));
+        })));
         const externalAgents = (await this.catalog!.list()).map(agentPackage => ({
             agentId: agentPackage.manifest.id,
             name: agentPackage.manifest.name,
@@ -382,12 +370,8 @@ export class AgentHost {
     private async initializeOnce(): Promise<void> {
         const ctx = this.getContext();
         this.refreshBot();
-        this.registerBuiltInAgents();
         this.catalog = new PersistentAgentCatalog(ctx.store);
-        await this.catalog.loadInto(this.registry);
         this.controlCatalog = new PersistentBotControlCatalog(ctx.store);
-        await this.controlCatalog.loadInto(this.bots, this.registry);
-        await this.ensureConfiguredAiNewsBot();
 
         const outbox = new PersistentDeliveryOutbox(ctx.store);
         const runStore = new PersistentAgentRunStore(ctx.store);
@@ -422,13 +406,31 @@ export class AgentHost {
             this.sessionStore,
             runStore,
         );
-        registerTaskTools(this.toolRegistry, this.getContext);
-        registerStandupTools(this.toolRegistry, this.getContext);
-        registerTaskAgent(this.modelLoopAdapter);
-        registerStandupAgent(this.modelLoopAdapter);
-        registerDeliveryOpsAgent(this.modelLoopAdapter);
+        this.pluginRuntime = new PluginRuntime(this.options.plugins || [], {
+            getContext: this.getContext,
+            agents: this.registry,
+            nativeAgents: this.nativeAdapter,
+            modelAgents: this.modelLoopAdapter,
+            tools: this.toolRegistry,
+            skills: this.skillRegistry,
+            bots: this.bots,
+            botCatalog: this.controlCatalog,
+            skillRoot: this.skillRoot,
+        }, this.options.pluginConfig);
+        await this.pluginRuntime.start();
+        await this.catalog.loadInto(this.registry);
+        await this.controlCatalog.loadInto(this.bots, this.registry);
+        await this.pluginRuntime.restored();
+        for (const bot of this.bots.list()) {
+            const capability = bot.config.entryCapability;
+            if (typeof capability !== 'string' || bot.status !== 'active') continue;
+            try {
+                this.registry.resolve(bot.workspaceId, bot.id, capability);
+            } catch {
+                this.bots.upsert({ ...bot, status: 'disabled' });
+            }
+        }
         await this.registerExtensions();
-        await new SkillPackageLoader(this.skillRegistry).loadDirectory(this.skillRoot);
         const agentRuntime = new AgentRuntime(
             this.registry,
             this.bots,
@@ -481,120 +483,6 @@ export class AgentHost {
         }
     }
 
-    private registerBuiltInAgents(): void {
-        for (const agent of BUILT_IN_AGENTS) {
-            this.registry.register(agent.manifest);
-            this.registry.install({
-                id: agent.installationId,
-                workspaceId: DEFAULT_WORKSPACE_ID,
-                agentId: agent.manifest.id,
-                version: agent.manifest.version,
-                status: 'active',
-                config: {},
-                secretRefs: {},
-            });
-            this.registry.bind({
-                id: `bind-${agent.manifest.id}-default`,
-                botInstanceId: DEFAULT_BOT_INSTANCE_ID,
-                agentInstallationId: agent.installationId,
-                enabled: true,
-                priority: 1,
-                capabilities: [agent.capability],
-                routingConfig: {},
-                configOverride: {},
-            });
-        }
-        registerDailySummaryAgent(this.nativeAdapter, () => this.jobs());
-        registerDashboardAgent(this.nativeAdapter, () => this.jobs());
-        registerWeeklyReportAgent(this.nativeAdapter, () => this.jobs());
-        registerAiNewsRadarAgent(this.nativeAdapter, () => {
-            const config = this.getContext().config.ai_news;
-            return new AiHotNewsProvider({
-                baseUrl: config.source_url,
-                defaultLimit: config.default_limit,
-                timeoutMs: config.request_timeout_ms,
-            });
-        });
-    }
-
-    private async ensureConfiguredAiNewsBot(): Promise<void> {
-        const config = this.getContext().config.ai_news;
-        if (!config) return;
-        const defaultBinding: BotAgentBinding = {
-            id: 'bind-native.ai-news-radar-default',
-            botInstanceId: DEFAULT_BOT_INSTANCE_ID,
-            agentInstallationId: 'install-native-ai-news-radar',
-            enabled: config.enabled,
-            priority: 1,
-            capabilities: [AI_NEWS_RADAR_CAPABILITY],
-            routingConfig: {},
-            configOverride: {},
-        };
-        this.registry.upsertBinding(defaultBinding);
-        if (!config.enabled) {
-            await this.disableManagedAiNewsBot(config.bot_instance_id);
-            return;
-        }
-        const dedicatedAppId = config.app_id.trim();
-        const defaultAppId = this.getContext().config.feishu.app_id.trim();
-        if (!dedicatedAppId || dedicatedAppId === defaultAppId) {
-            await this.disableManagedAiNewsBot(config.bot_instance_id);
-            return;
-        }
-        if (!config.bot_instance_id.trim() || config.bot_instance_id === DEFAULT_BOT_INSTANCE_ID) {
-            throw new Error('AI News bot_instance_id must be a non-default BotInstance id');
-        }
-        if (!/^[A-Z][A-Z0-9_]*$/.test(config.app_secret_env)) {
-            throw new Error('FEISHU_AI_NEWS_APP_SECRET_ENV must name an uppercase environment variable');
-        }
-        const bot = await this.controlCatalog!.upsertBot({
-            id: config.bot_instance_id,
-            workspaceId: DEFAULT_WORKSPACE_ID,
-            platform: 'feishu',
-            name: config.bot_name,
-            appId: dedicatedAppId,
-            secretRef: `env://${config.app_secret_env}`,
-            status: 'active',
-            config: {
-                managedBy: 'ai-news-config',
-                inboundEnabled: true,
-                receiveMode: 'p2p',
-                entryCapability: AI_NEWS_RADAR_CAPABILITY,
-                sendRetryCount: 3,
-            },
-        });
-        this.bots.upsert(bot);
-        const binding = await this.controlCatalog!.upsertBinding({
-            id: `bind-install-native-ai-news-radar-${config.bot_instance_id}`,
-            botInstanceId: config.bot_instance_id,
-            agentInstallationId: 'install-native-ai-news-radar',
-            enabled: true,
-            priority: 1,
-            capabilities: [AI_NEWS_RADAR_CAPABILITY],
-            routingConfig: { receiveMode: 'p2p' },
-            configOverride: {},
-        });
-        this.registry.upsertBinding(binding);
-    }
-
-    private async disableManagedAiNewsBot(botInstanceId: string): Promise<void> {
-        const existing = this.bots.get(botInstanceId);
-        if (existing?.config.managedBy !== 'ai-news-config' || existing.status === 'disabled') return;
-        const disabled = await this.controlCatalog!.upsertBot({ ...existing, status: 'disabled' });
-        this.bots.upsert(disabled);
-    }
-
-    private jobs(): ScheduledJobs {
-        const ctx = this.getContext();
-        const dashboard = new DashboardService(
-            ctx.store,
-            ctx.config.data_path,
-            ctx.config.project.name,
-            ctx.config.runtime.public_base_url,
-        );
-        return new ScheduledJobs(ctx.config, ctx.store, ctx.feishu, dashboard, ctx.tapd, ctx.intentParser?.llm);
-    }
-
     private async dispatchMessage(
         message: SourceMessage,
         source: 'group' | 'private',
@@ -602,6 +490,7 @@ export class AgentHost {
         resumeRunId?: string,
     ): Promise<AgentConversationOutcome> {
         await this.initialize();
+        if (!this.options.conversationCapability) throw new Error('Conversation capability is not configured');
         if (!this.isModelAvailable()) throw Object.assign(new Error('AI model is not configured'), { code: 'MODEL_NOT_CONFIGURED', retryable: false });
         const scope = createTriggerScope({
             workspaceId: DEFAULT_WORKSPACE_ID,
@@ -635,8 +524,8 @@ export class AgentHost {
             replyPolicy: { mode: 'none' },
         });
         const result = resumeRunId
-            ? await this.triggerRuntime!.resume(trigger, resumeRunId, input)
-            : await this.triggerRuntime!.dispatch(trigger, DELIVERY_OPS_CAPABILITY, input);
+            ? await this.resume(trigger, resumeRunId, input)
+            : await this.dispatch(trigger, this.options.conversationCapability, input);
         if (result.status === 'failed') throw Object.assign(new Error(result.claim.error?.message || 'Delivery Ops Agent failed'), result.claim.error || {});
         if (result.status === 'duplicate') {
             const runId = result.claim.runId;
@@ -657,6 +546,17 @@ export class AgentHost {
             status: execution.run.status === 'waiting_human' ? 'waiting_human' : 'succeeded',
             text: typeof data?.text === 'string' && data.text.trim() ? data.text : '请求已处理。',
         };
+    }
+
+    private async track<T>(execute: () => Promise<T>): Promise<T> {
+        if (this.stopped) throw new Error('Agent Host is stopped');
+        const execution = execute();
+        this.inFlight.add(execution);
+        try {
+            return await execution;
+        } finally {
+            this.inFlight.delete(execution);
+        }
     }
 
     private publicBot(bot: BotInstance): Record<string, unknown> {

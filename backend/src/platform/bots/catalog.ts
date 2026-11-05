@@ -31,6 +31,8 @@ export class PersistentBotControlCatalog {
 
     async loadInto(bots: BotRegistry, agents: AgentRegistry): Promise<void> {
         for (const bot of await this.listBots()) bots.upsert(bot);
-        for (const binding of await this.listBindings()) agents.upsertBinding(binding);
+        for (const binding of await this.listBindings()) {
+            if (agents.getInstallation(binding.agentInstallationId)) agents.upsertBinding(binding);
+        }
     }
 }

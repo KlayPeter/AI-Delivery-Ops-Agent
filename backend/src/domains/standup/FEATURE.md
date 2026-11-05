@@ -21,6 +21,7 @@ Standup Agent 和 LLM 只把自然语言整理为结构化内容。`StandupServi
 
 ```mermaid
 flowchart TD
+    PL["Cordis: builtin.standup"] --> B
     A["定时提醒 / 飞书提交 / 主 Agent 委派"] --> B["Standup Agent 或 Handler"]
     B --> C["固定格式解析优先，必要时自然语言 AI 解析"]
     C -- "AI 失败且规则未识别" --> X["审计失败分类并提示按固定格式补充"]
@@ -63,6 +64,8 @@ flowchart TD
 - 日报可以消费站会信息，但日报生成归 `daily-summary`。
 
 ## 核心规则
+
+运行时装配由 `builtin.standup` 插件负责，拥有Standup Agent、三个 Standup Tool 与 standup-management Skill的注册与清理。Agent/Capability/安装 ID 和领域行为保持原契约；确定性 Handler、页面与调度入口尚未全部迁为插件贡献。
 
 自动调度统一通过 `backend/src/core/scheduleCalendar.ts` 判断群级 `schedule.calendar`。指定日期的触发/暂停优先于基础策略；`workdays` 使用中国工作日（含调休），`every_day` 不限制节假日，`selected_dates` 仅执行指定触发日。日期放行不绕过模块开关、任务开关或原定时刻，手动触发不受该日历限制。未配置或 `legacy` 保留原有 `workdays_only` 规则及周报、承诺到期提醒的例外；无效日期与非布尔覆盖值在读取配置时丢弃。
 
@@ -156,6 +159,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 将Standup Agent、三个 Standup Tool 与 standup-management Skill装配移入 `builtin.standup`，保留业务与持久化契约 | 插件/Host 测试、后端全量回归 |
 | 2026-10-05 | 自动调度增加群级节假日策略与日历日期覆盖，保留旧配置兼容 | `scheduleCalendar.test.ts`、`scheduler.test.ts`、`config.test.ts`、前后端类型检查 |
 | 2026-08-31 | 站会卡片的 TAPD 任务与五日排期仅展示和未来五个工作日窗口相交的任务；窗口前的旧截止任务不再占用首日排期格，并让每次汇总复用 `TaskService` 的短缓存而非长期持有旧同步 Promise | `standupCard.test.ts`、后端类型检查 |
 | 2026-08-27 | 五日排期改为单个等宽表格组件，减少行间默认留白并保持成员与日期列对齐 | `standupCard.test.ts`、后端类型检查 |

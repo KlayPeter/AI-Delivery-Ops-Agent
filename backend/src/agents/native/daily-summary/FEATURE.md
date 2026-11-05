@@ -23,6 +23,7 @@ last_reviewed: 2026-08-12
 
 ```mermaid
 flowchart TD
+    PL["Cordis: builtin.daily-summary"] --> C
     SC["Scheduler"] --> HC{"群日期策略与指定日期允许?"}
     HC -- "是" --> B["Trigger Runtime"]
     A["手动触发 / 主 Agent"] --> B
@@ -74,6 +75,8 @@ flowchart TD
 - 不把自由生成文本当作任务真相源回写业务数据。
 
 ## 核心规则
+
+运行时装配由 `builtin.daily-summary` 插件负责，拥有日报 Native Agent的注册与清理。Agent/Capability/安装 ID 和领域行为保持原契约；确定性 Handler、页面与调度入口尚未全部迁为插件贡献。
 
 自动调度统一通过 `backend/src/core/scheduleCalendar.ts` 判断群级 `schedule.calendar`。指定日期的触发/暂停优先于基础策略；`workdays` 使用中国工作日（含调休），`every_day` 不限制节假日，`selected_dates` 仅执行指定触发日。日期放行不绕过模块开关、任务开关或原定时刻，手动触发不受该日历限制。未配置或 `legacy` 保留原有 `workdays_only` 规则及周报、承诺到期提醒的例外；无效日期与非布尔覆盖值在读取配置时丢弃。
 
@@ -165,6 +168,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 将日报 Native Agent装配移入 `builtin.daily-summary`，保留业务与持久化契约 | 插件/Host 测试、后端全量回归 |
 | 2026-10-05 | 自动调度增加群级节假日策略与日历日期覆盖，保留旧配置兼容 | `scheduleCalendar.test.ts`、`scheduler.test.ts`、`config.test.ts`、前后端类型检查 |
 | 2026-08-13 | 任务型站会到点未引用回复时，日报将 `standup_unreported` 显示为“未完成（未汇报）”，后续负责人回复覆盖旧记录 | `summaries.test.ts`、`jobs.test.ts` |
 | 2026-08-12 | 日报消费任务型站会的结构化任务更新，并按事项只保留周期内最新一次汇报或待汇报状态 | `summaries.test.ts`、`jobs.test.ts`、后端类型检查 |

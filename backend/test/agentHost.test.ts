@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import { PersistentAgentRunStore } from '@/platform/agents/persistentRunStore';
 import { AgentHost } from '@/platform/bootstrap/agentHost';
+import { createDeliveryOpsHost } from '@/agents/host';
+import type { FeaturePlugin } from '@/platform/plugins/contracts';
+import { dailySummaryManifest } from '@/agents/native/dailySummaryAgent';
+import { PersistentBotControlCatalog } from '@/platform/bots/catalog';
+import { createTriggerEnvelope, createTriggerScope } from '@/platform/runtime/scope';
+import { echoPlugin } from '../examples/plugins/echo';
 import { BotRegistry } from '@/platform/bots/registry';
 import { InMemoryDeliveryOutbox } from '@/platform/delivery/outbox';
 import { DeliveryWorker } from '@/platform/delivery/worker';
@@ -23,9 +29,85 @@ function context(store: InMemoryPersistentKeyValueStore): any {
 }
 
 describe('AgentHost lifecycle', () => {
+    test('executes the documented plugin template without model or Feishu credentials', async () => {
+        const host = new AgentHost(() => context(new InMemoryPersistentKeyValueStore()), 10, undefined, [], { plugins: [echoPlugin] });
+        const scope = createTriggerScope({ workspaceId: 'workspace-default', botInstanceId: 'bot-default', triggerType: 'manual', triggerId: 'template-example' });
+        const trigger = createTriggerEnvelope({ occurredAt: new Date().toISOString(), scope, payload: { text: 'plugin works' }, replyPolicy: { mode: 'none' } });
+        const result = await host.dispatch(trigger, 'example.echo', { text: 'plugin works' });
+        expect(result.execution?.artifacts[0]?.content).toBe('plugin works');
+        expect((await host.dispatch(trigger, 'example.echo', { text: 'plugin works' })).status).toBe('duplicate');
+        await host.stop();
+    });
+
+    test('starts without business plugins and leaves no implicit tools, skills or Agents', async () => {
+        const host = new AgentHost(() => context(new InMemoryPersistentKeyValueStore()));
+        await host.initialize();
+        expect(await host.listAgents()).toEqual([]);
+        expect(host.health()).toMatchObject({ initialized: true, tools: 0, skills: 0, bindings: 0 });
+        await host.stop();
+    });
+
+    test('runs a third-party native plugin and drains in-flight work before disposing it', async () => {
+        const database = new InMemoryPersistentKeyValueStore();
+        const ctx = context(database);
+        let entered!: () => void;
+        let release!: () => void;
+        const running = new Promise<void>(resolve => { entered = resolve; });
+        const finish = new Promise<void>(resolve => { release = resolve; });
+        let disposed = false;
+        const manifest = { ...dailySummaryManifest, id: 'example.echo', capabilities: ['example.echo'], inputSchema: {}, outputSchema: {} };
+        const plugin: FeaturePlugin = {
+            manifest: { apiVersion: '1.0', id: 'example.echo', name: 'Echo', version: '1.0.0', description: 'External native example' },
+            agents: [{ manifest, installationId: 'install-example-echo' }],
+            apply(pluginContext) {
+                pluginContext.effect(() => () => { disposed = true; });
+                pluginContext.delivery.nativeAgents.register(manifest.id, manifest.version, async request => {
+                    entered();
+                    await finish;
+                    return { status: 'succeeded', data: request.input, artifacts: [] };
+                });
+            },
+        };
+        const host = new AgentHost(() => ctx, 10, undefined, [], { plugins: [plugin] });
+        const scope = createTriggerScope({ workspaceId: 'workspace-default', botInstanceId: 'bot-default', triggerType: 'manual', triggerId: 'plugin-run' });
+        const execution = host.dispatch(createTriggerEnvelope({ occurredAt: new Date().toISOString(), scope, payload: { text: 'hello' }, replyPolicy: { mode: 'none' } }), 'example.echo', { text: 'hello' });
+        await running;
+        const stopping = host.stop();
+        await Promise.resolve();
+        expect(disposed).toBe(false);
+        release();
+        const result = await execution;
+        await stopping;
+        expect(result.execution?.result.data).toEqual({ text: 'hello' });
+        expect(disposed).toBe(true);
+        expect(host.registry.listBindings()).toEqual([]);
+        expect((await new PersistentAgentRunStore(database).get(result.execution!.run.id))?.status).toBe('succeeded');
+        await expect(host.start()).rejects.toThrow('stopped');
+    });
+
+    test('retains persisted bindings while a removed plugin and its entry bot stay inactive', async () => {
+        const database = new InMemoryPersistentKeyValueStore();
+        const catalog = new PersistentBotControlCatalog(database);
+        await catalog.upsertBot({
+            id: 'bot-removed', workspaceId: 'workspace-default', platform: 'feishu', name: 'Removed feature',
+            appId: 'app-removed', secretRef: 'env://UNUSED_PLUGIN_SECRET', status: 'active', config: { entryCapability: 'task.manage' },
+        });
+        await catalog.upsertBinding({
+            id: 'saved-task-binding', botInstanceId: 'bot-removed', agentInstallationId: 'install-built-in-task-agent',
+            enabled: true, priority: 1, capabilities: ['task.manage'], routingConfig: {}, configOverride: {},
+        });
+        const host = new AgentHost(() => context(database));
+        await host.initialize();
+        expect(await host.listBindings()).toEqual([]);
+        expect((await host.listBots()).find(bot => bot.id === 'bot-removed')?.status).toBe('disabled');
+        expect(await catalog.listBindings()).toHaveLength(1);
+        expect((await catalog.listBots())[0]?.status).toBe('active');
+        await host.stop();
+    });
+
     test('initializes once and exposes a stable runtime health state', async () => {
         const ctx = context(new InMemoryPersistentKeyValueStore());
-        const host = new AgentHost(() => ctx, 10);
+        const host = createDeliveryOpsHost(() => ctx, 10);
         await Promise.all([host.initialize(), host.initialize()]);
         expect(host.health()).toEqual({
             initialized: true,
@@ -74,7 +156,7 @@ describe('AgentHost lifecycle', () => {
             auditEvents.push({ event, details });
         };
 
-        const host = new AgentHost(() => context(database), 10);
+        const host = createDeliveryOpsHost(() => context(database), 10);
         await host.initialize();
 
         expect(host.health().initialized).toBe(true);
@@ -91,7 +173,7 @@ describe('AgentHost lifecycle', () => {
     test('registers an extension once before the runtime becomes ready', async () => {
         const ctx = context(new InMemoryPersistentKeyValueStore());
         let registrations = 0;
-        const host = new AgentHost(() => ctx, 10, undefined, [{
+        const host = createDeliveryOpsHost(() => ctx, 10, undefined, [{
             id: 'test-tools',
             register: ({ toolRegistry }) => {
                 registrations++;
@@ -117,7 +199,7 @@ describe('AgentHost lifecycle', () => {
 
     test('rejects duplicate extension ids before reporting ready', async () => {
         const extension = { id: 'duplicate', register: () => {} };
-        const host = new AgentHost(
+        const host = createDeliveryOpsHost(
             () => context(new InMemoryPersistentKeyValueStore()),
             10,
             undefined,
@@ -140,7 +222,7 @@ describe('AgentHost lifecycle', () => {
             default_limit: 10,
             request_timeout_ms: 10000,
         };
-        const host = new AgentHost(() => ctx, 10);
+        const host = createDeliveryOpsHost(() => ctx, 10);
 
         await host.initialize();
 
@@ -186,7 +268,7 @@ describe('AgentHost lifecycle', () => {
             default_limit: 10,
             request_timeout_ms: 10000,
         };
-        const host = new AgentHost(() => ctx, 10);
+        const host = createDeliveryOpsHost(() => ctx, 10);
 
         await host.initialize();
 

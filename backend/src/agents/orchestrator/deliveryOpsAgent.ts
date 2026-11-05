@@ -58,7 +58,7 @@ const deliveryOpsInstructions = `你是系统唯一面向用户的交付运营�
 5. 不猜测负责人、群组、日期、任务 ID 或执行结果；缺少关键字段时暂停并询问。
 6. 最终回答必须以真实工具结果为依据，简洁说明已完成、未完成和需要用户补充的内容。`;
 
-export function registerDeliveryOpsAgent(adapter: ModelLoopAgentAdapter): void {
+export function registerDeliveryOpsAgent(adapter: Pick<ModelLoopAgentAdapter, 'register'>): void {
     adapter.register(DELIVERY_OPS_AGENT_ID, deliveryOpsAgentManifest.version, {
         instructions: deliveryOpsInstructions,
         artifactTitle: '交付运营处理结果',

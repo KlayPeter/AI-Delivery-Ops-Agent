@@ -5,7 +5,7 @@ const clone = <T>(value: T): T => structuredClone(value);
 export class ToolRegistry {
     private readonly tools = new Map<string, RegisteredTool>();
 
-    register(definition: ToolDefinition, handler: ToolHandler): void {
+    register(definition: ToolDefinition, handler: ToolHandler): () => void {
         if (!definition.id.trim() || !definition.version.trim()) throw new Error('Tool id and version are required');
         if (!definition.description.trim()) throw new Error('Tool description is required');
         if (definition.timeoutSeconds <= 0) throw new Error('Tool timeoutSeconds must be positive');
@@ -14,6 +14,7 @@ export class ToolRegistry {
         }
         if (this.tools.has(definition.id)) throw new Error(`Tool already registered: ${definition.id}`);
         this.tools.set(definition.id, { definition: clone(definition), handler });
+        return () => { this.tools.delete(definition.id); };
     }
 
     resolve(id: string): RegisteredTool {
