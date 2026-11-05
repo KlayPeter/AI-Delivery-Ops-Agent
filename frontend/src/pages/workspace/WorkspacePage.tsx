@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import useSWR from 'swr';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { Alert, Button, Collapse, Empty, Input, Select, Skeleton, Table } from 'antd';
 import { ArrowRightOutlined, ArrowUpOutlined, FileSearchOutlined, RobotOutlined, ReloadOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -38,6 +38,8 @@ export default function WorkspacePage({ history = false }: { history?: boolean }
     finally { setRunning(false); }
   };
   const runs = (data?.runs || []).filter(run => `${capabilityName(run.capability, data?.agents.find(item => item.capabilities.includes(run.capability))?.name)} ${run.id} ${run.status}`.toLowerCase().includes(filter.toLowerCase()));
+  const entry = data?.pages.find(page => page.view.kind === 'builtin' && page.view.capability === capability);
+  if (!history && entry) return <Navigate replace to={entry.path} />;
   return <div className="workspace-page">
     <div className="page-heading"><div><h1>{history ? '运行记录' : '工作台'}</h1><p>{history ? '查看最近 50 次任务的状态、执行步骤和产物。' : '把工作交给 Agent，让每一步都有迹可循。'}</p></div>
       {history && <Link className="primary-link" to="/">新建任务 <ArrowRightOutlined aria-hidden /></Link>}

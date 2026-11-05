@@ -32,6 +32,8 @@ flowchart TD
     D --> WEB[注册页面、API 与原有手动任务授权]
     WEB --> VIS[站会、看板、甘特、周报与隐藏纪要 API；卸载保留事实数据]
     VIS --> E
+    WEB --> COL[网页收集、文档导入；可声明结构化 Capability 入口]
+    COL --> E
     WEB --> KW[可选 knowledge.workspace：页面与明确来源描述]
     KW --> E
     WEB --> RELEASE[可选发布准备表单；结果复用通用状态面板与 Markdown]
@@ -72,7 +74,7 @@ flowchart TD
 
 ## HTTP 工作台组合
 
-团队 SDK 默认仍为九个插件、七个 Agent；HTTP 入口默认另加示例 Markdown 来源、RAG 回答、引用复核与独立知识界面，共 13 个插件、10 个 Agent。页面可保存个人 Markdown/公开网页来源，重启后选择一组来源/回答/复核插件；显式 AGENT_PLUGINS_FILE 优先并完全管理组合。插件页面展示真实已装配 Manifest、版本与依赖，尚未提供在线任意仓库安装。工作台不是额外的业务 Agent。
+团队 SDK 默认仍为九个插件、七个 Agent；HTTP 入口默认另加示例 Markdown 来源、RAG 回答、引用复核与独立知识界面，加上网页收集与文档导入，共 15 个插件、12 个 Agent。页面可保存个人 Markdown/公开网页来源，重启后选择一组来源/回答/复核插件；显式 AGENT_PLUGINS_FILE 优先并完全管理组合。插件页面展示真实已装配 Manifest、版本与依赖，尚未提供在线任意仓库安装。工作台不是额外的业务 Agent。
 
 ## 核心规则
 
@@ -100,6 +102,10 @@ connector.mcp 通过现有 FeaturePlugin/Config/effect 接入，无需修改 Hos
 ctx.delivery.web.register 注册唯一贡献 ID、页面元数据、API 前缀/路由/Fetch handler 和可手动执行的原有任务名称。注册随 Cordis 回滚与释放。页面路径、任务名和 API 前缀不能重复或覆盖保留入口；前端只支持已打包视图或跳到指定 Agent 的入口，不执行远端 UI 包。
 
 站会、项目看板和人力甘特图已把页面与 API 从全局组合移入各自所有者；builtin.dashboard 使用两个 Web 贡献分别声明文件与甘特命名空间，卸载时一起释放。旧根查询与 HTML 链接也不能绕过插件检查。任务、日报、看板插件各自声明原有手动任务；缺少所有者时旧 /api/jobs 不执行，默认仍为九个原有任务。MCP 读取示例通过元数据增加页面入口，不修改前端业务表。周报与隐藏纪要页/API 同样归属插件；navigation=false 仅隐藏菜单，不绕过安装检查。知识工作台页面与只读来源描述已归属 knowledge.workspace；核心通用输入/结果中的部分知识适配、连接/成员同步、全局维护和基础服务生命周期仍需继续解耦，当前不宣称全产品已经插件化。
+
+## 资料收集插件
+
+knowledge.capture 复用受限公开网页读取，community.markitdown 通过私有上传 ID 和固定 Python 流式转换接入真实开源项目。两者独立贡献 Agent、Tool 与页面，使用既有 JSON/Markdown Artifact；文档原始暂存有容量/过期/Scope/指纹边界。已打包页面可选声明 view.capability，Agent 卡片与首页选择按元数据进入表单，不为每种输入在核心解析器加分支。验证覆盖真实格式、取消、预算、生命周期与页面入口。
 
 ## 发布工作流装配
 

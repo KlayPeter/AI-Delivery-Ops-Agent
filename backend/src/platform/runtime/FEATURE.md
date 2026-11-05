@@ -55,6 +55,8 @@ flowchart TD
     D --> K["Logs / Contexts / Debug 页面"]
     A --> X["消息处理失败分类审计"]
     X --> K
+    A --> COL[网页收集 / 文档暂存 ID 转换]
+    COL --> B
     A --> KW[可选知识工作台入口；描述失败不执行检索]
     KW --> B
     E --> RELEASE[发布结果：证据/不足/待复核/草稿面板与 Markdown；不代表已发布]
@@ -94,6 +96,8 @@ flowchart TD
 知识库页面与描述 API 由 knowledge.workspace 所有；卸载界面不删除运行记录或底层来源能力。页面明确选择来源并核对回答插件依赖，描述错误时不使用缓存来源发起新任务。知识请求仍复用原 Run/Artifact，无新状态机；专项覆盖来源并存、生命周期与只读 API 边界。
 
 群成员后台同步在单群失败、无成员变化时仍记录带失败结果的 group_members_sync，不把静默无更新当作读取成功；原成员保留。验证见 backend/test/groupMembers.test.ts。
+
+新增网页收集与文档转换仍使用同 Run 的工具步骤与来源 Artifact；不以上传完成冒充转换成功。Markdown 结果可复制和下载，JSON 保留来源与版本。文档原始暂存消费后删除，最终来源指纹及转换结果依宿主保留；转换无正文、超限或取消不发布成功产物。验证包括真实 MarkItDown PDF/DOCX/PPTX/XLSX 与公开网页边界。
 
 ## 核心规则
 

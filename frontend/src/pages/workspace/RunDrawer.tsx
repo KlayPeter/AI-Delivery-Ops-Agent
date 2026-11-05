@@ -20,11 +20,16 @@ export function RunStatus({ status }: { status: string }) {
 interface Evidence { title?: string; path: string; excerpt: string; lineStart?: number; lineEnd?: number; openUri?: string; citationId?: string }
 interface KnowledgeResult { hits?: Evidence[]; evidence?: Evidence[]; claims?: { text: string; citations?: { citationId: string }[] }[]; status?: string; reason?: string; source?: { partial?: boolean }; retrieval?: { partial?: boolean } }
 interface RunDetail { run: RunInfo; steps: { id: string; name: string; kind: string; status: string; error?: { message: string } }[]; artifacts: { id: string; type: string; content?: unknown; metadata?: Record<string, unknown> }[]; children: RunInfo[]; checkpoint?: { question?: string } }
+function downloadMarkdown(content: string) {
+  const url = URL.createObjectURL(new Blob([content], { type: 'text/markdown;charset=utf-8' }));
+  const link = document.createElement('a'); link.href = url; link.download = 'result.md'; link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 function ResultContent({ artifact, onSelectRun }: { artifact: { type: string; content?: unknown; metadata?: Record<string, unknown> }; onSelectRun: (id: string) => void }) {
   const content = artifact.content;
   const panels = parseStatusPanels(artifact.metadata?.statusPanels);
   if (panels) return <>{panels.map((panel, index) => <StatusPanelView key={index} panel={panel} onSelectRun={onSelectRun} />)}</>;
-  if (typeof content === 'string') return <div className="result-markdown"><ReactMarkdown skipHtml components={{ img: ({ alt }) => <span>{alt ? `[图片：${alt}]` : '[图片]'}</span>, a: ({ href, children }) => <a href={sourceHref(href)} target="_blank" rel="noreferrer">{children}</a> }}>{content}</ReactMarkdown></div>;
+  if (typeof content === 'string') return <div className="result-markdown"><div className="form-actions"><Typography.Text copyable={{ text: content }}>复制 Markdown</Typography.Text><Button onClick={() => downloadMarkdown(content)}>下载 Markdown</Button></div><ReactMarkdown skipHtml components={{ img: ({ alt }) => <span>{alt ? `[图片：${alt}]` : '[图片]'}</span>, a: ({ href, children }) => <a href={sourceHref(href)} target="_blank" rel="noreferrer">{children}</a> }}>{content}</ReactMarkdown></div>;
   const data = content && typeof content === 'object' ? content as KnowledgeResult : {};
   if (data.hits || data.claims || data.status === 'insufficient_evidence') {
     const evidence = data.hits || data.evidence || [];

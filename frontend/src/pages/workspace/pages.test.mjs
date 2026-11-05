@@ -1,6 +1,6 @@
 import { test } from 'bun:test';
 import assert from 'node:assert/strict';
-import { findPluginPage, pluginAgentHref, activePluginPage } from './pages.ts';
+import { findPluginPage, pluginAgentHref, activePluginPage, agentPageHref } from './pages.ts';
 
 test('only installed plugin pages resolve, including a trailing slash', () => {
   const page = { path: '/standups', label: '站会统计', section: 'team', view: { kind: 'builtin', id: 'standups' } };
@@ -41,4 +41,11 @@ test('agent page links stay inside the workspace and encode the capability', () 
   const url = new URL(pluginAgentHref('example.run&next=https://foreign.example'), 'http://localhost');
   assert.equal(url.origin, 'http://localhost'); assert.equal(url.searchParams.get('next'), null);
   assert.equal(url.searchParams.get('capability'), 'example.run&next=https://foreign.example');
+});
+
+test('structured plugin capabilities open their declared form and removed entries fall back to the composer', () => {
+  const page = { path: '/documents', label: '文档导入', section: 'workspace', view: { kind: 'builtin', id: 'documents', capability: 'knowledge.document.convert' } };
+  assert.equal(agentPageHref([page], 'knowledge.document.convert'), '/documents');
+  assert.equal(agentPageHref([], 'knowledge.document.convert'), '/?capability=knowledge.document.convert');
+  assert.equal(agentPageHref([page], 'example.prompt'), '/?capability=example.prompt');
 });

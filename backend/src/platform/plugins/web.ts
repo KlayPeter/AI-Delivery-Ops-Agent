@@ -5,7 +5,7 @@ const pageSchema = z.object({
     path: z.string().regex(/^\/[a-z][a-z0-9-]*(?:\/[a-z][a-z0-9-]*)*$/).max(200),
     label: z.string().trim().min(1).max(80), section: z.enum(['workspace', 'team']), navigation: z.boolean().optional(),
     view: z.discriminatedUnion('kind', [
-        z.object({ kind: z.literal('builtin'), id: z.string().regex(/^[a-z][a-z0-9-]*$/).max(80) }).strict(),
+        z.object({ kind: z.literal('builtin'), id: z.string().regex(/^[a-z][a-z0-9-]*$/).max(80), capability: z.string().trim().min(1).max(200).optional() }).strict(),
         z.object({ kind: z.literal('agent'), capability: z.string().trim().min(1).max(200) }).strict(),
     ]),
 }).strict();

@@ -3,7 +3,7 @@ import { isLegacyDashboardSearch } from './input';
 
 export interface PluginPage {
   path: string; label: string; section: 'workspace' | 'team'; navigation?: boolean;
-  view: { kind: 'builtin'; id: string } | { kind: 'agent'; capability: string };
+  view: { kind: 'builtin'; id: string; capability?: string } | { kind: 'agent'; capability: string };
 }
 
 export const findPluginPage = (pages: PluginPage[] = [], pathname: string, search = '') => {
@@ -11,5 +11,6 @@ export const findPluginPage = (pages: PluginPage[] = [], pathname: string, searc
   return pages.find(page => page.path === path);
 };
 export const pluginAgentHref = (capability: string) => `/?capability=${encodeURIComponent(capability)}`;
+export const agentPageHref = (pages: PluginPage[] = [], capability: string) => pages.find(page => page.view.kind === 'builtin' && page.view.capability === capability)?.path || pluginAgentHref(capability);
 export const activePluginPage = (pages: PluginPage[] = [], pathname: string, search: string) => findPluginPage(pages, pathname, search)
   || (pathname === '/' ? pages.find(page => page.view.kind === 'agent' && page.view.capability === new URLSearchParams(search).get('capability')) : undefined);

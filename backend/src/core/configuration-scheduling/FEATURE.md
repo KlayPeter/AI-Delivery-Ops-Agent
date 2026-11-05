@@ -25,6 +25,8 @@ flowchart TD
     LF --> BOOT[重启注入环境配置]
     BOOT --> PH
     PC["可信插件配置 / 重启生效"] --> PH["Agent、Tool、Skill、消息与群调度装配"]
+    PH --> COL[可选网页/文档插件及其页面、上传 API]
+    COL --> E
     PH --> VIS[五类团队 Web 入口按插件装配；纪要仍隐藏]
     VIS --> E
     PH --> E
@@ -81,6 +83,8 @@ flowchart TD
 ## 本地连接配置
 
 工作台的「连接与模型」独立保存飞书、模型和 TAPD 配置；知识来源由可选 knowledge.workspace 界面调用该私有设置服务保存。显式插件文件管理来源时页面关闭编辑入口，避免无效覆盖；默认应用保存后重启切换。文件位于数据目录 connections.json，权限 0600、原子写入、密钥不回显；重启后应用，不热替换在途执行。启动时设置覆盖同名环境值，模型供应商/地址/名称与 TAPD 项目/地址/类型环境值优先于旧 config.json。现有动态群与计划 API 仍只保存 runtime、schedule、groups。详见 [工作台功能卡](../../platform/workspace/FEATURE.md)。
+
+默认个人组合增加网页收集和文档导入；文档 Python 路径仅来自可信插件配置，应用不自动安装依赖，不继承模型/Azure 凭据。移除插件关闭对应页面与 API；没有新增业务计划或后台清理任务。上传过期只在下次上传时清理。
 
 ## 核心规则
 

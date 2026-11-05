@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Alert, Empty, Input, Skeleton, Tag } from 'antd';
 import { ArrowRightOutlined, AppstoreOutlined, RobotOutlined } from '@ant-design/icons';
 import { agentDescription, capabilityName, needsModel, pluginName, useWorkspace } from './state';
+import { agentPageHref } from './pages';
 
 export default function CatalogPage({ plugins = false }: { plugins?: boolean }) {
   const { data, error, isLoading } = useWorkspace();
@@ -23,7 +24,7 @@ export default function CatalogPage({ plugins = false }: { plugins?: boolean }) 
         <div className="catalog-card-top"><span className="icon-tile"><RobotOutlined aria-hidden /></span><Tag>{agent.runtime === 'model-loop' ? '模型循环' : agent.runtime === 'native' ? '固定流程' : '外部 Agent'}</Tag></div>
         <h2>{capabilityName(agent.capabilities[0] || agent.name, agent.name)}</h2><p>{agentDescription(agent)}</p>
         <div className="capability-tags">{agent.capabilities.map(cap => <Tag key={cap}>{capabilityName(cap, agent.name)}</Tag>)}</div>
-        {needsModel(agent) && !data?.modelConfigured ? <Link to="/connections">先连接模型 <ArrowRightOutlined aria-hidden /></Link> : <Link to={`/?capability=${encodeURIComponent(agent.capabilities[0])}`}>发起任务 <ArrowRightOutlined aria-hidden /></Link>}
+        {needsModel(agent) && !data?.modelConfigured ? <Link to="/connections">先连接模型 <ArrowRightOutlined aria-hidden /></Link> : <Link to={agentPageHref(data?.pages, agent.capabilities[0])}>发起任务 <ArrowRightOutlined aria-hidden /></Link>}
       </article>)}
     </div>}
     {!isLoading && !(plugins ? visiblePlugins : visibleAgents).length && <Empty description={search ? '没有匹配的能力，试试其他关键词' : '当前没有装配能力'} />}

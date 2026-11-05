@@ -64,6 +64,8 @@ flowchart TD
 
 本地 HTTP 工作台可以配置和使用公开单页 URL。来源设置仅接受本机控制面请求，保存后重启生效；检索请求不能改写目录或 URL，仍要求无 chat/conversation 的个人 manual Scope。HTTP 应用复用宿主 Prisma KV 保存本次 Run 与证据，与 CLI 可选独立 SQLite 状态文件分开；不提供多人共享授权。界面展示行号、原文、版本证据及部分来源失败，Markdown 不自动加载远端图片。模型回答发送所选片段给当前宿主模型。见 [工作台功能卡](../../platform/workspace/FEATURE.md)。
 
+knowledge.capture 复用 network.ts 和 parser.ts 提供独立单篇收集，接受本次明确 URL 并导出来源 Markdown，不改变本来源固定 URL 检索约束。parser 返回提取文本供收集复用；Readability 抛错时仅在存在显式 main/article 的情况下恢复，不能回退整页。验证见 backend/test/webCapture.test.ts 和既有网页回归。
+
 ## 核心规则
 
 1. URL 只来自可信插件配置，查询输入不能替换地址。最多五个链接，规范化后拒绝重复；HTTP(S)、默认端口，不含凭据。片段标识移除，URL 最长 1024 字符。

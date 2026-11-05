@@ -21,7 +21,9 @@ export function parsePage(originalUrl: string, page: PublicPage) {
         for (const node of document.querySelectorAll('script,style,noscript,iframe,object,embed,form,nav,footer,header,[hidden],[aria-hidden="true"]')) node.remove();
         title = document.title || document.querySelector('h1')?.textContent || '';
         const main = document.querySelector('main,article')?.cloneNode(true) as Element | undefined;
-        const article = new Readability(document as unknown as Document, { maxElemsToParse: 10_000, charThreshold: 100, disableJSONLD: true }).parse();
+        let article: ReturnType<Readability['parse']> = null;
+        try { article = new Readability(document as unknown as Document, { maxElemsToParse: 10_000, charThreshold: 100, disableJSONLD: true }).parse(); }
+        catch (error) { if (!main) throw error; }
         const root = article?.content ? parseHTML(`<html><body>${article.content}</body></html>`).document.body : main;
         if (!root) throw new Error('No readable article or explicit main content found');
         if (!article?.content) extraction = 'main-text';
@@ -39,5 +41,5 @@ export function parsePage(originalUrl: string, page: PublicPage) {
     else if (!note.headings.length) note.title = new URL(page.url).hostname;
     const rawVersion = contentHash(page.body);
     note.version = contentHash(JSON.stringify(['web-extract-1', page.url, mediaType, rawVersion, text, note.title]));
-    return { note, rawVersion, mediaType, extraction };
+    return { note, rawVersion, mediaType, extraction, text };
 }

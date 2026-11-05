@@ -25,6 +25,13 @@ jobs:
       - run: bunx prisma generate
       - run: bunx prisma validate
       - run: bun run typecheck
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install pinned local document converter
+        run: |
+          python -m venv .data/markitdown
+          .data/markitdown/bin/python -m pip install -r src/connectors/markitdown/requirements.txt
       - name: Test with an isolated SQLite database
         shell: bash
         run: |

@@ -45,6 +45,8 @@ flowchart TD
     MR --> Q
     X --> WEB[页面、API 与手动任务贡献]
     WEB --> WREQ[本机请求与 Host 在途跟踪]
+    WEB --> FORM[可选 Capability 元数据：Agent 入口进入结构化表单]
+    WREQ --> DOC[私有文档暂存 ID；Native Tool 转换与来源 Artifact]
     WREQ --> PV[报告/纪要受限文件 API / TaskService 甘特与计划审计]
     WREQ --> MAIL[纪要邮件接受/未确认审计，失败不伪造成功]
     WREQ --> J
@@ -143,6 +145,8 @@ Host 持有 RunActionRegistry，Cordis 管理注册生命周期。状态 GET 先
 ## 插件 Web 生命周期
 
 Host 提供 PluginWebRegistry，由 Cordis 管理页面/API/原有手动任务授权。handlePluginRequest 与 executePluginJob 统一进入在途跟踪；停止后拒绝新请求，等待已接受请求和任务后才释放插件。路由声明用于 HTTP 装配与 OpenAPI，Fetch handler 保留原 Request 请求体；本机 Host/Origin 边界仍生效。页面元数据不提供认证或原生代码沙箱，旧业务路由仍逐项迁移。
+
+已打包 builtin 页面可选声明 capability，让 Agent 卡片和任务选择进入所属结构化表单。网页收集与 MarkItDown 文档导入分别以独立 Native Agent/Tool 使用现有 Run、Scope、预算、幂等与私有 Artifact，不修改 Agent 执行协议。文档通过不透明上传 ID 消费私有暂存；转换器独立子进程固定上游版本，不接收用户提供的主机路径。专项验证见 backend/test/webCapture.test.ts、backend/test/markitdown.test.ts，页面入口回归见 frontend/src/pages/workspace/pages.test.mjs。
 
 ## 社区 Skill 与 Context7 验证
 
