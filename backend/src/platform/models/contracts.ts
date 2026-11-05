@@ -39,6 +39,7 @@ export interface OrchestratorRunRequest {
     instructions: string;
     messages: OrchestratorMessage[];
     tools: OrchestratorTool[];
+    allowHumanInput?: boolean;
     maxSteps: number;
     timeoutMs: number;
     maxOutputTokens?: number;

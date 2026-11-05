@@ -23,6 +23,35 @@ function executionScope() {
 }
 
 describe('Tool and Skill runtime', () => {
+    test('does not enter a handler when cancelled before execution or during the ledger claim', async () => {
+        for (const phase of ['before', 'claim']) {
+            const controller = new AbortController();
+            const registry = new ToolRegistry();
+            let invoked = 0;
+            registry.register({
+                id: 'test.cancel', version: '1.0.0', description: 'Cancellation boundary', inputSchema: {}, outputSchema: {},
+                sideEffect: 'write', riskLevel: 'high', idempotent: true, timeoutSeconds: 1,
+            }, async () => { invoked++; return {}; });
+            const calls = new InMemoryToolCallStore();
+            const claim = calls.claim.bind(calls);
+            let claimed = false;
+            calls.claim = async (...args) => {
+                claimed = true;
+                const result = await claim(...args);
+                controller.abort();
+                return result;
+            };
+            if (phase === 'before') controller.abort();
+            const gateway = new ToolGateway(registry, calls);
+            await expect(gateway.execute('test.cancel', {}, {
+                runId: 'cancel-run', agentId: 'cancel-agent', scope: executionScope(), allowedTools: ['test.cancel'],
+                idempotencyKey: 'cancel-key', signal: controller.signal,
+            })).rejects.toMatchObject({ code: 'TOOL_CANCELLED', retryable: false });
+            expect(invoked).toBe(0);
+            expect(claimed).toBe(phase === 'claim');
+        }
+    });
+
     test('validates, traces, and deduplicates an idempotent write Tool', async () => {
         const registry = new ToolRegistry();
         let writes = 0;

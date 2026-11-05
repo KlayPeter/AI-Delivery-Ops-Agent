@@ -13,6 +13,7 @@ export class ToolGateway {
     ) {}
 
     async execute(toolId: string, input: unknown, options: ToolExecuteOptions): Promise<unknown> {
+        if (options.signal?.aborted) throw this.error('TOOL_CANCELLED', `Tool cancelled: ${toolId}`, false);
         if (!options.allowedTools.includes(toolId)) throw this.error('TOOL_NOT_ALLOWED', `Tool is not allowed: ${toolId}`, false);
         const tool = this.registry.resolve(toolId);
         const inputErrors = validateSchema(input, tool.definition.inputSchema);
@@ -68,14 +69,17 @@ export class ToolGateway {
         });
 
         const controller = new AbortController();
-        const abort = () => controller.abort();
+        const abort = () => controller.abort(this.error('TOOL_CANCELLED', `Tool cancelled: ${toolId}`, false));
         options.signal?.addEventListener('abort', abort, { once: true });
+        if (options.signal?.aborted) abort();
         let timer: ReturnType<typeof setTimeout> | undefined;
         try {
+            controller.signal.throwIfAborted();
             const timeout = new Promise<never>((_, reject) => {
                 timer = setTimeout(() => {
-                    controller.abort();
-                    reject(this.error('TOOL_TIMEOUT', `Tool timed out: ${toolId}`, true));
+                    const error = this.error('TOOL_TIMEOUT', `Tool timed out: ${toolId}`, true);
+                    controller.abort(error);
+                    reject(error);
                 }, tool.definition.timeoutSeconds * 1000);
             });
             const output = await Promise.race([

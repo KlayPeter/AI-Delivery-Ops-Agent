@@ -48,6 +48,11 @@ flowchart TD
     F --> I["Tool Gateway"]
     F -. 委派 .-> C
     I --> J["Domain Service / Adapter"]
+    I -- "调用前已取消" --> XC["拒绝进入 Tool Handler"]
+    X --> NP["Native 插件：宿主模型与 Tool 组合"]
+    NP --> I
+    NP --> OM["Orchestrator：可选无人工输入函数的纯生成"]
+    OM --> K
     G --> J
     H --> K["Artifact / Step / Checkpoint"]
     J --> K
@@ -74,6 +79,10 @@ flowchart TD
 ## 核心规则
 
 默认组合为九个功能插件、七个 Agent。各插件拥有自己的消息指令与引用贡献；Router 无业务默认项，空组合无消息和群业务调度功能。私聊组合中的成员门槛继续保留，不表示已提供逐路由授权或 RBAC。
+
+原生插件现在可调用宿主 Orchestrator 和 Tool Gateway 组合受治理管线。知识回答用一个检索 Tool 和一次无 Tool 的模型生成，在发布前核验引用；两个个人知识插件均不进入默认团队组合。`allowHumanInput: false` 关闭模型执行器的默认人工输入函数，其他 Agent 保持原有默认暂停恢复行为。
+
+Tool Gateway 在预取消和领取账本期间取消时拒绝进入 Handler；已领取调用记录失败，预取消不领取。超时将同一个 TOOL_TIMEOUT 原因传给 Handler 与等待方，避免协作取消把超时混成未知错误。已经发出的外部操作仍需业务幂等和结果核验。
 
 1. **Manifest 是运行契约。** Agent 只能声明并使用自己的 Capability、Tool、Skill 和可委派子 Agent；运行时不接受 Prompt 临时扩大权限。
 2. **Registry 负责发现，Binding 负责使用。** 安装 Agent 不等于所有机器人自动可用；Bot Binding 决定某个机器人可路由哪些 Capability，以及优先级和覆盖配置。
@@ -179,6 +188,8 @@ flowchart TD
 
 ### 主要测试
 
+- `backend/test/knowledgeAnswer.test.ts`：真实 SDK/本地模拟模型、无 Tool 生成、引用核验、Scope 和运行证据。
+- `backend/test/toolSkillRuntime.test.ts`：预取消与领取期间取消不执行处理者，及原工具/Skill 预算和幂等回归。
 - `backend/test/schedulePlugins.test.ts`：群调度贡献、空组合、插件禁用、错误隔离与在途停止。
 
 - `backend/test/messagePlugins.test.ts`：共享消息注册表、插件禁用、第三方私聊与确定性消息在途停止。
@@ -198,6 +209,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 扩展 Native 插件模型/Tool 服务、纯生成禁用人工输入函数选项；修复取消边界和统一超时原因 | RAG、模型循环、Tool/Skill 与后端全量回归、类型检查 |
 | 2026-11-05 | 群业务调度改为可释放插件贡献，新增外部 AI Hot 调度插件；空组合不隐式执行群任务；停机等待本轮结束 | 调度/日历/插件回归、后端 428 通过 / 1 TAPD 跳过、类型检查 |
 | 2026-11-05 | 插件扩展消息路由贡献；Host 停止先拒绝并等待在途确定性消息，再清理插件 | 消息插件、Host 和原业务回归；类型检查 |
 | 2026-11-05 | 增加可信 YAML Agent 插件选择与本地/已安装包加载；未启用模块不导入，消息 AI/新闻分流检查实际 Capability | 配置加载、插件/Host 测试与后端全量回归 |

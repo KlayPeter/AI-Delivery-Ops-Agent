@@ -15,7 +15,7 @@ export class AiSdkOrchestratorAdapter implements OrchestratorAdapter {
                 execute: (input, options) => definition.execute(input, options.toolCallId, options.abortSignal),
             });
         }
-        tools.request_human_input = dynamicTool({
+        if (request.allowHumanInput !== false) tools.request_human_input = dynamicTool({
             description: 'Ask the user for missing information and stop the current run until they reply.',
             inputSchema: jsonSchema({
                 type: 'object',
@@ -42,7 +42,7 @@ export class AiSdkOrchestratorAdapter implements OrchestratorAdapter {
             model: this.models.resolve(request.modelProfile),
             instructions: request.instructions,
             tools,
-            stopWhen: [hasToolCall('request_human_input'), stepCountIs(Math.max(1, request.maxSteps))],
+            stopWhen: [...(request.allowHumanInput !== false ? [hasToolCall('request_human_input')] : []), stepCountIs(Math.max(1, request.maxSteps))],
             maxOutputTokens: request.maxOutputTokens,
             temperature: request.temperature,
         });

@@ -10,6 +10,8 @@ import type { SkillRegistry } from '@/platform/skills/registry';
 import type { HandlerContext } from '@/services/messageHandler/types';
 import type { MessageRoute, MessageRouteRegistry } from '@/services/messageHandler/routes';
 import type { GroupSchedule, ScheduleRegistry } from '@/platform/scheduling/registry';
+import type { OrchestratorAdapter } from '@/platform/models/contracts';
+import type { ToolGateway } from '@/platform/tools/gateway';
 
 export interface PluginManifest {
     apiVersion: '1.0';
@@ -34,6 +36,8 @@ export interface PluginHostServices {
     skills: Pick<SkillRegistry, 'register'>;
     messageRoutes: Pick<MessageRouteRegistry, 'register'>;
     schedules: Pick<ScheduleRegistry, 'register'>;
+    orchestrator: OrchestratorAdapter;
+    toolGateway: Pick<ToolGateway, 'execute'>;
     bots: BotRegistry;
     botCatalog: PersistentBotControlCatalog;
     skillRoot: string;

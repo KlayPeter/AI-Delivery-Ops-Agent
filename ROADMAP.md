@@ -35,13 +35,16 @@ complete; they are not current product claims or release-date promises.
   [personal knowledge design](docs/PERSONAL_KNOWLEDGE_DESIGN.md).
 - [x] Deliver a read-only Markdown/Obsidian plugin and local CLI with versioned keyword
   retrieval, source citations, link status, exclusions and in-memory change tracking.
-  This is the file-source foundation; webpage ingestion and generative RAG remain open.
+  This is the file-source foundation; webpage ingestion remains open.
+- [x] Add an optional RAG answer plugin using governed retrieval and the host model
+  service; validate citation IDs and exact quotes before publishing. Semantic support
+  is not automatically verified; integration tests use a local mock model endpoint.
 - [ ] Handle source changes and deletions; restrict retrieval to explicitly selected sources.
 - [ ] Add an onboarding assistant for existing MCP and HTTP/OpenAPI capabilities;
   produce reviewable adapters and report unsupported repositories accurately.
 - [ ] Add plugin acceptance contracts, sample checks and execution receipts.
 - [ ] Deliver project digests and release preparation with linked source evidence.
-- [ ] Add a knowledge retrieval plugin with citations, source versions and Obsidian links.
+- [x] Add a knowledge retrieval plugin with citations, source versions and Obsidian links.
 - [ ] Track source-to-artifact references and flag drafts affected by knowledge changes.
 - [ ] Add application authentication, project access checks, secret handling and
   concrete write approval before opening external trials.

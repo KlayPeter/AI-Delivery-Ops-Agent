@@ -24,6 +24,8 @@ function fixture() {
         modelAgents: { register: () => () => {} }, tools, skills: new SkillRegistry(), bots: new BotRegistry(),
         messageRoutes: new MessageRouteRegistry(),
         schedules: new ScheduleRegistry(),
+        orchestrator: { run: async () => { throw new Error('Model is unused in this fixture'); } },
+        toolGateway: { execute: async () => { throw new Error('Tool execution is unused in this fixture'); } },
         botCatalog: new PersistentBotControlCatalog(new InMemoryPersistentKeyValueStore()), skillRoot: '/nonexistent-plugin-skills',
     };
     return { services, tools };

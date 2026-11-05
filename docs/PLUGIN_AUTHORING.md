@@ -35,6 +35,8 @@ await host.stop();
 
 较完整的独立例子见 `backend/src/knowledge/markdown/plugin.ts`：使用现有接口声明配置、Native Agent 和两个只读 Tool，不修改 Host。它不在默认团队组合中；本地运行方式见[个人知识库指南](PERSONAL_KNOWLEDGE.md)。
 
+组合示例见 `backend/src/knowledge/answer/plugin.ts`：声明来源依赖，经过宿主 Tool Gateway 检索，再通过 Orchestrator 生成，并在发布前核验引用。
+
 ## 用配置文件选择 Agent 插件
 
 从 `backend` 目录启动时，可设置：
@@ -109,6 +111,10 @@ plugins:
 应用组合层创建共享 `ScheduleRegistry`，传给 `HandlerContext.schedules` 与 `AgentHostOptions.schedules`。无注册表或空列表时不隐式运行群业务任务；全局维护、成员同步及 Outbox Worker 当前仍为基础服务。默认十项定时任务与一项站会轮询由功能插件贡献；`builtin.ai-hot-schedule` 只负责外部 AI Hot 调度，不自动安装外部服务。
 
 ## 权限与数据边界
+
+需要在 Native Agent 中组合 Tool 和模型时，可以使用 `ctx.delivery.toolGateway.execute` 与 `ctx.delivery.orchestrator.run`。传入同一 Run 的 scope/runId/agentId、Manifest 工具列表、调用预算、幂等键、期限和取消信号；RAG 插件是实际示例。Orchestrator 默认保留人工输入函数，`allowHumanInput: false` 可关闭它；配合空 tools 列表用于纯生成。此设置不改变其他 Agent 的默认暂停恢复行为。
+
+这些服务是受信任原生插件的宿主 API，不是防恶意代码的权限沙箱；调用者不能以任意 allowedTools 列表冒充授权。模型凭据由宿主模型配置拥有，不放进检索结果或 Artifact。Tool Gateway 会在已取消请求和领取期间取消的请求进入 handler 前拒绝执行；已经发出的外部操作仍需要自己的幂等和结果核验。
 
 原生插件运行在宿主进程，属于受信任代码。`ctx.delivery.getContext` 仍可访问现有应用服务，插件声明不是原生 JavaScript 的沙箱。没有审查的远程仓库不能直接变成原生插件执行。
 

@@ -29,6 +29,8 @@ flowchart TD
     MR --> E
     D --> SJ[注册插件拥有的群业务计划与轮询]
     SJ --> E
+    D --> NS[原生插件可调用宿主 Orchestrator 与 Tool Gateway]
+    NS --> E
     E --> F[恢复外部 Agent 与持久化 Bot Binding]
     F --> G[delivery/restored 配置事件]
     G --> H[停用缺少入口能力的 Bot 内存投影]
@@ -65,6 +67,7 @@ flowchart TD
 7. 移除插件后，它的 Agent/Tool/Skill/消息路由/群业务调度不装配；历史引用、免 @ 回复和帮助也不会恢复该功能。引用缺失安装的持久化 Binding 保留在数据库、暂不投影。缺少可用入口 Capability 的 Bot 在本次内存投影中停用，不删除用户配置。
 8. `AgentHost.stop` 拒绝新的消息和调度请求，等待在途确定性消息、调度轮次、Agent 执行和投递，再释放插件；停止后的 Host、消息和调度注册表不能重新启动，应创建新实例。运行、Artifact、Session 与用户绑定数据保留。
 9. `messageRoutes` 可声明静态贡献或通过受作用域管理的注册函数按配置添加。上下文阶段只选择首个匹配者，普通消息按唯一优先级执行；业务判断留在插件与 Handler，Router 不导入内置功能。
+10. `orchestrator` 与 `toolGateway.execute` 供受信任 Native 插件组合模型和 Tool；调用者必须传同一 Run 的身份、Manifest 工具列表、预算和取消信号。它们不是原生恶意代码的权限沙箱。知识回答插件实际使用这条链路并在发布前验收引用。
 
 ## 用户能力
 
@@ -114,6 +117,7 @@ flowchart TD
 ### 主要实现
 
 - `backend/src/platform/scheduling/registry.ts`、`calendar.ts`：群调度协议、唯一优先级、通用日历与在途跟踪。
+- `backend/src/knowledge/answer/plugin.ts`：复用宿主模型与受治理 Tool 的实际插件示例。
 - `backend/src/core/scheduler.ts`：执行插件贡献，统一重试、幂等和记录；保留全局维护/成员同步。
 - `backend/src/agents/plugins/aiHotSchedule.ts`：独立的外部 AI Hot 调度贡献。
 
@@ -130,6 +134,7 @@ flowchart TD
 
 ### 主要测试
 
+- `backend/test/knowledgeAnswer.test.ts`：原生插件模型/Tool 组合、依赖、步骤记录、引用拒绝与本地 HTTP 模型集成。
 - `backend/test/schedulePlugins.test.ts`：群调度贡献、空组合、插件禁用、错误隔离与在途停止。
 
 - `backend/test/pluginConfiguration.test.ts`：配置 Schema、依赖顺序、真实模板、禁用模块不导入与远程 URL 拒绝。
@@ -144,6 +149,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 向原生插件提供宿主 Orchestrator 和 Tool Gateway；独立 RAG 插件验证同 Run 检索、生成与验收 | RAG/插件专项、类型与后端全量回归；默认业务不变 |
 | 2026-11-05 | 群业务调度改为可释放插件贡献，新增外部 AI Hot 调度插件；空组合不隐式执行群任务；停机等待本轮结束 | 调度/日历/插件回归、后端 428 通过 / 1 TAPD 跳过、类型检查 |
 | 2026-11-05 | 将确定性消息、引用上下文、免 @ 回复和帮助归属功能插件；默认新增无 Agent 的会议纪要插件；停机等待在途消息 | 消息插件与现有路由回归、后端 422 通过 / 1 TAPD 跳过、类型检查 |
 | 2026-11-05 | 增加可信 YAML Agent 插件选择与本地/已安装包加载；未启用模块不导入，消息 AI/新闻分流检查实际 Capability | 配置加载、插件/Host 测试与后端全量回归 |

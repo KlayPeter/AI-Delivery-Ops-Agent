@@ -31,7 +31,9 @@ flowchart TD
     S --> A["消息 / Scheduler / API"]
     A --> B["Trigger / Job Execution"]
     B --> C["Agent Run / 业务服务"]
-    C --> L{"Run Tool 预算内?"}
+    C --> TC{"Tool 调用前已取消?"}
+    TC -- 是 --> TR["TOOL_CANCELLED：不进入 Handler"]
+    TC -- 否 --> L{"Run Tool 预算内?"}
     L -- 是 --> D["Step / Tool Call / Audit"]
     L -- 否 --> M["Guardrail Step / 明确失败"]
     C --> E["Artifact"]
@@ -65,6 +67,10 @@ flowchart TD
 - 可观测性不是独立 Agent；它是所有 Agent 和确定性流程共享的平台能力。
 
 ## 核心规则
+
+Native 插件可以使用宿主 Orchestrator/Tool Gateway 组合执行；RAG 回答把检索、模型步骤与带版本证据的 Artifact 归入同一 Run。引用核验只证明身份和精确引文存在，不代表结论语义已验证。模型步骤失败时不发布答案。
+
+Tool 在已取消请求或领取账本期间收到取消时不进入 Handler；领取过的调用写入失败状态。超时和协作取消共享 TOOL_TIMEOUT 原因，不把取消当作成功，也不能据此声称外部副作用已回滚。
 
 Host 关闭时先停止消息注册表接受新执行，等待在途确定性消息、调度轮次与 Agent Run、投递收敛后再释放插件。停用功能删除其内存消息贡献，不删除历史来源消息、引用、运行和业务数据；历史引用本身不会重新启用功能。
 
@@ -181,6 +187,8 @@ Host 关闭时先停止消息注册表接受新执行，等待在途确定性消
 
 ### 主要测试
 
+- `backend/test/knowledgeAnswer.test.ts`：RAG 检索/模型/Artifact 证据、伪造引用拒绝和重复 Trigger 不重复生成。
+- `backend/test/toolSkillRuntime.test.ts`：取消与领取竞争的处理边界。
 - `backend/test/schedulePlugins.test.ts`：调度计划失败隔离、原子领取与停机等待；原 Scheduler 测试覆盖重试和警告语义。
 
 - `backend/test/messagePlugins.test.ts`：在途确定性消息收敛、停机拒绝新执行与历史上下文禁用。
@@ -201,6 +209,7 @@ Host 关闭时先停止消息注册表接受新执行，等待在途确定性消
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | Native RAG 保存同一 Run 的检索、生成和验收证据；修复预取消/领取中取消仍执行 Tool 的竞态 | RAG、Tool/Skill、模型循环与后端全量回归、类型检查 |
 | 2026-11-05 | Host 等待在途群调度后释放插件，应用退出先等待 Scheduler；计划/轮询失败单独审计，旧幂等键保留 | 调度与插件回归、后端 428 通过 / 1 TAPD 跳过、类型检查 |
 | 2026-11-05 | 消息贡献随插件回滚与释放；停机等待在途确定性消息并保留持久化事实 | 消息插件/Host 回归、后端 422 通过 / 1 TAPD 跳过、类型检查 |
 | 2026-11-05 | 增加可信 YAML Agent 插件选择与本地/已安装包加载；未启用模块不导入，消息 AI/新闻分流检查实际 Capability | 配置加载、插件/Host 测试与后端全量回归 |

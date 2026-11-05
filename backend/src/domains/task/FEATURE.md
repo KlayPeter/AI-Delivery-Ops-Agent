@@ -28,10 +28,12 @@ flowchart TD
     A["任务命令 / 主 Agent 委派"] --> B["Task Agent 或确定性 Handler"]
     B --> AI{"任务命令 AI 前置解析成功?"}
     AI -- "是" --> C["Task Tool Gateway"]
-    AI -- "429 / 超时 / 不可用，规则已命中" --> R["确定性任务命令"]
-    R --> C
+    AI -- "429 / 超时 / 不可用，规则已命中" --> RULE["确定性任务命令"]
+    RULE --> C
     B --> C["Task Tool Gateway"]
-    C --> D["TaskService"]
+    C --> TC{"通过 Tool 时调用前已取消?"}
+    TC -- 否 --> D["TaskService"]
+    TC -- 是 --> TX["拒绝进入 Tool Handler"]
     S["09:00–18:30 半小时扫描"] --> HC{"群日期策略与指定日期允许?"}
     HC -- "是" --> O["ScheduledJobs.overdueScan"]
     O --> W["TaskService.syncProjectScope"]
@@ -42,15 +44,15 @@ flowchart TD
     U --> X["TaskService 层级投影：完成继承 + 转测阶段继承"]
     X --> X1["保留子项 TAPD 原始状态与独立超期事实"]
     X1 --> Y{"活跃、未完成叶子项?"}
-    Y -- "否" --> R["跳过完成项、父项与完成子树"]
-    Y -- "是" --> C["确定唯一提醒群"]
-    C --> P["overduePolicy 分档与提醒槽"]
+    Y -- "否" --> SKIP["跳过完成项、父项与完成子树"]
+    Y -- "是" --> RG["确定唯一提醒群"]
+    RG --> P["overduePolicy 分档与提醒槽"]
     P --> D
     P --> Q{"当前槽位是否已成功?"}
     Q -- "否" --> V{"主负责人 open_id 可解析?"}
-    Q -- "是" --> R
-    V -- "是" --> J["持久化领取任务-场景-槽位"]
-    J --> N["飞书私聊主负责人"]
+    Q -- "是" --> SKIP
+    V -- "是" --> CLAIM["持久化领取任务-场景-槽位"]
+    CLAIM --> N["飞书私聊主负责人"]
     V -- "否" --> Z["记录负责人未解析并按槽去重"]
     N --> T["记录成功槽位"]
     D --> E["Action / Mutation / Workflow Policy"]
@@ -75,6 +77,8 @@ flowchart TD
 - 人力甘特图只读取任务域数据，展示逻辑归 `project-visibility`。
 
 ## 核心规则
+
+通过 Agent Tool 进入任务域时，Tool Gateway 在调用前检查取消信号；预取消或领取账本期间取消时不进入业务 Handler。取消不等于已发外部写入回滚，任务业务仍依靠原有幂等、状态规则和结果核验。
 
 运行时装配由 `builtin.task` 插件负责，拥有 Task Agent、Tool、Skill、任务消息与超期扫描的装配和清理。移除插件关闭对应消息和群业务调度，历史数据保留；页面、业务 API、全局维护/成员同步与基础服务尚未全部迁为插件贡献。
 
@@ -118,6 +122,7 @@ overdue-scan 的工作窗口、时区和开关规则归任务插件；移除后�
 
 | 入口 | 输入 | 输出 |
 | --- | --- | --- |
+| 2026-11-05 | 共享 Tool Gateway 拒绝预取消/领取期间取消的任务调用；同步图区分提醒群选择、执行领取和任务规则节点 | 取消竞争测试、任务与后端全量回归、类型检查 |
 | 飞书任务命令/自然语言 | 任务描述、成员、时间、状态 | 任务结果与回复 |
 | Task Agent capability | `task.manage` 请求 | Tool 执行结果 |
 | TAPD 同步 | 外部工作项状态 | 本地任务或同步结果 |

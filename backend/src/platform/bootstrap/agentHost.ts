@@ -438,6 +438,8 @@ export class AgentHost {
             skills: this.skillRegistry,
             messageRoutes: this.messageRoutes,
             schedules: this.schedules,
+            orchestrator,
+            toolGateway: this.toolGateway,
             bots: this.bots,
             botCatalog: this.controlCatalog,
             skillRoot: this.skillRoot,

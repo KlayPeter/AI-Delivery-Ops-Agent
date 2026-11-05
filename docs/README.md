@@ -5,7 +5,7 @@
 
 ## 使用者
 
-- [本地个人知识库](PERSONAL_KNOWLEDGE.md)：只读连接 Markdown/Obsidian 目录，运行带来源版本和行号的关键词检索；无需模型或团队集成。
+- [本地个人知识库](PERSONAL_KNOWLEDGE.md)：只读连接 Markdown/Obsidian 目录；本地关键词检索或显式配置模型后生成带引用的 RAG 回答。
 - [用户指南](AI-Delivery-Ops-Agent-用户使用指南.md)：在飞书中创建任务、
   更新进度、提交站会和触发报告。
 - [第三方平台接入配置指南](第三方平台接入配置指南.md)：配置飞书、TAPD、
