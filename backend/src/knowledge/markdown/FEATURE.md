@@ -185,3 +185,7 @@ flowchart LR
 ## 可选混合组合
 
 本来源保持独立读取与权限边界；knowledge.mixed 可通过原 search/versions Tool 与另一来源组合，保留各自身份和版本。它不扩大本来源的目录或 URL 范围，不自动启用；实现与测试见 [混合知识功能卡](../mixed/FEATURE.md) 及 backend/test/knowledgeMixed.test.ts。
+
+## 可选新笔记回写消费者
+
+独立 knowledge.writeback 复用本功能的读取/引用/版本契约，未增加原来源写入口或改变复核状态。人工审查后仅向显式收件目录排他新建笔记；如果位于选定 Vault，下次同步沿原规则检索，新笔记保留原运行及引用版本。既有笔记与历史产物不覆盖。见[回写功能卡](../writeback/FEATURE.md)，验证：backend/test/knowledgeWriteback.test.ts 及既有回归。

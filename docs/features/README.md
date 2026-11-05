@@ -40,6 +40,9 @@ flowchart LR
     UI --> CAP[网页资料收集与本地文档导入插件]
     CAP --> O
     O --> COLLECT[用户明确收录到应用资料库]
+    UI --> WB[可选笔记回写：编辑与明确审查]
+    WB --> WBG[来源复验与排他新建]
+    WBG --> PK
     COLLECT --> PK
     UI --> KM[可选混合知识：两源保留独立引用与版本]
     KM --> PK
@@ -107,6 +110,7 @@ HTTP 默认装配个人知识、采集、验收、工具接入、研究、配方
 | `local-launcher` | 首次初始化、前后端启动与本次进程清理 | active | 本地脚本，无独立 Agent | [查看](../../scripts/local/FEATURE.md) |
 | `mixed-knowledge` | 笔记与网页并行检索、跨来源引用与独立版本复核 | active | `native.knowledge-mixed` | [查看](../../backend/src/knowledge/mixed/FEATURE.md) |
 | `model-providers` | 模型提供者插件、配置诊断与无密钥本机 Ollama | active | 宿主模型端口，无独立 Agent | [查看](../../backend/src/platform/models/FEATURE.md) |
+| `knowledge-note-writeback` | 审查新笔记、来源版本复验、排他创建与回执恢复 | active（显式安装） | `native.knowledge-writeback` | [查看](../../backend/src/knowledge/writeback/FEATURE.md) |
 | `run-recipes` | 原参数/版本核验、审查复用与运行来源关联 | active | 控制面插件，无独立 Agent | [查看](../../backend/src/recipes/FEATURE.md) |
 | `personal-research-agent` | 模型研究、专业子任务与真实资料完成门槛 | active | `personal.research-agent` | [查看](../../backend/src/agents/personal-research/FEATURE.md) |
 | `openapi-workbench` | OpenAPI 发现、原记录绑定配置导出与固定 GET 读取 | active（显式安装） | `native.openapi-inspector` / `native.openapi-runner` | [查看](../../backend/src/connectors/openapi/FEATURE.md) |
@@ -164,6 +168,7 @@ HTTP 默认装配个人知识、采集、验收、工具接入、研究、配方
 | `native.web-capture` | `knowledge.page.capture` | 可选 Native Agent | 单篇网页正文与来源导出；HTTP 默认装配 |
 | `native.document-convert` | `knowledge.document.convert` | 可选 Native Agent | 本地文档转换与来源指纹；HTTP 默认装配，需安装引擎 |
 | `native.release-prepare` | `release.prepare` | 可选 Native 管线 | 个人知识驱动的只读发布准备 |
+| `native.knowledge-writeback` | `knowledge.note.writeback` | 可选 Native Agent | 人工审查后新建知识笔记；显式收件目录 |
 | `native.knowledge-impact` | `knowledge.impact.check` | 可选 Native 管线 | 指定历史 Run 的知识引用检查 |
 | `native.knowledge-answer` | `knowledge.answer` | 可选 Native RAG 管线 | 个人知识回答；依赖来源插件与显式模型配置 |
 | `community.context7-docs` | `docs.context7.lookup` | 可选 Native Agent | Context7 文档查询；无需模型 |
@@ -200,6 +205,7 @@ HTTP 默认装配个人知识、采集、验收、工具接入、研究、配方
 | `backend/src/connectors/markitdown/**` | `local-document-import`、`plugin-runtime`、`local-agent-workspace`、`operations-observability` |
 | `backend/src/knowledge/workspace/**` | `personal-knowledge-workspace`、`local-agent-workspace`、`plugin-runtime`、`operations-observability` |
 | `backend/src/knowledge/mixed/**` | `mixed-knowledge`、`personal-knowledge-answer`、`knowledge-change-impact`、`personal-knowledge-workspace`、`local-agent-workspace`、`plugin-runtime`、`agent-platform`、`operations-observability`；组合变化同步研究/发布 |
+| `backend/src/knowledge/writeback/**` | `knowledge-note-writeback`、`plugin-runtime`、`agent-platform`、`operations-observability`、`local-agent-workspace`；同步知识来源文档 |
 | `backend/src/knowledge/impact/**` | `knowledge-change-impact` |
 | `backend/src/knowledge/versions.ts` | `knowledge-change-impact`、`personal-markdown-knowledge`、`personal-web-knowledge`；涉及生成证据时追加回答/发布准备 |
 | `backend/src/platform/persistence/sqliteStore.ts` | `agent-platform`、`operations-observability`、`knowledge-change-impact`；同步知识/发布 CLI 功能卡 |
@@ -242,5 +248,5 @@ HTTP 默认装配个人知识、采集、验收、工具接入、研究、配方
 - **推荐在功能代码 Owner 目录使用 `FEATURE.md`，不推荐再放业务型 `AGENTS.md`。** `FEATURE.md` 面向人和 AI 共同解释产品能力；根目录 `AGENTS.md` 统一约束 AI 的修改流程。这样代码与功能事实相邻，又不会让业务说明和开发规则混在一起。
 - **系统已经是 Agent 系统。** 它具备 Registry、三类 Adapter、Model Loop、Tool/Skill Runtime、委派、Session/Checkpoint、Run/Artifact、Outbox 和 Bot Binding，不只是“调用一次大模型”的普通业务系统。
 - **系统采用混合架构是正确的。** 自主决策和可插拔执行使用 Agent，强一致状态交给 Domain Service，确定性管理和查询保留为服务/控制面。强行把每个页面或函数 Agent 化会增加成本、随机性和数据冲突。
-- **当前功能文档覆盖 33 个能力。** 团队 SDK 组合包含 7 个 Agent；HTTP 个人默认十四插件、九个 Agent，包含来源检索、RAG、采集、导入、资料库、验收、MCP 接入、个人研究、任务配方及三个模型提供者。明确配置 GitHub 后为十六插件、十个 Agent；团队组合通过显式文件选择，AI Hot 是可选外部 Agent；会议纪要处于 dormant，其余功能通过 Agent、领域服务和控制面协作完成。
+- **当前功能文档覆盖 34 个能力。** 团队 SDK 组合包含 7 个 Agent；HTTP 个人默认十四插件、九个 Agent，包含来源检索、RAG、采集、导入、资料库、验收、MCP 接入、个人研究、任务配方及三个模型提供者。明确配置 GitHub 后为十六插件、十个 Agent；团队组合通过显式文件选择，AI Hot 是可选外部 Agent；会议纪要处于 dormant，其余功能通过 Agent、领域服务和控制面协作完成。
 - **下一步维护重点**是保证功能卡与代码同提交更新，并继续把业务写入口收敛到 `TaskService`、`StandupService` 和受治理 Tool；新增机器人优先增加 Binding，新增自治能力再增加 Agent。

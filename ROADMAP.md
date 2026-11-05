@@ -82,7 +82,10 @@ are deferred while the local product is being validated.
 - [x] Turn successful runs with a single execution receipt and matching original input
   into user-reviewed reusable recipes; recheck the selected contract at execution,
   retain provenance, and state that model/tool/environment replay is not provided.
-- [ ] Propose knowledge write-back as reviewable patches with source-version conflict checks.
+- [x] Propose reviewed new-note patches from cited answers/drafts, recheck source versions
+  at explicit manual confirmation, create files exclusively and recover missing receipts.
+- [ ] Extend write-back to reviewed replacements of existing notes; the current writer
+  only creates a new note in an explicitly configured inbox.
 - [ ] Replay redacted fixtures to compare plugin and model versions without live writes.
 - [ ] Validate onboarding and repeated use with independent maintainers or teams.
 - [ ] Enable an external contributor to build and verify a plugin from documentation.

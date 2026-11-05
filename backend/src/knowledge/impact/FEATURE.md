@@ -190,3 +190,7 @@ flowchart LR
     MIX_MD --> MIX_RESULT[保留原引用与独立版本]
     MIX_WEB --> MIX_RESULT
 ```
+
+## 可选新笔记回写消费者
+
+独立 knowledge.writeback 复用本功能的读取/引用/版本契约，未增加原来源写入口或改变复核状态。人工审查后仅向显式收件目录排他新建笔记；如果位于选定 Vault，下次同步沿原规则检索，新笔记保留原运行及引用版本。既有笔记与历史产物不覆盖。见[回写功能卡](../writeback/FEATURE.md)，验证：backend/test/knowledgeWriteback.test.ts 及既有回归。

@@ -162,3 +162,5 @@ SQLite 与资料库要求同一数据目录只有一个后端写实例。不要�
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 可选 [OpenAPI 接入](docs/OPENAPI_TOOLS.md)：从公开规范审查并导出固定 GET 工具，运行保留来源和响应指纹；不需要第三方提供 MCP。
+
+可选 [笔记回写](docs/KNOWLEDGE_WRITEBACK.md)：编辑并审查 Agent 结果，确认时重验引用，再新建一份带来源的笔记；已有文件保持原样。

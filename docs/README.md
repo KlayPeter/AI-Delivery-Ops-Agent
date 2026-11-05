@@ -11,6 +11,7 @@
 - [Context7 与标准 Skill](COMMUNITY_PLUGINS.md)：真实社区工具、SKILL.md 导入和独立配置档。
 - [网页与文档收集](DOCUMENT_IMPORT.md)：安装 MarkItDown、导入资料、明确收录及资料库来源切换。
 - [本地个人知识库](PERSONAL_KNOWLEDGE.md)：只读连接 Markdown/Obsidian 目录；本地关键词检索或显式配置模型后生成带引用的 RAG 回答。
+- [审查后保存知识笔记](KNOWLEDGE_WRITEBACK.md)：编辑 Agent 结果、审查新文件、重验引用并明确确认新建。
 - [知识变更复核](KNOWLEDGE_IMPACT.md)：检查历史引用，保留原结果和独立评估。
 - [发布准备](RELEASE_PREPARATION.md)：仓库事实、个人规则与可核查草稿。
 - [结果验收功能卡](../backend/src/quality/FEATURE.md)：插件声明的规则、执行版本和两次运行的结构对比。

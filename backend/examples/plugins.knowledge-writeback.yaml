@@ -1,0 +1,15 @@
+apiVersion: '1.0'
+plugins:
+  - module: ../src/platform/models/providers/openaiPlugin.ts
+  - module: ../src/platform/models/providers/googlePlugin.ts
+  - module: ../src/platform/models/providers/ollamaPlugin.ts
+  - module: ../src/knowledge/markdown/plugin.ts
+    config:
+      root: .data/writeback-vault
+      sourceId: writeback-demo
+  - module: ../src/knowledge/answer/plugin.ts
+  - module: ../src/knowledge/workspace/plugin.ts
+  - module: ../src/knowledge/impact/plugin.ts
+  - module: ../src/knowledge/writeback/plugin.ts
+    config:
+      outputRoot: .data/writeback-vault/Agent Inbox

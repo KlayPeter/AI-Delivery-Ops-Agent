@@ -14,6 +14,7 @@ const KnowledgePage = lazy(() => import('./KnowledgePage'));
 const CapturePage = lazy(() => import('./CapturePage'));
 const DocumentsPage = lazy(() => import('./DocumentsPage'));
 const LibraryPage = lazy(() => import('./LibraryPage'));
+const KnowledgeWritebackPage = lazy(() => import('./KnowledgeWritebackPage'));
 const KnowledgeReviewsPage = lazy(() => import('./KnowledgeReviewsPage'));
 const ChecksPage = lazy(() => import('./ChecksPage'));
 const OpenApiSetupPage = lazy(() => import('./OpenApiSetupPage'));
@@ -40,6 +41,7 @@ export default function PluginPage() {
   if (page?.view.kind === 'builtin' && page.view.id === 'web-capture') return <CapturePage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'documents') return <DocumentsPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'knowledge-library') return <LibraryPage />;
+  if (page?.view.kind === 'builtin' && page.view.id === 'knowledge-writeback') return <KnowledgeWritebackPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'knowledge-reviews') return <KnowledgeReviewsPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'plugin-checks') return <ChecksPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'openapi-setup') return <OpenApiSetupPage />;
