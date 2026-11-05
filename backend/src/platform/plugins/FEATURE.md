@@ -56,6 +56,7 @@ flowchart TD
     I --> J[停止接入并等待在途消息、调度与 Run]
     J --> K[停止投递 Worker 并释放插件]
     K --> L[保留持久化运行历史和绑定配置]
+    COL --> KLIB[资料库：显式动作、私有目录与检索]
 ```
 
 ## 能力边界
@@ -74,7 +75,7 @@ flowchart TD
 
 ## HTTP 工作台组合
 
-团队 SDK 默认仍为九个插件、七个 Agent；HTTP 入口默认另加示例 Markdown 来源、RAG 回答、引用复核与独立知识界面，加上网页收集与文档导入，共 15 个插件、12 个 Agent。页面可保存个人 Markdown/公开网页来源，重启后选择一组来源/回答/复核插件；显式 AGENT_PLUGINS_FILE 优先并完全管理组合。插件页面展示真实已装配 Manifest、版本与依赖，尚未提供在线任意仓库安装。工作台不是额外的业务 Agent。
+团队 SDK 默认仍为九个插件、七个 Agent；HTTP 入口默认另加示例 Markdown 来源、RAG 回答、引用复核与独立知识界面，加上网页收集、文档导入与资料库，共 16 个插件、13 个 Agent。页面可保存个人 Markdown/公开网页来源，重启后选择一组来源/回答/复核插件；显式 AGENT_PLUGINS_FILE 优先并完全管理组合。插件页面展示真实已装配 Manifest、版本与依赖，尚未提供在线任意仓库安装。工作台不是额外的业务 Agent。
 
 ## 核心规则
 
@@ -116,6 +117,8 @@ knowledge.capture 复用受限公开网页读取，community.markitdown 通过�
 标准 SKILL.md 可经 readAgentSkill 显式导入现有 Prompt Skill Runtime；元数据不能自动取得工具或 Agent 授权，不执行目录脚本。community.context7 是真实使用者：接入上游 MCP 两个读取工具，提供无模型查询和需模型的研究助手；页面按插件贡献，未知能力标签使用作者声明的 Agent 名称。默认组合不自动安装它。来源、许可、运行命令和验收边界见 [社区接入说明](../../../../docs/COMMUNITY_PLUGINS.md)。
 
 验证：backend/test/context7Plugin.test.ts 覆盖格式/边界、权限不继承、受控 Prompt Skill 执行及插件装配；本地实际 MCP 与工作台验收覆盖公开文档检索。真实付费模型未调用。
+
+knowledge.library 独立拥有资料库 Agent、两个 Tool、页面/API 与 knowledge.collect 动作；无必需采集插件依赖，可以收录历史成功结果。停止释放贡献但保留私有 Markdown。默认个人组合添加此插件，明确文件组合仍完全覆盖。验证涵盖真实采集、MarkItDown、存储边界、恢复和已有 RAG 管线。
 
 ## 用户能力
 

@@ -23,7 +23,9 @@ flowchart TD
     W --> V[页面读取明确来源及检索 Capability]
     V --> R[既有本机 Run API；固定个人 Scope]
     R --> K[已选择的 Markdown 或网页 Agent]
-    K --> E[真实原文与版本 Artifact]
+    K --> E
+    CFG --> LIB[可选应用资料库；固定范围目录与来源 ID]
+    LIB --> K[真实原文与版本 Artifact]
     E --> D[运行详情与可选引用复核]
     V --> MATCH{回答插件依赖同一来源且模型已配置?}
     MATCH -- 是 --> A[按需生成引用回答]
@@ -48,7 +50,7 @@ flowchart TD
 
 ## 核心规则
 
-1. createKnowledgeWorkspacePlugin 只接受 sample、markdown 或 web，依赖对应来源插件；缺依赖在装配前拒绝。一个 Host 只装配一个知识工作台，底层两种来源可以并存。
+1. createKnowledgeWorkspacePlugin 接受 sample、markdown、web 或 library，依赖对应来源插件；缺依赖在装配前拒绝。一个 Host 只装配一个知识工作台，底层两种来源可以并存。
 2. /api/knowledge-workspace 仅提供 GET；返回 kind、pluginId 和 capability，不返回文件根目录、URL 列表或密钥。来源由宿主工厂选择，客户端不能改写。
 3. 默认 HTTP 组合增加本插件；Markdown 与网页来源自身不自动贡献 Web 界面。CLI/SDK 来源能力、SDK 默认团队组合和显式 AGENT_PLUGINS_FILE 语义不变。
 4. /knowledge 由 PluginPage 验证所有者后渲染已打包视图。核心 App/MainLayout 不再固定注册该路由与菜单。移除界面插件关闭描述 API 与入口，来源检索可单独保留。

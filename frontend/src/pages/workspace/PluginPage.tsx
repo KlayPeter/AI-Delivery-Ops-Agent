@@ -13,6 +13,7 @@ const ReleasePage = lazy(() => import('./ReleasePage'));
 const KnowledgePage = lazy(() => import('./KnowledgePage'));
 const CapturePage = lazy(() => import('./CapturePage'));
 const DocumentsPage = lazy(() => import('./DocumentsPage'));
+const LibraryPage = lazy(() => import('./LibraryPage'));
 
 export default function PluginPage() {
   const { data, error, isLoading, mutate } = useWorkspace();
@@ -30,5 +31,6 @@ export default function PluginPage() {
   if (page?.view.kind === 'builtin' && page.view.id === 'knowledge') return <KnowledgePage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'web-capture') return <CapturePage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'documents') return <DocumentsPage />;
+  if (page?.view.kind === 'builtin' && page.view.id === 'knowledge-library') return <LibraryPage />;
   return <div className="workspace-page"><Empty description={page ? '当前界面版本尚不支持此插件页面' : '此页面不存在或对应插件未启用'}><Link className="primary-link" to="/plugins">查看已装配插件</Link></Empty></div>;
 }

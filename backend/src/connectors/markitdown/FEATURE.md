@@ -29,6 +29,7 @@ flowchart TD
     LIMIT --> MD[带来源指纹的 Markdown 和 JSON Artifact]
     LIMIT --> CLEAN[转换后移除原始暂存；失败也清理已接收输入]
     MD --> UI[查看、复制或下载；用户核对后放入知识目录]
+    MD --> KLIB[用户明确收录到应用资料库]
 ```
 
 ## 能力边界
@@ -56,6 +57,8 @@ flowchart TD
 7. 输出带来源文件名、原始 SHA-256、转换时间、引擎版本与实际 Markdown；这些是来源凭证，不证明排版或文字无遗漏。
 8. Tool 具有临时文件消费副作用，使用同 Run/Scope、一次预算和固定幂等键。重复 Trigger 复用原结果；新失败重试应重新选择上传文件。
 9. 插件独立释放 Agent、Tool、页面和 API，历史 Artifact 保留。Markdown 沿用现有安全展示，不执行 HTML或加载远端图片。
+
+可选 knowledge.library 为成功文档结果提供显式收录动作；转换后的 Markdown 可进入应用资料目录并用于检索。转换器不自动收录，也不写入用户 Vault；收录读取已保留 Artifact，不重新读取原始上传。验证：backend/test/knowledgeLibrary.test.ts 使用真实上游转换结果。
 
 ## 用户能力
 

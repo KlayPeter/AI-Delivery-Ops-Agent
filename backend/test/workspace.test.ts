@@ -95,15 +95,15 @@ describe('local connection settings', () => {
 test('GitHub settings enable the matching release composition after restart, keep the token private, and can disable it', async () => {
     const file = path.join(directory, 'connections.json');
     const settings = new LocalConnections(file); await settings.initialize();
-    expect(workspaceKnowledge().plugins.some(plugin => plugin.manifest.id === 'release.prepare')).toBe(false);
+    expect(workspaceKnowledge(directory).plugins.some(plugin => plugin.manifest.id === 'release.prepare')).toBe(false);
     const saved = await settings.save({ RELEASE_GITHUB_REPOSITORY: repository, RELEASE_GITHUB_BRANCH: 'main', RELEASE_GITHUB_TOKEN: 'fixture-private-token' });
     expect(saved.secrets.RELEASE_GITHUB_TOKEN).toBe(true);
     expect(JSON.stringify(saved)).not.toContain('fixture-private-token');
-    expect(workspaceKnowledge().plugins.some(plugin => plugin.manifest.id === 'release.prepare')).toBe(false);
+    expect(workspaceKnowledge(directory).plugins.some(plugin => plugin.manifest.id === 'release.prepare')).toBe(false);
     await new LocalConnections(file).initialize();
-    const selected = workspaceKnowledge(), github = githubFixture();
+    const selected = workspaceKnowledge(directory), github = githubFixture();
     expect('connector.github' in selected.config ? selected.config['connector.github'] : undefined).toMatchObject({ repository, baseBranch: 'main', tokenRef: 'env://RELEASE_GITHUB_TOKEN' });
-    const config = buildConfig({}), store = new InMemoryPersistentKeyValueStore();
+    const config = { ...buildConfig({}), data_path: directory }, store = new InMemoryPersistentKeyValueStore();
     const host = new AgentHost(() => ({ store, config, feishu: {}, tapd: {}, intentParser: {} } as any), 1000, undefined, [], {
         plugins: selected.plugins.map(plugin => plugin.manifest.id === 'connector.github' ? createGitHubPlugin(github) : plugin), pluginConfig: selected.config,
     });
@@ -124,10 +124,10 @@ test('GitHub settings enable the matching release composition after restart, kee
     } finally { await host.stop(); }
     expect(host.web.pages()).toEqual([]);
     process.env.KNOWLEDGE_KIND = 'web'; process.env.KNOWLEDGE_URLS = 'https://example.com/policy';
-    expect(workspaceKnowledge().plugins.find(plugin => plugin.manifest.id === 'release.prepare')?.manifest.requires).toContain('knowledge.web');
+    expect(workspaceKnowledge(directory).plugins.find(plugin => plugin.manifest.id === 'release.prepare')?.manifest.requires).toContain('knowledge.web');
     await settings.save({ RELEASE_GITHUB_REPOSITORY: '', RELEASE_GITHUB_TOKEN: null });
     const disabled = new LocalConnections(file); await disabled.initialize();
-    expect(workspaceKnowledge().plugins.some(plugin => plugin.manifest.id === 'release.prepare')).toBe(false);
+    expect(workspaceKnowledge(directory).plugins.some(plugin => plugin.manifest.id === 'release.prepare')).toBe(false);
     expect(disabled.snapshot().secrets.RELEASE_GITHUB_TOKEN).toBe(false);
 });
 
@@ -163,8 +163,8 @@ test('workspace API runs a real plugin, deduplicates triggers, returns artifacts
 });
 
 test('default workspace knowledge retrieves bundled sample evidence without a model or Feishu', async () => {
-    const selected = workspaceKnowledge();
-    const config = buildConfig({});
+    const selected = workspaceKnowledge(directory);
+    const config = { ...buildConfig({}), data_path: directory };
     const store = new InMemoryPersistentKeyValueStore();
     const host = new AgentHost(() => ({ store, config, feishu: {}, tapd: {}, intentParser: {} } as any), 1000, undefined, [], { plugins: selected.plugins, pluginConfig: selected.config });
     try {

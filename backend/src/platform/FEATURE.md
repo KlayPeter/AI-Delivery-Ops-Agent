@@ -81,6 +81,7 @@ flowchart TD
     L --> M["目标 Bot 与飞书群"]
     N["配置完整的 active BotInstance 独立飞书长连接"] --> R
     G --> O["AI HOT v1 新闻 / 多源信号 Provider"]
+    DOC --> KLIB[明确收录；既有知识检索与引用回答]
 ```
 
 ## 能力边界
@@ -153,6 +154,8 @@ Host 提供 PluginWebRegistry，由 Cordis 管理页面/API/原有手动任务�
 标准 SKILL.md 可经 readAgentSkill 显式导入现有 Prompt Skill Runtime；元数据不能自动取得工具或 Agent 授权，不执行目录脚本。community.context7 是真实使用者：接入上游 MCP 两个读取工具，提供无模型查询和需模型的研究助手；页面按插件贡献，未知能力标签使用作者声明的 Agent 名称。默认组合不自动安装它。来源、许可、运行命令和验收边界见 [社区接入说明](../../../docs/COMMUNITY_PLUGINS.md)。
 
 验证：backend/test/context7Plugin.test.ts 覆盖格式/边界、权限不继承、受控 Prompt Skill 执行及插件装配；本地实际 MCP 与工作台验收覆盖公开文档检索。真实付费模型未调用。
+
+资料库作为独立 Native 插件复用 Agent/Tool/Artifact 与运行后续动作；收录只接受固定原 Run ID，不把正文或路径视为动作授权。一次预算写入应用私有目录，检索和来源切换复用 Markdown/RAG/impact。没有新的 Agent 协议或共享 Store 表。验证：backend/test/knowledgeLibrary.test.ts，包含保存后重启、真实 MarkItDown、模拟模型引用回答与变更复核。
 
 ## 用户能力
 

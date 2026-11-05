@@ -40,6 +40,7 @@ flowchart TD
     T --> L[Tool Step 与调用账本]
     M --> L2[Model Step、状态与可获得的用量]
     A --> R
+    KLIB[明确收录的应用资料] --> KLR[既有Markdown检索与引用回答]
 ```
 
 ## 能力边界
@@ -76,6 +77,8 @@ flowchart TD
 10. 源文件在生成期间改变时，答案仍引用检索时的实际版本和片段，不把当前文件冒充历史依据；下一次运行重新检索。不在答案完成时自动重验；后续可用 knowledge.impact 显式检查已保存 Run 的实际引用，原答案和旧证据保持。
 11. 索引 partial 状态保留在生成输入和输出中。回答仅依据可读且命中的资料，不能声称已经检查全部知识。
 12. 默认团队组合不装配本插件。CLI 只在 `--ask` 时装配，并要求专用 KNOWLEDGE_API_BASE/MODEL/API_KEY；不自动使用团队 AI 凭据。命令显示模型目标地址，密钥不输出。
+
+选择应用资料库时仍使用既有 Markdown search Tool 与 knowledge.answer；收录本身和原文检索不调用模型。资料先由用户确认，正文作为不可信证据进入原有精确引用核验；不增加自动写入或模型权限。backend/test/knowledgeLibrary.test.ts 用本地模拟模型验证真实保存/重启/RAG/复核链路，未验证付费模型质量。
 
 ## 用户能力
 

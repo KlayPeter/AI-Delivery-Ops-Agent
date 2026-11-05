@@ -37,6 +37,7 @@ flowchart TD
     I --> Q[与网页源共享中文分词和关键词排序]
     Q --> E[来源版本、引用 ID、行号、原文片段与链接状态]
     E --> A[JSON Artifact / CLI 输出]
+    KLIB[独立资料库写入应用目录] --> KLREAD[已有只读Markdown检索与版本]
 ```
 
 ## 能力边界
@@ -76,6 +77,8 @@ flowchart TD
 
 
 新增引用包含 sourceKind/sourceKey：来源身份参与 citationId，避免不同 Vault/URL 的同名内容混淆。versions Tool 不接受新根目录或新抓取地址；刷新既定来源后比较历史版本，无法读取时不伪装成删除。旧引用缺少来源身份时由 impact 插件明确标记无法核验。CLI 可选择 --state 保存私有运行记录；默认内存模式保持。
+
+应用资料库是可选的 Markdown 来源：独立 knowledge.library 插件显式写入 DATA_DIR 的范围目录，KNOWLEDGE_KIND=library 选择该目录及 workspace-library 来源 ID。MarkdownKnowledgeSource 本身仍只读，用户 Vault 与默认示例不写入。收录文件带来源属性，行号和文档版本仍按真实文件计算。验证：backend/test/knowledgeLibrary.test.ts。
 
 ## 用户能力
 

@@ -26,6 +26,7 @@ flowchart TD
     P --> V[正文、原始/最终 URL、内容版本和读取时间]
     V --> O[JSON 来源面板与 Markdown Artifact]
     O --> D[复制或下载；用户放入选定知识目录]
+    O --> KLIB[用户明确收录；独立资料库拥有写入]
 ```
 
 ## 能力边界
@@ -51,6 +52,8 @@ flowchart TD
 5. HTML 使用既有 Readability；解析器抛错但有显式 main/article 时回退该受限正文。没有可读内容时失败，不擅自拿整页导航当正文。
 6. 结果通过通用文本面板与 Markdown 展示；原文为不可信资料，前端不执行 HTML、不自动加载远端图片。原始 JSON 保留在运行详情。
 7. 移除插件会释放 Agent、Tool、菜单和页面；历史结果保留。页面声明对应 Capability，Agent 卡片和任务选择直接进入结构化表单。
+
+可选 knowledge.library 插件为成功采集结果贡献“收录到资料库”动作；用户点击后由资料库服务写入应用目录。网页采集插件本身依然只读，不修改个人 Vault 或自动收录。采集插件可移除，资料库可继续使用已有成功结果。验证：backend/test/knowledgeLibrary.test.ts。
 
 ## 用户能力
 

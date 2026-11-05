@@ -6,7 +6,7 @@ import { api } from '@/api';
 import { errorMessage, useConnections, useWorkspace } from './state';
 import RunDrawer from './RunDrawer';
 
-interface KnowledgeWorkspace { kind: 'sample' | 'markdown' | 'web'; pluginId: string; capability: string }
+interface KnowledgeWorkspace { kind: 'sample' | 'markdown' | 'web' | 'library'; pluginId: string; capability: string }
 export default function KnowledgePage() {
   const { data: workspace, mutate } = useWorkspace();
   const { data, error, isLoading, mutate: refreshConnections } = useConnections();
@@ -51,11 +51,11 @@ export default function KnowledgePage() {
         {source && workspace?.plugins.some(plugin => plugin.id === 'knowledge.answer' && !plugin.requires?.includes(source.pluginId)) && <p className="muted">当前回答插件使用其他知识来源，本页仅开放原文检索。请在插件配置中选择相同来源。</p>}
       </section>
       {actionError && <Alert type="error" showIcon title="操作失败" description={actionError} />}
-      <section className="source-card"><div className="icon-tile"><FolderOutlined aria-hidden /></div><div><h2>{!retrieval ? '来源暂不可用' : source?.kind === 'sample' ? '示例笔记' : source?.kind === 'web' ? '公开网页' : '个人笔记目录'}</h2><p className="muted">{!retrieval ? '请检查插件装配与本地后端连接。' : source?.kind === 'sample' ? '仓库内的虚构资料，可直接体验检索，无需密钥。' : '只读来源；每次检索刷新索引，保留内容版本。'}</p>{source?.kind === 'sample' && <Button type="link" onClick={() => setQuery('API 迁移说明')}>试试「API 迁移说明」</Button>}</div><Tag>{retrieval ? '已装配' : '不可用'}</Tag></section>
+      <section className="source-card"><div className="icon-tile"><FolderOutlined aria-hidden /></div><div><h2>{!retrieval ? '来源暂不可用' : source?.kind === 'sample' ? '示例笔记' : source?.kind === 'web' ? '公开网页' : source?.kind === 'library' ? '已收录资料库' : '个人笔记目录'}</h2><p className="muted">{!retrieval ? '请检查插件装配与本地后端连接。' : source?.kind === 'sample' ? '仓库内的虚构资料，可直接体验检索，无需密钥。' : source?.kind === 'library' ? '使用明确收录的网页和文档；每次检索刷新内容版本。' : '只读来源；每次检索刷新索引，保留内容版本。'}</p>{source?.kind === 'sample' && <Button type="link" onClick={() => setQuery('API 迁移说明')}>试试「API 迁移说明」</Button>}</div><Tag>{retrieval ? '已装配' : '不可用'}</Tag></section>
     </>}
     <Drawer title="配置知识来源" open={settingsOpen} onClose={() => setSettingsOpen(false)} size="large">
       {data && <Form layout="vertical" form={form} initialValues={{ ...data.values, KNOWLEDGE_KIND: data.values.KNOWLEDGE_KIND || 'sample' }} onFinish={save}>
-        <Form.Item name="KNOWLEDGE_KIND" label="来源类型"><Select options={[{ value: 'sample', label: '示例笔记' }, { value: 'markdown', label: 'Markdown / Obsidian 文件夹' }, { value: 'web', label: '公开网页链接' }]} /></Form.Item>
+        <Form.Item name="KNOWLEDGE_KIND" label="来源类型"><Select options={[{ value: 'sample', label: '示例笔记' }, { value: 'library', label: '已收录资料库' }, { value: 'markdown', label: 'Markdown / Obsidian 文件夹' }, { value: 'web', label: '公开网页链接' }]} /></Form.Item>
         {kind === 'markdown' && <><Form.Item name="KNOWLEDGE_ROOT" label="本机目录" rules={[{ required: true, message: '请填写笔记目录的绝对路径' }]}><Input placeholder="/Users/你的名字/Notes" /></Form.Item><Form.Item name="KNOWLEDGE_VAULT_NAME" label="Obsidian Vault 名称（可选）"><Input /></Form.Item><Form.Item name="KNOWLEDGE_EXCLUDE" label="排除的子目录" extra="每行一个相对目录，如 Private。隐藏文件和符号链接自动跳过。"><Input.TextArea rows={3} /></Form.Item></>}
         {kind === 'web' && <Form.Item name="KNOWLEDGE_URLS" label="公开链接" rules={[{ required: true, message: '请填写链接' }]} extra="每行一个，最多 5 个；读取所选单页。"><Input.TextArea rows={5} placeholder="https://example.com/docs" /></Form.Item>}
         {actionError && <Alert type="error" title={actionError} />}

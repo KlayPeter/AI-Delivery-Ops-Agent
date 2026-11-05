@@ -41,6 +41,7 @@ flowchart TD
     K --> PANEL[StatusPanel 1.0：时间、引用版本与检查记录]
     J --> PANEL
     PANEL --> NAV[原结果与独立检查报告互相查看]
+    KLIB[应用资料库的真实文件版本] --> T
 ```
 
 ## 能力边界
@@ -72,6 +73,8 @@ flowchart TD
 11. 原 Run/Artifact/正文/引文不修改。评估按 workspace/bot/目标 Run 独立保存；状态读取返回最近评估及其 checkedAt，不刷新来源，不声称是当前实时状态。
 12. knowledge.review 动作由本插件注册，匹配成功的回答/发布 Run。GET 只读评估；POST 固定一个目标 Run，经既有 Capability 执行，不重新调用模型。文本面板显示检查时间；旧检查未成为最新评估时明确提示，不伪装最新结论。卸载插件不删除历史。
 13. CLI 默认仍为内存；显式 --state 才保存记录。文件私有权限、专用数据库身份和独占会话锁由 SQLitePersistentKeyValueStore 提供。同一状态文件不允许两个 CLI 同时启动 Host，避免重启恢复误标仍活跃的运行。
+
+应用资料库选作来源后，knowledge.impact 使用同一固定目录和 workspace-library 身份的 Markdown versions Tool。收录记录与原采集结果彼此独立；资料变动依真实文件版本要求复核，原回答不重写。backend/test/knowledgeLibrary.test.ts 验证 current 到 needs_review 及原证据保持。
 
 ## 用户能力
 

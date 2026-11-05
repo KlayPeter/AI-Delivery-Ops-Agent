@@ -113,7 +113,7 @@ await reloadConfig();
 const pluginSelection = process.env.AGENT_PLUGINS_FILE
     ? await loadPluginConfiguration(process.env.AGENT_PLUGINS_FILE, deliveryTeamPlugins)
     : (() => {
-        const personalKnowledge = workspaceKnowledge();
+        const personalKnowledge = workspaceKnowledge(config.data_path);
         return { plugins: [...deliveryTeamPlugins, ...personalKnowledge.plugins], config: personalKnowledge.config };
     })();
 agentHost = createDeliveryOpsHost(() => (handler as any).ctx, 1000, undefined, [], {

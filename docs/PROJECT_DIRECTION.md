@@ -8,7 +8,7 @@
 
 个人使用是低门槛入口，项目协作是后续延伸。首版允许接入公开网页链接、Markdown 文件夹与 Obsidian Vault 的选定目录，不要求先搬家到新的笔记系统。个人知识接入的流程、插件边界与验收见 [个人知识库设计](PERSONAL_KNOWLEDGE_DESIGN.md)。
 
-当前落地进度：只读 Markdown/Obsidian、公开单页网页插件和本地 CLI 已可运行，提供来源版本、行号、链接关系、进程内增删改同步、关键词检索与可选 RAG 回答，见[使用指南](PERSONAL_KNOWLEDGE.md)。回答发布前核验引用 ID 和精确引文，语义支持尚未自动证明；专项使用本地模拟模型验证。公开网页读取支持有界静态 HTML/Markdown/文本，保留原始 URL、读取时间和提取文本定位。新增[网页收集和文档导入](DOCUMENT_IMPORT.md)将公开单页与本地 PDF/Office 转为带来源的 Markdown，均无需模型。只读 GitHub 连接器与[发布准备 CLI](RELEASE_PREPARATION.md)已实现证据收集、带引用草稿及潜在阻塞/待确认输出；生成用本地模拟模型验证，尚未验证真实模型质量。已补充[跨进程保存与知识版本复核](KNOWLEDGE_IMPACT.md)：按指定 Run 的实际引用标记文档变化、缺失或不可核验，保留旧证据。本地工作台已提供任务发起、运行追踪、可填写连接与显式引用复核，见[界面设计](AGENT_WORKSPACE_DESIGN.md)。[本地 MCP stdio 连接](MCP_TOOLS.md)与官方文件服务的实际调用已验证；远程 MCP/接入助手、联合/向量检索、外部写入、全局依赖索引和自动通知仍为目标能力。
+当前落地进度：只读 Markdown/Obsidian、公开单页网页插件和本地 CLI 已可运行，提供来源版本、行号、链接关系、进程内增删改同步、关键词检索与可选 RAG 回答，见[使用指南](PERSONAL_KNOWLEDGE.md)。回答发布前核验引用 ID 和精确引文，语义支持尚未自动证明；专项使用本地模拟模型验证。公开网页读取支持有界静态 HTML/Markdown/文本，保留原始 URL、读取时间和提取文本定位。新增[网页收集和文档导入](DOCUMENT_IMPORT.md)将公开单页与本地 PDF/Office 转为带来源的 Markdown，均无需模型。独立资料库插件把用户确认的结果保存为应用拥有的 Markdown，可立即检索，也可选作已有 RAG 和引用复核的来源；个人 Vault 仍保持只读。只读 GitHub 连接器与[发布准备 CLI](RELEASE_PREPARATION.md)已实现证据收集、带引用草稿及潜在阻塞/待确认输出；生成用本地模拟模型验证，尚未验证真实模型质量。已补充[跨进程保存与知识版本复核](KNOWLEDGE_IMPACT.md)：按指定 Run 的实际引用标记文档变化、缺失或不可核验，保留旧证据。本地工作台已提供任务发起、运行追踪、可填写连接与显式引用复核，见[界面设计](AGENT_WORKSPACE_DESIGN.md)。[本地 MCP stdio 连接](MCP_TOOLS.md)与官方文件服务的实际调用已验证；远程 MCP/接入助手、联合/向量检索、外部写入、全局依赖索引和自动通知仍为目标能力。
 
 用户首先看到项目、插件和运行结果。开发者可以查看插件 SDK、接入已有 MCP/HTTP 服务，或为一个外部仓库提交适配器。现有飞书、TAPD、站会、日报、周报、看板和新闻能力分别保留为插件。
 
@@ -215,4 +215,4 @@ MCP 工具注解只是提示，不能当作授权证明。远程工具同样经�
 
 ## 已验证的社区接入节点
 
-Context7 接入同时覆盖上游 MCP 和标准 SKILL.md，真实在线查询已进入本地 Run/Tool/Artifact，未调用真实付费模型。原生查询无需模型，研究助手复用现有 Prompt Skill Runtime。其他 GitHub 项目按 Skill、MCP、HTTP Agent 或原生适配器接入，不把任意仓库当作直接可执行插件；详见 [社区插件接入](COMMUNITY_PLUGINS.md)。完整配置安装界面、知识工作台及基础服务生命周期解耦仍属于后续工作。
+Context7 接入同时覆盖上游 MCP 和标准 SKILL.md，真实在线查询已进入本地 Run/Tool/Artifact，未调用真实付费模型。原生查询无需模型，研究助手复用现有 Prompt Skill Runtime。其他 GitHub 项目按 Skill、MCP、HTTP Agent 或原生适配器接入，不把任意仓库当作直接可执行插件；详见 [社区插件接入](COMMUNITY_PLUGINS.md)。完整配置安装界面与基础服务生命周期解耦仍属于后续工作；知识界面和明确收录资料库已经作为独立插件实现。

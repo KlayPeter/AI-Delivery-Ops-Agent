@@ -77,7 +77,7 @@ test('a third-party plugin contributes a scoped action that executes through the
 
 test('the knowledge action reads cached assessments without new runs and rechecks changed citations without rewriting original evidence', async () => {
     const note = path.join(directory, 'Rules.md'); await writeFile(note, '# Rules\nAPI 发布必须提供迁移说明。\n');
-    const store = new InMemoryPersistentKeyValueStore(), config = buildConfig({}), selected = workspaceKnowledge();
+    const store = new InMemoryPersistentKeyValueStore(), config = { ...buildConfig({}), data_path: directory }, selected = workspaceKnowledge(directory);
     const host = new AgentHost(() => ({ store, config, feishu: {}, tapd: {} } as any), 1000, undefined, [], { plugins: selected.plugins, pluginConfig: selected.config });
     const { request, runs } = fixture(host, store);
     await host.initialize();

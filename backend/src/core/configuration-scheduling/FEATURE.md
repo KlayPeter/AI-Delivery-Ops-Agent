@@ -66,6 +66,7 @@ flowchart TD
     W --> K
     J --> K
     G -. "重复 Trigger" .-> X["记录重复触发已跳过"]
+    COL --> KLIB[资料库来源；明确保存设置、重启切换]
 ```
 
 ## 能力边界
@@ -116,6 +117,8 @@ flowchart TD
 ## 插件拥有的手动任务
 
 Debug 与 /api/jobs 统一使用 PluginWebRegistry 的 manualJobs。站会声明六项，任务/日报/看板各声明一项，默认仍为九项；空组合拒绝所有原有业务手动任务，不再回退全局执行器。执行遵守原有日期、工作日、预览与 sendToGroup；Host 停止等待在途任务。它是原有确定性 Job 的选择协议，不是另一种工作流语言或任意命令入口。
+
+来源设置新增 library，明确选择应用资料库；不接受另一个写入目录。宿主用启动时实际 data_path 装配对应 Markdown 来源；保存后仍需重启。资料库插件创建独立范围目录并在启动时恢复自身暂存，无新增定时器。默认 HTTP 为 16 个插件/13 个 Agent，显式组合优先。验证：backend/test/knowledgeLibrary.test.ts 及 workspace.test.ts。
 
 ## 用户能力
 

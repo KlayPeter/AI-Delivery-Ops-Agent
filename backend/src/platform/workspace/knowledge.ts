@@ -15,19 +15,22 @@ import { webReleasePlugin } from '@/domains/release/webPlugin';
 import { createKnowledgeWorkspacePlugin } from '@/knowledge/workspace/plugin';
 import { webCapturePlugin } from '@/knowledge/capture/plugin';
 import { markItDownPlugin } from '@/connectors/markitdown/plugin';
+import { knowledgeLibraryPlugin } from '@/knowledge/library/plugin';
+import { libraryRoot } from '@/knowledge/library/service';
+import { buildConfig } from '@/core/config';
 
-export function workspaceKnowledge() {
+export function workspaceKnowledge(dataPath = buildConfig({}).data_path) {
     const kind = process.env.KNOWLEDGE_KIND || 'sample';
     const selected = kind === 'web' ? {
-        plugins: [knowledgeWebPlugin, knowledgeWebAnswerPlugin, knowledgeWebImpactPlugin, createKnowledgeWorkspacePlugin('web'), webCapturePlugin, markItDownPlugin],
+        plugins: [knowledgeWebPlugin, knowledgeWebAnswerPlugin, knowledgeWebImpactPlugin, createKnowledgeWorkspacePlugin('web'), webCapturePlugin, markItDownPlugin, knowledgeLibraryPlugin],
         config: { 'knowledge.web': webSourceConfig.parse({ urls: lines(process.env.KNOWLEDGE_URLS || ''), sourceId: 'workspace-web' }) },
     } : {
-        plugins: [knowledgeMarkdownPlugin, knowledgeAnswerPlugin, knowledgeImpactPlugin, createKnowledgeWorkspacePlugin(kind === 'sample' ? 'sample' : 'markdown'), webCapturePlugin, markItDownPlugin],
+        plugins: [knowledgeMarkdownPlugin, knowledgeAnswerPlugin, knowledgeImpactPlugin, createKnowledgeWorkspacePlugin(kind === 'sample' ? 'sample' : kind === 'library' ? 'library' : 'markdown'), webCapturePlugin, markItDownPlugin, knowledgeLibraryPlugin],
         config: { 'knowledge.markdown': markdownSourceConfig.parse({
-            root: kind === 'sample' ? path.join(import.meta.dir, '../../../examples/knowledge-vault') : process.env.KNOWLEDGE_ROOT,
-            sourceId: kind === 'sample' ? 'workspace-sample' : 'workspace-notes',
-            vaultName: process.env.KNOWLEDGE_VAULT_NAME || undefined,
-            exclude: lines(process.env.KNOWLEDGE_EXCLUDE || ''),
+            root: kind === 'sample' ? path.join(import.meta.dir, '../../../examples/knowledge-vault') : kind === 'library' ? libraryRoot(dataPath) : process.env.KNOWLEDGE_ROOT,
+            sourceId: kind === 'sample' ? 'workspace-sample' : kind === 'library' ? 'workspace-library' : 'workspace-notes',
+            vaultName: kind === 'library' ? undefined : process.env.KNOWLEDGE_VAULT_NAME || undefined,
+            exclude: kind === 'library' ? [] : lines(process.env.KNOWLEDGE_EXCLUDE || ''),
         }) },
     };
     if (!process.env.RELEASE_GITHUB_REPOSITORY) return selected;

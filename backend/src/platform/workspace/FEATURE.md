@@ -56,6 +56,7 @@ flowchart TD
     ACT -- 显式执行 --> T
     H --> CHECK[新的检查 Run / Artifact，原结果保留]
     CHECK --> V
+    COL --> KLIB[用户明确收录；本地资料与后续知识任务]
 ```
 
 ## 能力边界
@@ -82,7 +83,7 @@ flowchart TD
 5. 本地连接字段采用 allowlist；密钥只返回已配置布尔值。省略字段保留当前值，null 仅用于明确清除密钥；空凭据的飞书可保持未连接，部分凭据拒绝保存。
 6. 配置写入独占创建的临时文件、flush、原子 rename，文件权限 0600；读取拒绝符号链接、硬链接和共享权限文件。配置为本机明文，不声称加密。连接更新串行合并，失败保留原文件。
 7. 保存不改变在途任务的配置。重启时本地文件覆盖同名环境值；模型供应商/地址/名称和 TAPD 项目/地址/工作项环境值优先于旧 config.json。页面持续提示待重启状态。
-8. HTTP 入口默认在原九个团队插件上增加示例 Markdown 来源、回答、复核、知识界面、网页收集及文档导入插件，合计 15 个插件、12 个 Agent。选择公开网页时替换来源组合。明确保存 GitHub 仓库后再增装 GitHub/发布两个插件，合计 17 个插件、13 个 Agent；清空仓库并重启停用。SDK 团队工厂仍为九个插件、七个 Agent。显式 AGENT_PLUGINS_FILE 完全管理组合，不自动叠加页面知识配置。
+8. HTTP 入口默认在原九个团队插件上增加示例 Markdown 来源、回答、复核、知识界面、网页收集、文档导入及资料库插件，合计 16 个插件、13 个 Agent。选择公开网页时替换来源组合。明确保存 GitHub 仓库后再增装 GitHub/发布两个插件，合计 18 个插件、14 个 Agent；清空仓库并重启停用。SDK 团队工厂仍为九个插件、七个 Agent。显式 AGENT_PLUGINS_FILE 完全管理组合，不自动叠加页面知识配置。
 9. 知识请求保留无 chat/conversation 的个人手动 Scope。检索不调用模型，生成回答使用当前宿主模型并发送所选片段；证据沿用来源和引用核验协议。
 10. 结果 Markdown 不执行 HTML，不自动加载远端图片；原文链接仅允许 HTTP/HTTPS 和 Obsidian open。原始 JSON 放在详情，不作为主要操作入口。
 11. 首页新工作台保留 `?groupId` / `?dashboardId` 的既有看板入口，以及旧根目录 HTML 长链接；这些入口都核对看板插件是否装配，项目看板使用 `/dashboard` 导航。
@@ -120,6 +121,8 @@ HTTP 装配先核对现有 API 命名空间，插件声明冲突时拒绝启动�
 标准 SKILL.md 可经 readAgentSkill 显式导入现有 Prompt Skill Runtime；元数据不能自动取得工具或 Agent 授权，不执行目录脚本。community.context7 是真实使用者：接入上游 MCP 两个读取工具，提供无模型查询和需模型的研究助手；页面按插件贡献，未知能力标签使用作者声明的 Agent 名称。默认组合不自动安装它。来源、许可、运行命令和验收边界见 [社区接入说明](../../../../docs/COMMUNITY_PLUGINS.md)。
 
 验证：backend/test/context7Plugin.test.ts 覆盖格式/边界、权限不继承、受控 Prompt Skill 执行及插件装配；本地实际 MCP 与工作台验收覆盖公开文档检索。真实付费模型未调用。
+
+资料库独立贡献 /library、来源列表、显式收录动作与检索 Agent。默认组合现在包含 16 个插件、13 个 Agent；GitHub 组合为 18 个插件、14 个 Agent。KNOWLEDGE_KIND=library 使用宿主实际 data_path 下的固定范围目录，重启后复用既有来源/回答/复核；旧 Vault 设置不影响它。资料库本身立即可检索，设置保存不冒充已经切换。验证：backend/test/knowledgeLibrary.test.ts。
 
 ## 用户能力
 

@@ -45,7 +45,7 @@ await host.stop();
 AGENT_PLUGINS_FILE=profiles/agents/team.yaml bun run dev
 ```
 
-团队 SDK 未指定插件时默认组合为九个功能插件、七个 Agent；HTTP 工作台额外装配选定知识来源、回答、复核、知识界面、网页收集与文档导入，共 15 个插件、12 个 Agent；配置 GitHub 发布组合后为 17 个插件、13 个 Agent。会议纪要和外部 AI Hot 调度插件没有独立 Agent。会议纪要仍受原有模块开关控制，外部 AI Hot 能力仍需另行安装。示例还包括 `profiles/agents/native-demo.yaml`、`profiles/agents/empty.yaml` 和 `backend/examples/plugins.collectors.yaml`，分别选择 Echo 模板、零业务插件和两个资料收集插件。显式插件文件完全决定组合；未装配的插件页面和 API 不开放，基础服务仍由应用拥有。
+团队 SDK 未指定插件时默认组合为九个功能插件、七个 Agent；HTTP 工作台额外装配选定知识来源、回答、复核、知识界面、网页收集、文档导入与资料库，共 16 个插件、13 个 Agent；配置 GitHub 发布组合后为 18 个插件、14 个 Agent。会议纪要和外部 AI Hot 调度插件没有独立 Agent。会议纪要仍受原有模块开关控制，外部 AI Hot 能力仍需另行安装。示例还包括 `profiles/agents/native-demo.yaml`、`profiles/agents/empty.yaml` 和 `backend/examples/plugins.collectors.yaml`，分别选择 Echo 模板、零业务插件和采集/资料库三个插件。显式插件文件完全决定组合；未装配的插件页面和 API 不开放，基础服务仍由应用拥有。
 
 ```yaml
 apiVersion: '1.0'
@@ -157,7 +157,7 @@ ctx.delivery.web.register({
 });
 ```
 
-页面只能使用站内静态路径；label 最长 80 字符，section 为 workspace/team。view.kind=agent 打开指定 Capability 的现有工作台；kind=builtin 使用已打包 renderer ID（包括团队页面，以及 knowledge、release-preparation、web-capture、documents）。builtin view 可声明可选的 capability，让 Agent 卡片和任务选择进入所属结构化表单；网页收集和文档导入是实际例子。未知 renderer 显示恢复入口，不执行远程 HTML、JS 或 React 包。已保留的核心/旧页面不能覆盖，路径与贡献 ID 不得重复；Agent 导航跳转后保持当前项选中。
+页面只能使用站内静态路径；label 最长 80 字符，section 为 workspace/team。view.kind=agent 打开指定 Capability 的现有工作台；kind=builtin 使用已打包 renderer ID（包括团队页面，以及 knowledge、release-preparation、web-capture、documents、knowledge-library）。builtin view 可声明可选的 capability，让 Agent 卡片和任务选择进入所属结构化表单；网页收集和文档导入是实际例子。未知 renderer 显示恢复入口，不执行远程 HTML、JS 或 React 包。已保留的核心/旧页面不能覆盖，路径与贡献 ID 不得重复；Agent 导航跳转后保持当前项选中。
 
 API 声明 prefix、routes（method/path）与接收标准 Request、返回 Response 的 handle。每条声明必须位于所属前缀，前缀不可重叠或覆盖保留 API。应用在 Host 初始化后核对已有 API 命名空间，冲突时拒绝装配，不覆盖旧接口；随后装配声明路由，因此 OpenAPI 保留路径；请求体由所属 Fetch handler 解析，代理不会先消耗 body。`builtin.standup` 和 `backend/src/domains/standup/api.ts` 是真实例子。通过 Host.handlePluginRequest 进入本机来源校验与在途跟踪，停止时先等待请求，再释放资源。
 
