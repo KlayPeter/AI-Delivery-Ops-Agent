@@ -5,6 +5,9 @@
 
 ## 使用者
 
+- [本地运行与工作台](LOCAL_DEVELOPMENT.md)：无需部署的启动步骤、连接表单与实际 Agent 运行。
+- [本地 MCP 工具](MCP_TOOLS.md)：使用已有开源 stdio 工具、明确授权范围并查看运行证据。
+
 - [本地个人知识库](PERSONAL_KNOWLEDGE.md)：只读连接 Markdown/Obsidian 目录；本地关键词检索或显式配置模型后生成带引用的 RAG 回答。
 - [用户指南](AI-Delivery-Ops-Agent-用户使用指南.md)：在飞书中创建任务、
   更新进度、提交站会和触发报告。
@@ -23,7 +26,7 @@
 ## 维护者
 
 - [产品方向与插件化路线](PROJECT_DIRECTION.md)：目标用户、创新取舍、插件规范草案、演示与阶段验收；目标能力与已实现能力分开记录。
-- [个人知识库设计](PERSONAL_KNOWLEDGE_DESIGN.md)：链接与 Obsidian 接入、知识驱动任务、来源变更影响和分期验收；当前为设计，尚未实现。
+- [个人知识库设计](PERSONAL_KNOWLEDGE_DESIGN.md)：链接与 Obsidian 接入、知识驱动任务、来源变更影响和分期验收；设计目标部分实现，以使用指南和功能卡为准。
 - [功能插件规范 v1](PLUGIN_AUTHORING.md)：当前可用的插件 SDK、真实模板、依赖与资源清理约定，以及尚未迁移的边界。
 - [系统架构与业务逻辑](系统架构与业务逻辑详解.md)：运行链路、领域边界和
   主要数据流。

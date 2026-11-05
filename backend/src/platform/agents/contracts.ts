@@ -1,18 +1,13 @@
 import type { BotAgentBinding } from '@/platform/bots/contracts';
 import type { ExecutionScope, TriggerType } from '@/platform/runtime/scope';
+import type { JsonSchemaType } from '@modelcontextprotocol/client';
 
 export type AgentRuntimeType = 'native' | 'model-loop' | 'a2a' | 'mcp-agent' | 'http' | 'process' | 'container';
 export type AgentInstallationStatus = 'active' | 'disabled' | 'error';
 export type AgentRunStatus = 'queued' | 'running' | 'waiting_human' | 'succeeded' | 'failed' | 'cancelled';
 export type AgentStepStatus = 'running' | 'succeeded' | 'failed' | 'cancelled';
 
-export interface JsonSchema {
-    type?: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null';
-    required?: readonly string[];
-    properties?: Readonly<Record<string, JsonSchema>>;
-    items?: JsonSchema;
-    enum?: readonly unknown[];
-}
+export type JsonSchema = JsonSchemaType;
 
 export interface AgentManifest {
     schemaVersion: '1.0' | '1.1';

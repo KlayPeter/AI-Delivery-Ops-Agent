@@ -143,7 +143,11 @@ StatusPanel 1.0 只呈现文本：tone 为 neutral/success/warning/error，title
 
 模型可调用的动作必须通过受治理 Tool。写操作调用领域服务，不能让模型直接拼接数据库写入或扩大权限。Secret 使用引用，不放入 Prompt、产物或插件源码。
 
-已有外部服务可继续通过 HTTP Agent Manifest、网络 allowlist、Secret 引用和超时契约接入。MCP 接入助手与隔离的 CLI 适配属于后续节点。采用 Cordis 不代表现有 DeepSeek Harness 插件可以直接使用；必须适配它所依赖的服务。
+已有外部服务可继续通过 HTTP Agent Manifest、网络 allowlist、Secret 引用和超时契约接入。已提供[本地 MCP stdio 工具连接插件](MCP_TOOLS.md)，通过显式工具选择与现有 Tool Gateway 接入；当前仅支持经审查的读取工具。远程 MCP/接入助手与隔离的 CLI 适配属于后续节点。采用 Cordis 不代表现有 DeepSeek Harness 插件可以直接使用；必须适配它所依赖的服务。
+
+## 标准 JSON Schema
+
+Agent、Tool 和 Skill 的输入输出共用标准 JSON Schema 校验，支持联合类型、引用、额外字段与边界约束；不自动下载远端引用。校验错误使用标准实现文案，调用方应按错误 code 判断，避免依赖完整错误句子。不同 Schema 即使使用同一 $id 也隔离校验。MCP 工具的原始 inputSchema 保留，structuredContent 另按上游 outputSchema 核验。
 
 ## 插件提交验收
 

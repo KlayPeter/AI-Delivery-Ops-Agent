@@ -31,6 +31,8 @@ flowchart TD
     SJ --> E
     D --> RA[注册成功 Run 的后续动作与文本状态]
     RA --> E
+    D --> MCP[可选 connector.mcp：发现并注册所选 stdio 工具]
+    MCP --> E
     D --> NS[原生插件可调用宿主 Orchestrator 与 Tool Gateway]
     NS --> E
     E --> F[恢复外部 Agent 与持久化 Bot Binding]
@@ -79,6 +81,10 @@ flowchart TD
 
 插件通过 ctx.delivery.runActions.register 声明唯一动作 ID、标签、Capability、appliesTo、固定目标输入函数和只读 readState。仅匹配成功 Run；Host 校验本地 Scope 与可派发能力后通过既有 Runtime 执行。状态与结果使用 StatusPanel 1.0 文本协议，不加载远程 UI 代码。注册随 Cordis effect 回滚和释放；Host 停止先等待在途状态读取。knowledge.impact 注册 knowledge.review，是实际使用者；详见作者规范。
 
+## 本地 MCP 插件
+
+connector.mcp 通过现有 FeaturePlugin/Config/effect 接入，无需修改 Host 或默认组合。它启动已审查的本地服务、发现工具并只注册显式选中项，失败回滚并等待进程关闭。工具名称与读取授权由安装者声明，不采用上游注解作为权限证明；当前不支持写工具或远程 HTTP。完整规范和实际例子见 [MCP 使用说明](../../../../docs/MCP_TOOLS.md)。
+
 ## 用户能力
 
 开发者可以组合插件、声明和验证配置，接入自定义 Agent 与 Tool，并清理插件拥有的资源。应用启动默认使用 `createDeliveryOpsHost`；直接构造 `AgentHost` 默认无业务插件。
@@ -126,6 +132,8 @@ flowchart TD
 
 ### 主要实现
 
+- `backend/src/connectors/mcp/plugin.ts`、`backend/examples/plugins/mcp-reader.ts`：可选外部 MCP 工具与示例 Agent。
+
 - `backend/src/platform/plugins/runActions.ts`：动作注册、校验、匹配与文本面板协议。
 - `backend/src/knowledge/impact/plugin.ts`、`presentation.ts`：知识复核动作与报告呈现。
 
@@ -147,6 +155,8 @@ flowchart TD
 
 ### 主要测试
 
+- `backend/test/mcpConnector.test.ts`：可信配置组合、真实子进程、装配失败回滚、在途停止和 Secret 隔离。
+
 - `backend/test/runActions.test.ts`、`backend/test/workspaceActions.test.ts`：第三方动作、校验、Scope、幂等与在途清理。
 
 - `backend/test/knowledgeAnswer.test.ts`：原生插件模型/Tool 组合、依赖、步骤记录、引用拒绝与本地 HTTP 模型集成。
@@ -164,6 +174,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 新增独立 MCP 连接插件与配置样例，不改变默认团队和工作台组合 | MCP/Schema 专项、后端全量回归与官方文件服务实际读取/越界拒绝 |
 | 2026-11-05 | 新增随插件生命周期释放的运行后续动作，通用文本面板与知识引用检查实例 | 插件动作/API 专项、后端回归、前端检查与桌面/375px 浏览器验收 |
 | 2026-11-05 | 区分团队 SDK 与 HTTP 个人知识默认组合 | 工作台专项、后端回归、前端检查与本地浏览器验收 |
 | 2026-11-05 | 向原生插件提供宿主 Orchestrator 和 Tool Gateway；独立 RAG 插件验证同 Run 检索、生成与验收 | RAG/插件专项、类型与后端全量回归；默认业务不变 |

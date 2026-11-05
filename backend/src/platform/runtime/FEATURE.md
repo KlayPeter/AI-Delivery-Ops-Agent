@@ -32,7 +32,9 @@ flowchart TD
     S --> A["消息 / Scheduler / API"]
     A --> B["Trigger / Job Execution"]
     B --> C["Agent Run / 业务服务"]
-    C --> TC{"Tool 调用前已取消?"}
+    C --> SC[Agent / Tool / Skill 标准 JSON Schema 校验]
+    SC --> TC{"Tool 调用前已取消?"}
+    D --> MCP[可选 MCP 工具：错误、取消和超时显式失败]
     TC -- 是 --> TR["TOOL_CANCELLED：不进入 Handler"]
     TC -- 否 --> L{"Run Tool 预算内?"}
     L -- 是 --> D["Step / Tool Call / Audit"]
@@ -126,6 +128,10 @@ CLI 可选 --state 保存 Run/Step/Tool/Artifact；默认仍为内存。知识�
 
 成功 Run 可显示插件贡献的动作。GET 仅查询缓存状态并显示检查时间，不刷新来源或新建 Run；POST 经固定 Scope、插件指定输入和已启用 Capability 创建新执行。UUID 幂等键同时绑定动作和目标。知识复核记录独立 Run/Artifact 与最近评估，不把原运行的 succeeded 改为失败，也不覆盖旧正文或引用。检查中的状态、读取失败、需要复核和版本未变化分开展示；新版状态协议无效时回退原始产物。Host 停止等待在途状态读取后再释放插件。
 
+## MCP 与标准契约记录
+
+可选 stdio 连接工具同样经过 Tool Gateway 并产生 Tool Step；示例 Agent 形成正常 Run 和 Artifact，不以协议握手成功冒充业务成功。isError、结构化输出错误、超限、进程退出和超时不生成成功产物；取消通知不证明服务内部已停止。Host 等待在途 Run 后清理服务。Agent/Tool/Skill 共用标准 JSON Schema 校验，新增联合类型、引用、额外字段和边界约束；非法 Schema 失败关闭，校验错误文案随标准实现更新。
+
 ## 用户能力
 
 - 查看审计日志、消息上下文、Agent Run、Step、Artifact 和投递状态。
@@ -190,6 +196,9 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 ### 主要实现
 
+- `backend/src/connectors/mcp/plugin.ts`、`backend/examples/plugins/mcp-reader.ts`：第三方工具接入与真实执行证据示例。
+- `backend/src/platform/agents/schema.ts`：标准契约校验。
+
 - `backend/src/platform/plugins/runActions.ts`、`backend/src/platform/workspace/api.ts`：插件动作与本机查询/执行入口。
 - `frontend/src/pages/workspace/RunActions.tsx`、`panels.ts`：状态时间、检查记录与版本化展示。
 
@@ -219,6 +228,8 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 ### 主要测试
 
+- `backend/test/jsonSchema.test.ts`、`backend/test/mcpConnector.test.ts`：Schema、错误/取消与外部进程退出，不产生假成功。
+
 - `backend/test/runActions.test.ts`、`backend/test/workspaceActions.test.ts`：状态不创建 Run、原证据不变、Scope/幂等与停机等待。
 - `frontend/src/pages/workspace/panels.test.mjs`：无效展示协议回退。
 
@@ -244,6 +255,7 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | MCP 工具复用 Run/Step 证据，标准 Schema 校验拒绝额外参数与不兼容输出 | MCP/Schema 专项、后端全量回归与官方文件服务实际读取/越界拒绝 |
 | 2026-11-05 | 新增插件动作的独立执行与只读状态；知识引用评估在工作台保留原始证据 | 插件动作/API 专项、后端回归、前端检查与桌面/375px 浏览器验收 |
 | 2026-11-05 | 修复已有 CLI 状态文件的文件检查释放 POSIX 会话锁，重复拒绝不能放行其他进程 | 本地状态与知识复核专项、类型检查、后端回归 |
 | 2026-11-05 | 新增工作台运行视图与管理 API 本机来源边界 | 工作台专项、后端回归、前端检查与本地浏览器验收 |

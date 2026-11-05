@@ -32,4 +32,6 @@ pnpm dev --host 127.0.0.1
 
 页面初始没有团队业务数据。项目看板需要配置群组与 TAPD 后生成；CLI 体验可按 [Markdown / Obsidian 与公开链接用法](PERSONAL_KNOWLEDGE.md) 在 CLI 中体验。CLI 的检索不需要模型，生成回答需要显式配置模型；持久化与历史引用复核见 [知识变更复核](KNOWLEDGE_IMPACT.md)。
 
+接入已有开源 MCP 工具可按 [MCP 本地连接](MCP_TOOLS.md)选择独立配置档；提供无需模型的文件读取示例，默认工作台不自动启用外部进程。
+
 本地管理 API 目前没有登录认证，统一限制本机 Host/Origin；使用示例中的回环地址运行。`.env`、个人知识文件与本地数据库不要提交到 Git。

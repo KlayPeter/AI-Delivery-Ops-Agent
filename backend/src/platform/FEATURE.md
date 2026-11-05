@@ -53,7 +53,11 @@ flowchart TD
     E -- HTTP --> H["受限外部 Agent"]
     F --> I["Tool Gateway"]
     F -. 委派 .-> C
-    I --> J["Domain Service / Adapter"]
+    I --> SV[标准 JSON Schema 校验；同 ID 契约隔离]
+    SV --> J["Domain Service / Adapter"]
+    X --> MCP[可选 MCP stdio 连接插件]
+    MCP --> I
+    J --> MS[显式选择的本地 MCP 工具]
     I -- "调用前已取消" --> XC["拒绝进入 Tool Handler"]
     X --> NP["Native 插件：宿主模型与 Tool 组合"]
     NP --> I
@@ -116,6 +120,10 @@ Tool Gateway 在预取消和领取账本期间取消时拒绝进入 Handler；�
 ## 插件运行后续动作
 
 Host 持有 RunActionRegistry，Cordis 管理注册生命周期。状态 GET 先核对默认 workspace/bot，再读取插件状态并校验 StatusPanel 1.0；读取失败返回错误面板。POST 仅接受 UUID，由插件固定目标与输入，经已启用 Capability 进入正常 Runtime；幂等键绑定动作和目标 Run。Host 停止等待在途状态读取和动作执行后释放插件。原始历史与后续报告分别持久化，不修改旧 Artifact。
+
+## 外部工具与 Schema
+
+可选 connector.mcp 将已审查的本地 stdio 工具显式导入 Tool Registry，仍受 Scope、Agent allowedTools 和预算约束。标准 JsonSchema 类型与校验使用官方 SDK 的 JSON Schema 实现，支持联合类型、额外字段、引用及数值/长度约束；非法或不支持的 Schema 失败关闭，不自动下载远端引用。同一 $id 的不同契约不复用验证器，防止错误套用另一份契约。现有基础 Schema 保持兼容，错误描述改用标准校验器文案。MCP 是 Tool 连接，不是新增 Agent Adapter；具体边界见 [MCP 功能卡](../connectors/mcp/FEATURE.md)。
 
 ## 本地启动
 
@@ -202,6 +210,9 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 ### 主要实现
 
+- `backend/src/platform/agents/schema.ts`、`contracts.ts`：标准 JSON Schema 契约与失败关闭。
+- `backend/src/connectors/mcp/plugin.ts`：可选 stdio 工具连接；不进入默认组合。
+
 - `backend/src/platform/plugins/runActions.ts`：成功 Run 的插件动作注册与文本面板协议。
 
 - `backend/src/platform/persistence/sqliteStore.ts`：CLI 私有 KV、专用 schema 和独占会话。
@@ -219,6 +230,8 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 - `backend/src/agents/**`：当前 Agent 定义。
 
 ### 主要测试
+
+- `backend/test/jsonSchema.test.ts`、`backend/test/mcpConnector.test.ts`：完整约束、Schema 身份隔离、工具权限与 MCP 生命周期。
 
 - `backend/test/runActions.test.ts`、`backend/test/workspaceActions.test.ts`：动作校验、Scope、固定输入、幂等与停机等待。
 
@@ -243,6 +256,7 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 接入可选 MCP 工具插件，升级标准 JSON Schema 校验，保持 Agent/Tool/Skill 共用参数边界 | MCP/Schema 专项、后端全量回归与官方文件服务实际读取/越界拒绝 |
 | 2026-11-05 | Host 支持受 Scope 与生命周期约束的插件动作，复用现有 Capability 与 Runtime | 插件动作/API 专项、后端回归、前端检查与桌面/375px 浏览器验收 |
 | 2026-11-05 | 修复已有 CLI 状态文件的文件检查释放 POSIX 会话锁，重复拒绝不能放行其他进程 | 本地状态与知识复核专项、类型检查、后端回归 |
 | 2026-11-05 | 增加本地控制面、固定 Scope 运行与人工继续；区分 HTTP 与 SDK 插件组合 | 工作台专项、后端回归、前端检查与本地浏览器验收 |

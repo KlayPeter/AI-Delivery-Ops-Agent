@@ -87,7 +87,7 @@ describe('Tool and Skill runtime', () => {
             idempotencyKey: 'message-2:note-2',
         })).rejects.toMatchObject({ code: 'TOOL_CALL_LIMIT_EXCEEDED', retryable: false });
         expect((await runs.listSteps('run-1')).filter(step => step.kind === 'guardrail')).toHaveLength(1);
-        await expect(gateway.execute('task.note.write', {}, { ...options, idempotencyKey: 'message-2' })).rejects.toThrow('$.text is required');
+        await expect(gateway.execute('task.note.write', {}, { ...options, idempotencyKey: 'message-2' })).rejects.toThrow("required property 'text'");
         await expect(gateway.execute('task.note.write', { text: 'x' }, { ...options, allowedTools: [] })).rejects.toThrow('Tool is not allowed');
     });
 
