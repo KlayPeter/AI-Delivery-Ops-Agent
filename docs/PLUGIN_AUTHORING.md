@@ -1,6 +1,6 @@
 # 功能插件规范 v1
 
-当前 SDK 面向本仓库内或由部署者审查的 TypeScript 原生插件。使用 Cordis 4.1.0，协议版本为 `1.0`。现阶段提供 Agent、Tool、Skill、消息路由和群业务调度的独立装配、依赖校验和资源清理；页面、全局维护/成员同步、业务 API 与基础服务的完整插件化继续按路线图迁移。
+当前 SDK 面向本仓库内或由部署者审查的 TypeScript 原生插件。使用 Cordis 4.1.0，协议版本为 `1.0`。现阶段提供 Agent、Tool、Skill、消息路由、群业务调度和运行后续动作的独立装配、依赖校验和资源清理；页面、全局维护/成员同步、业务 API 与基础服务的完整插件化继续按路线图迁移。
 
 ## 包结构
 
@@ -45,7 +45,7 @@ await host.stop();
 AGENT_PLUGINS_FILE=profiles/agents/team.yaml bun run dev
 ```
 
-未设置变量时默认组合为九个功能插件、七个 Agent；会议纪要和外部 AI Hot 调度插件没有独立 Agent。会议纪要仍受原有模块开关控制，外部 AI Hot 能力仍需另行安装。示例还包括 `profiles/agents/native-demo.yaml` 和 `profiles/agents/empty.yaml`，分别选择 Echo 模板和零业务插件。所选插件同时决定消息指令、引用上下文、能力提示和群业务调度；这些配置尚不关闭原 Web、飞书连接、业务 API、全局维护或成员同步，也不等同完整的最小产品部署配置档。
+团队 SDK 未指定插件时默认组合为九个功能插件、七个 Agent；HTTP 工作台额外装配选定知识来源、回答与复核，共 12 个插件、10 个 Agent；会议纪要和外部 AI Hot 调度插件没有独立 Agent。会议纪要仍受原有模块开关控制，外部 AI Hot 能力仍需另行安装。示例还包括 `profiles/agents/native-demo.yaml` 和 `profiles/agents/empty.yaml`，分别选择 Echo 模板和零业务插件。所选插件同时决定消息指令、引用上下文、能力提示和群业务调度；这些配置尚不关闭原 Web、飞书连接、业务 API、全局维护或成员同步，也不等同完整的最小产品部署配置档。
 
 ```yaml
 apiVersion: '1.0'
@@ -80,11 +80,11 @@ plugins:
 
 ## 注册与清理
 
-通过 `ctx.delivery.nativeAgents.register`、`modelAgents.register`、`tools.register`、`skills.register`、`messageRoutes.register`、`schedules.register` 注册。它们自动将 disposer 加入当前 Cordis 插件作用域；启动失败或 Host 停止时释放。静态消息和调度优先声明在对应数组，依赖配置的贡献也可在 `apply` 中注册。
+通过 `ctx.delivery.nativeAgents.register`、`modelAgents.register`、`tools.register`、`skills.register`、`messageRoutes.register`、`schedules.register`、`runActions.register` 注册。它们自动将 disposer 加入当前 Cordis 插件作用域；启动失败或 Host 停止时释放。静态消息和调度优先声明在对应数组，依赖配置的贡献也可在 `apply` 中注册。
 
 连接、监听器和计时器使用 `ctx.effect` / `ctx.on`。插件需要在持久化控制面恢复后协调配置时，监听 `delivery/restored`；该回调失败同样使 Host 启动失败并释放插件。
 
-业务数据不随卸载删除。Host 停止时拒绝新消息和调度执行，等待在途消息、调度轮次、Run 和投递结束，再释放插件；停止后的对象不能重新启动，应创建新实例。应用先 `await scheduler.stop()` 再停止 Host，避免正在执行的调度再向已关闭的 Host 派发。尚未提供运行中单插件热卸载。
+业务数据不随卸载删除。Host 停止时拒绝新消息和调度执行，等待在途动作状态读取、消息、调度轮次、Run 和投递结束，再释放插件；停止后的对象不能重新启动，应创建新实例。应用先 `await scheduler.stop()` 再停止 Host，避免正在执行的调度再向已关闭的 Host 派发。尚未提供运行中单插件热卸载。
 
 ## 消息路由贡献
 
@@ -110,6 +110,29 @@ plugins:
 
 应用组合层创建共享 `ScheduleRegistry`，传给 `HandlerContext.schedules` 与 `AgentHostOptions.schedules`。无注册表或空列表时不隐式运行群业务任务；全局维护、成员同步及 Outbox Worker 当前仍为基础服务。默认十项定时任务与一项站会轮询由功能插件贡献；`builtin.ai-hot-schedule` 只负责外部 AI Hot 调度，不自动安装外部服务。
 
+## 运行后续动作与状态面板
+
+插件可在 apply 中注册 `ctx.delivery.runActions.register`，无需修改工作台页面。完整类型见 `backend/src/platform/plugins/runActions.ts`；实际例子见 `backend/src/knowledge/impact/plugin.ts`。
+
+```ts
+ctx.delivery.runActions.register({
+  id: 'example.review',
+  label: '检查结果',
+  capability: 'example.check',
+  appliesTo: ['example.generate'],
+  input: runId => ({ targetRunId: runId }),
+  readState: async run => ({
+    schemaVersion: '1.0', tone: 'neutral', title: '尚未检查',
+  }),
+});
+```
+
+动作 ID 必须唯一，标签最长 80 字符，Capability 和 appliesTo 遵循注册 Schema。仅匹配成功 Run；readState 应只读本地记录，不调用模型、不刷新来源、不创建执行。Host 校验 Scope 后调用并验证返回面板；失败显示错误。显式执行通过已启用 Capability 和现有 Runtime，服务端固定目标与 input，客户端仅能提供可选 UUID。幂等键包含动作 ID、目标 Run 和 UUID；同一请求重试不会重复创建执行。注册随 Cordis 回滚/释放，停止先等待在途读取和执行。
+
+StatusPanel 1.0 只呈现文本：tone 为 neutral/success/warning/error，title 最长 160 字符，description 最长 2000；可选 checkedAt 为 ISO 时间，items 最多 20 项（label 1024、value 160、detail 2000），relatedRun 为内部 Run ID（256）与标签（80）。不得将旧缓存当作实时确认；提供检查时间并区分未检查、检查中、失败和已完成。模型输出不应直接决定可信的绿色状态。
+
+报告 Artifact 可在 `metadata.statusPanels` 放 1–20 个同协议面板；前端通用渲染并支持内部 Run 跳转，不执行插件 HTML、脚本或远程 UI 包。未知版本或无效数据回退原有结果。动作状态属于最新评估，报告面板属于那次执行，原 Artifact 保留。当前不提供任意页面/表单贡献或运行中热卸载。
+
 ## 权限与数据边界
 
 需要在 Native Agent 中组合 Tool 和模型时，可以使用 `ctx.delivery.toolGateway.execute` 与 `ctx.delivery.orchestrator.run`。传入同一 Run 的 scope/runId/agentId、Manifest 工具列表、调用预算、幂等键、期限和取消信号；RAG 插件是实际示例。Orchestrator 默认保留人工输入函数，`allowHumanInput: false` 可关闭它；配合空 tools 列表用于纯生成。此设置不改变其他 Agent 的默认暂停恢复行为。
@@ -131,4 +154,4 @@ plugins:
 5. 有外部写入时验证幂等、重试与结果不确定的处理，不把网络成功等同于业务成功。
 6. 同步功能卡、代码与测试地图，运行受影响回归和 `git diff --check`。
 
-当前规范的运行证据见 `backend/test/pluginRuntime.test.ts`、`backend/test/agentHost.test.ts`、`backend/test/messagePlugins.test.ts` 和 `backend/test/schedulePlugins.test.ts`。面向业务结果的插件验收契约与版本回放实验室仍在产品路线图中。
+当前规范的运行证据见 `backend/test/runActions.test.ts`、`backend/test/workspaceActions.test.ts`、`backend/test/pluginRuntime.test.ts`、`backend/test/agentHost.test.ts`、`backend/test/messagePlugins.test.ts` 和 `backend/test/schedulePlugins.test.ts`。面向业务结果的插件验收契约与版本回放实验室仍在产品路线图中。

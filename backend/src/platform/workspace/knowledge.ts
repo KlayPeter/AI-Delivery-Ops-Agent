@@ -6,15 +6,17 @@ import { knowledgeWebAnswerPlugin } from '@/knowledge/web/answerPlugin';
 import { markdownSourceConfig } from '@/knowledge/markdown/source';
 import { webSourceConfig } from '@/knowledge/web/source';
 import { lines } from './connections';
+import { knowledgeImpactPlugin } from '@/knowledge/impact/plugin';
+import { knowledgeWebImpactPlugin } from '@/knowledge/impact/webPlugin';
 
 export function workspaceKnowledge() {
     const kind = process.env.KNOWLEDGE_KIND || 'sample';
     if (kind === 'web') return {
-        plugins: [knowledgeWebPlugin, knowledgeWebAnswerPlugin],
+        plugins: [knowledgeWebPlugin, knowledgeWebAnswerPlugin, knowledgeWebImpactPlugin],
         config: { 'knowledge.web': webSourceConfig.parse({ urls: lines(process.env.KNOWLEDGE_URLS || ''), sourceId: 'workspace-web' }) },
     };
     return {
-        plugins: [knowledgeMarkdownPlugin, knowledgeAnswerPlugin],
+        plugins: [knowledgeMarkdownPlugin, knowledgeAnswerPlugin, knowledgeImpactPlugin],
         config: { 'knowledge.markdown': markdownSourceConfig.parse({
             root: kind === 'sample' ? path.join(import.meta.dir, '../../../examples/knowledge-vault') : process.env.KNOWLEDGE_ROOT,
             sourceId: kind === 'sample' ? 'workspace-sample' : 'workspace-notes',

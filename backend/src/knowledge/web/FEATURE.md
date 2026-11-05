@@ -38,6 +38,7 @@ flowchart TD
     B -- 取消或整轮超预算 --> Z[本次失败，不查询旧索引]
     I --> VT[versions Tool：规范 URL 身份、版本与可用性]
     VT --> IC[可选历史引用复核]
+    UI[本机工作台显式检查引用变化] --> IC
     I --> Q[共享关键词排序]
     Q --> R[URL、内容版本、提取文本行号与片段]
     R --> O[JSON Artifact / 引用核验回答]
@@ -82,6 +83,10 @@ flowchart TD
 - 提供一个或多个公开链接，查看抓取结果、失败、变化与可引用正文。
 - 使用相同 CLI 对网页关键词检索，或在显式模型配置后提问。
 - 从回答证据打开当前原文，并区分原始地址、重定向后地址与本次内容版本。
+
+## 工作台来源组合
+
+HTTP 默认组合将所选来源、knowledge.answer 与 knowledge.impact 一起装配。回答详情的「检查引用变化」来自 impact 插件，显式核验旧结果实际引用的版本；状态刷新只读最近评估，原文与回答不重写。SDK 团队组合不默认装配知识功能，显式 AGENT_PLUGINS_FILE 仍完全管理插件选择。
 
 ## 入口与触发
 
@@ -132,6 +137,8 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 ### 主要实现
 
+- `backend/src/platform/workspace/knowledge.ts`：HTTP 选定来源/回答/复核组合。
+
 - `backend/src/knowledge/versions.ts`：版本请求与响应协议。
 - `backend/src/platform/persistence/sqliteStore.ts`：CLI 可选私有持久化与单会话锁。
 - `backend/src/knowledge/modelConfiguration.ts`：知识 CLI 与发布准备共用显式模型配置，query/sync 不使用模型。
@@ -147,6 +154,8 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 ### 主要测试
 
+- `backend/test/workspaceActions.test.ts`：工作台组合、只读缓存、实际版本复核与原证据保留。
+
 - `backend/test/knowledgeWeb.test.ts`：网络拒绝/重定向/DNS 固定/取消/超时、真实本地传输、提取、版本变化、失效移除、真实 Host/SDK 引用与 CLI 校验。
 - `backend/test/knowledgeMarkdown.test.ts`、`backend/test/knowledgeAnswer.test.ts`：共享排序、原目录入口与原 RAG 回归。
 
@@ -154,6 +163,7 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | HTTP 来源/回答组合默认加入复核插件，提供显式界面入口 | 插件动作/API 专项、后端回归、前端检查与桌面/375px 浏览器验收 |
 | 2026-11-05 | 修复已有 CLI 状态文件的文件检查释放 POSIX 会话锁，重复拒绝不能放行其他进程 | 本地状态与知识复核专项、类型检查、后端回归 |
 | 2026-11-05 | 增加本机工作台来源配置与检索/回答入口，保留个人 Scope 和来源契约 | 工作台专项、后端回归、前端检查与本地浏览器验收 |
 | 2026-11-05 | 新增公开单页来源与网页回答组合，复用原排序和 RAG | 专项 33 通过；类型检查；后端 462 通过 / 1 TAPD 跳过；公开网页 CLI 抓取成功；生成使用本地模拟模型 |

@@ -98,6 +98,7 @@ export class PluginRuntime {
                             skills: { register: (...args) => ctx.effect(() => services.skills.register(...args)) },
                             messageRoutes: { register: (...args) => ctx.effect(() => services.messageRoutes.register(...args)) },
                             schedules: { register: (...args) => ctx.effect(() => services.schedules.register(...args)) },
+                            runActions: { register: (...args) => ctx.effect(() => services.runActions.register(...args)) },
                         };
                         for (const route of plugin.messageRoutes || []) scoped.messageRoutes.register(route);
                         for (const schedule of plugin.schedules || []) scoped.schedules.register(schedule);

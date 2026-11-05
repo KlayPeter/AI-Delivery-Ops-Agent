@@ -46,6 +46,9 @@ flowchart TD
     D --> K["Logs / Contexts / Debug 页面"]
     A --> X["消息处理失败分类审计"]
     X --> K
+    E --> WA[本机工作台：插件动作与上次检查时间]
+    WA -- 显式执行 --> A
+    WA --> IC
     E --> KS[可选 CLI 私有 SQLite 状态]
     KS --> IC[实际知识引用复核与独立评估]
     E --> K
@@ -119,6 +122,10 @@ Host 关闭时先停止消息注册表接受新执行，等待在途确定性消
 
 CLI 可选 --state 保存 Run/Step/Tool/Artifact；默认仍为内存。知识影响插件只读原 Artifact 的实际引用并独立写评估，不修改旧证据。作用域先验证 workspace/bot，再读取目标产物。评估 revision 经 CAS 竞争，旧检查不能覆盖新检查；来源失败、旧格式或中断不能显示为 current。单一活跃状态会话通过 SQLite 独占锁保证，避免把另一个 CLI 的运行误判为重启遗留。
 
+## 工作台后续动作与证据
+
+成功 Run 可显示插件贡献的动作。GET 仅查询缓存状态并显示检查时间，不刷新来源或新建 Run；POST 经固定 Scope、插件指定输入和已启用 Capability 创建新执行。UUID 幂等键同时绑定动作和目标。知识复核记录独立 Run/Artifact 与最近评估，不把原运行的 succeeded 改为失败，也不覆盖旧正文或引用。检查中的状态、读取失败、需要复核和版本未变化分开展示；新版状态协议无效时回退原始产物。Host 停止等待在途状态读取后再释放插件。
+
 ## 用户能力
 
 - 查看审计日志、消息上下文、Agent Run、Step、Artifact 和投递状态。
@@ -183,6 +190,9 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 ### 主要实现
 
+- `backend/src/platform/plugins/runActions.ts`、`backend/src/platform/workspace/api.ts`：插件动作与本机查询/执行入口。
+- `frontend/src/pages/workspace/RunActions.tsx`、`panels.ts`：状态时间、检查记录与版本化展示。
+
 - `backend/src/platform/persistence/sqliteStore.ts`：CLI 私有记录与会话锁。
 - `backend/src/knowledge/impact/service.ts`：只读原引用与独立评估。
 - `backend/test/localState.test.ts`、`backend/test/knowledgeImpact.test.ts`：持久化、范围、检查竞争与历史证据回归。
@@ -209,6 +219,9 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 ### 主要测试
 
+- `backend/test/runActions.test.ts`、`backend/test/workspaceActions.test.ts`：状态不创建 Run、原证据不变、Scope/幂等与停机等待。
+- `frontend/src/pages/workspace/panels.test.mjs`：无效展示协议回退。
+
 - `backend/test/knowledgeAnswer.test.ts`：RAG 检索/模型/Artifact 证据、伪造引用拒绝和重复 Trigger 不重复生成。
 - `backend/test/toolSkillRuntime.test.ts`：取消与领取竞争的处理边界。
 - `backend/test/schedulePlugins.test.ts`：调度计划失败隔离、原子领取与停机等待；原 Scheduler 测试覆盖重试和警告语义。
@@ -231,6 +244,7 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 新增插件动作的独立执行与只读状态；知识引用评估在工作台保留原始证据 | 插件动作/API 专项、后端回归、前端检查与桌面/375px 浏览器验收 |
 | 2026-11-05 | 修复已有 CLI 状态文件的文件检查释放 POSIX 会话锁，重复拒绝不能放行其他进程 | 本地状态与知识复核专项、类型检查、后端回归 |
 | 2026-11-05 | 新增工作台运行视图与管理 API 本机来源边界 | 工作台专项、后端回归、前端检查与本地浏览器验收 |
 | 2026-11-05 | 无飞书凭据也可启动本地管理界面，就绪只要求已配置的入站连接；支持 HOST 指定绑定 | 多机器人/健康回归、独立空库 HTTP 验证、后端全量回归 |

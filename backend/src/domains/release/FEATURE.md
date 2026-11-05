@@ -15,7 +15,7 @@ last_reviewed: 2026-11-05
 
 `release.prepare` 是独立功能插件，依赖 `connector.github` 和一个知识来源。默认使用 Markdown/Obsidian；webPlugin.ts 切换到网页来源，复用同一发布实现。固定的取证、生成与验收管线使用 Native Agent，接入现有 Host、Tool Gateway、Run/Step/Artifact；不包含自主多 Agent 循环。
 
-CLI 与配置档可使用。知识与 GitHub 事实在同一次实际任务中参与草稿生成；外部写入、产品界面和持续监控尚未实现；保存后的实际知识引用可用独立 impact 插件显式复核。
+CLI 与配置档可使用。知识与 GitHub 事实在同一次实际任务中参与草稿生成；外部写入、专门的发布页面和持续监控尚未实现；保存后的实际知识引用可用独立 impact 插件显式复核。
 
 ## 实现流程图
 
@@ -42,6 +42,8 @@ flowchart TD
     D --> MD[Markdown Artifact]
     J --> ST[可选本地 state]
     ST --> IC[后续显式 impact 引用复核]
+    UI[本机工作台中已装配发布与 impact 插件] --> IC
+    IC --> VIEW[原结果动作与独立检查报告]
 ```
 
 ## 能力边界
@@ -78,6 +80,10 @@ flowchart TD
 - 从个人规则与指定仓库生成可复制的 Markdown 发布草稿和待确认清单。
 - 查看事实覆盖、每条依据的版本与原文，理解哪些内容没有读取或验证。
 - 先用 collect 模式检查资料，再决定是否调用配置模型生成。
+
+## 工作台引用复核
+
+在 HTTP Host 显式组合发布与 impact 插件后，成功的发布 Run 详情可显示 impact 插件贡献的「检查引用变化」。它只复核知识文档版本并生成独立检查记录，不发布内容、不改写草稿，也不复核 GitHub 事实。默认 HTTP 组合没有发布插件；发布配置档仍需自行选择 impact 依赖组合。
 
 ## 入口与触发
 
@@ -123,6 +129,8 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 ### 主要实现
 
+- `backend/src/knowledge/impact/plugin.ts`、`presentation.ts`：针对 release.prepare 的后续动作与通用报告面板。
+
 - `backend/src/platform/persistence/sqliteStore.ts`：可选私有运行记录。
 - `backend/src/knowledge/impact/service.ts`：复核已引用规则的当前文档版本。
 - `backend/src/domains/release/plugin.ts`：取证、模型调用、追踪与产物。
@@ -144,6 +152,7 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 说明可选工作台引用复核入口，原发布与草稿契约保持不变 | 插件动作/API 专项、后端回归、前端检查与桌面/375px 浏览器验收 |
 | 2026-11-05 | 修复已有 CLI 状态文件的文件检查释放 POSIX 会话锁，重复拒绝不能放行其他进程 | 本地状态与知识复核专项、类型检查、后端回归 |
 | 2026-11-05 | 新增只读发布准备插件、网页组合、CLI 与共享引用核验 | 17 项发布专项、干净安装类型检查与后端 487 通过 / 1 TAPD 跳过；真实公开仓库 collect；生成使用本地模拟模型，不声明真实模型质量 |
 | 2026-11-05 | 发布 CLI 可选保存记录，原知识身份供独立 impact 复核；不修改原发布草稿 | 发布回归与跨进程状态验证 |

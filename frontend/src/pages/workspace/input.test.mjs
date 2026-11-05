@@ -6,6 +6,7 @@ test('knowledge tasks use their governed input contracts and reject empty prompt
   assert.deepEqual(prepareInput('knowledge.answer', ' 发布规则 '), { question: '发布规则', limit: 5 });
   for (const capability of ['knowledge.markdown.retrieve', 'knowledge.web.retrieve']) assert.deepEqual(prepareInput(capability, ' API '), { operation: 'search', query: 'API', limit: 5 });
   assert.deepEqual(prepareInput('delivery.ops.orchestrate', '查看任务'), { prompt: '查看任务', source: 'private' });
+  assert.deepEqual(prepareInput('knowledge.impact.check', 'first，second third'), { runIds: ['first', 'second', 'third'], operation: 'check' });
   assert.throws(() => prepareInput('knowledge.answer', ' '));
 });
 

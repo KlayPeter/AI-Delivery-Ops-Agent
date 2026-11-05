@@ -12,6 +12,7 @@ import { SkillRegistry } from '@/platform/skills/registry';
 import { ToolRegistry } from '@/platform/tools/registry';
 import { MessageRouteRegistry } from '@/services/messageHandler/routes';
 import { ScheduleRegistry } from '@/platform/scheduling/registry';
+import { RunActionRegistry } from '@/platform/plugins/runActions';
 
 function plugin(id: string, apply: FeaturePlugin['apply'] = () => {}): FeaturePlugin {
     return { manifest: { apiVersion: '1.0', id, name: id, version: '1.0.0', description: 'Test plugin' }, apply };
@@ -19,19 +20,31 @@ function plugin(id: string, apply: FeaturePlugin['apply'] = () => {}): FeaturePl
 
 function fixture() {
     const tools = new ToolRegistry();
+    const runActions = new RunActionRegistry();
     const services: PluginHostServices = {
         getContext: () => ({} as any), agents: new AgentRegistry(), nativeAgents: new NativeAgentAdapter(),
         modelAgents: { register: () => () => {} }, tools, skills: new SkillRegistry(), bots: new BotRegistry(),
         messageRoutes: new MessageRouteRegistry(),
         schedules: new ScheduleRegistry(),
+        runActions,
         orchestrator: { run: async () => { throw new Error('Model is unused in this fixture'); } },
         toolGateway: { execute: async () => { throw new Error('Tool execution is unused in this fixture'); } },
         botCatalog: new PersistentBotControlCatalog(new InMemoryPersistentKeyValueStore()), skillRoot: '/nonexistent-plugin-skills',
     };
-    return { services, tools };
+    return { services, tools, runActions };
 }
 
 describe('Cordis feature plugins', () => {
+    test('rolls back contributed run actions when a plugin fails to mount', async () => {
+        const { services, runActions } = fixture();
+        const broken = plugin('test.actions', ctx => {
+            ctx.delivery.runActions.register({ id: 'test.review', label: 'Review', capability: 'test.check', appliesTo: ['test.answer'], input: id => ({ runIds: [id] }), readState: () => ({ schemaVersion: '1.0', tone: 'neutral', title: 'Ready' }) });
+            throw new Error('mount failed');
+        });
+        const runtime = new PluginRuntime([broken], services);
+        await expect(runtime.start()).rejects.toThrow('mount failed');
+        expect(runActions.forRun({ status: 'succeeded', capability: 'test.answer' } as any)).toEqual([]);
+    });
     test('loads dependencies before consumers, validates config, and disposes effects', async () => {
         const { services } = fixture();
         const events: string[] = [];

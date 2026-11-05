@@ -37,12 +37,13 @@ const descriptions: Record<string, string> = {
   'knowledge.markdown.retrieve': '只读检索选定的 Markdown 与 Obsidian 笔记，返回原文片段和内容版本。',
   'knowledge.web.retrieve': '读取选定的公开网页，检索正文并保留来源链接与内容版本。',
   'knowledge.answer': '结合知识库片段回答问题，检查引用身份与精确引文，资料不足时明确说明。',
+  'knowledge.impact.check': '检查历史结果实际引用的资料版本，标记变化与无法核验的来源，并保留旧证据。',
 };
 export const agentDescription = (agent: AgentInfo) => descriptions[agent.capabilities[0]] || agent.description;
 export const pluginName = (id: string, fallback: string) => ({
   'builtin.ai-news': 'AI 资讯', 'builtin.daily-summary': '日报', 'builtin.dashboard': '项目看板', 'builtin.weekly-report': '周报',
   'builtin.task': '任务管理', 'builtin.standup': '站会', 'builtin.orchestrator': '交付协调', 'builtin.meeting-summary': '会议纪要',
-  'builtin.ai-hot-schedule': '外部资讯调度', 'knowledge.markdown': 'Markdown / Obsidian', 'knowledge.web': '公开网页', 'knowledge.answer': '知识问答',
+  'builtin.ai-hot-schedule': '外部资讯调度', 'knowledge.markdown': 'Markdown / Obsidian', 'knowledge.web': '公开网页', 'knowledge.answer': '知识问答', 'knowledge.impact': '知识引用复核',
 } as Record<string, string>)[id] || fallback;
 export const errorMessage = (error: unknown) => error instanceof Error ? error.message : '操作失败，请重试';
 export const needsModel = (agent?: AgentInfo) => agent?.runtime === 'model-loop' || agent?.capabilities.includes('knowledge.answer');

@@ -32,6 +32,7 @@ flowchart TD
     N -- 是 --> M[Orchestrator：生成 JSON，无 Tool 与人工追问函数]
     M --> K[输出结构与共享 verifyCitations 引文核验]
     R --> HI[可选 state 保存与后续 impact 复核]
+    UI[本机工作台显式检查引用变化] --> HI
     K -- 通过 --> R[带来源与核验范围的回答 Artifact]
     K -- 模型认为不足 --> A
     K -- 非法 --> F[Run 失败，不发布答案 Artifact]
@@ -82,6 +83,10 @@ flowchart TD
 - 看到资料不足、索引不完整、生成失败或引用非法等不同结果。
 - 查看同一 Run 内的检索 Tool 与模型步骤；本地 CLI 默认内存，可用 --state 保存跨进程记录。
 
+## 工作台来源组合
+
+HTTP 默认组合将所选来源、knowledge.answer 与 knowledge.impact 一起装配。回答详情的「检查引用变化」来自 impact 插件，显式核验旧结果实际引用的版本；状态刷新只读最近评估，原文与回答不重写。SDK 团队组合不默认装配知识功能，显式 AGENT_PLUGINS_FILE 仍完全管理插件选择。
+
 ## 入口与触发
 
 | 入口 | 输入 | 输出 |
@@ -130,6 +135,8 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 ### 主要实现
 
+- `backend/src/platform/workspace/knowledge.ts`：HTTP 选定来源/回答/复核组合。
+
 - `backend/src/knowledge/impact/service.ts`：读取实际引用，独立保存复核结果。
 - `backend/src/platform/persistence/sqliteStore.ts`：CLI 可选私有运行记录。
 - `backend/src/knowledge/answer/plugin.ts`：RAG 插件、受治理检索、模型调用和步骤记录。
@@ -146,6 +153,8 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 ### 主要测试
 
+- `backend/test/workspaceActions.test.ts`：工作台组合、只读缓存、实际版本复核与原证据保留。
+
 - `backend/test/knowledgeWeb.test.ts`：网页组合、真实 SDK/Tool Gateway、来源元数据和 Scope。
 - `backend/test/knowledgeAnswer.test.ts`：真实 SDK 与本地模拟 HTTP 模型；引用拒绝、空命中、不足、版本快照、partial、Scope、CLI 与上下文预算。
 - `backend/test/toolSkillRuntime.test.ts`：调用账本、预算、取消与原 Tool/Skill 回归。
@@ -155,6 +164,7 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | HTTP 来源/回答组合默认加入复核插件，提供显式界面入口 | 插件动作/API 专项、后端回归、前端检查与桌面/375px 浏览器验收 |
 | 2026-11-05 | 修复已有 CLI 状态文件的文件检查释放 POSIX 会话锁，重复拒绝不能放行其他进程 | 本地状态与知识复核专项、类型检查、后端回归 |
 | 2026-11-05 | 增加本机工作台来源配置与检索/回答入口，保留个人 Scope 和来源契约 | 工作台专项、后端回归、前端检查与本地浏览器验收 |
 | 2026-11-05 | 新增可选 RAG 回答插件，复用宿主 Orchestrator/Tool Gateway，发布前核验引用与引文；CLI 显式配置模型 | 专项 13 项使用真实 SDK 与本地模拟模型；类型检查、后端 452 通过 / 1 TAPD 跳过；未调用付费远端模型 |

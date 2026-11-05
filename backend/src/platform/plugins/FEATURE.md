@@ -14,7 +14,7 @@ last_reviewed: 2026-11-05
 
 插件拥有能力定义与装配逻辑；Host 提供受治理的 Agent、Tool、Skill 和持久化执行服务。当前七个内置 Agent 均由独立插件注册，应用默认组合放在 `agents/plugins/builtins.ts`，Host 不导入具体业务 Agent。
 
-当前阶段覆盖 Agent、Tool、Skill、消息路由、群业务调度和新闻机器人配置装配。默认组合为九个功能插件、七个 Agent；会议纪要和外部 AI Hot 调度插件没有独立 Agent，会议纪要保留 dormant 开关，外部 AI Hot 能力仍需单独安装。全局维护/成员同步、业务 API、页面和基础服务还未全部改为插件贡献；不能把本阶段描述为“整个产品已完全插件化”。
+当前阶段覆盖 Agent、Tool、Skill、消息路由、群业务调度、运行后续动作和新闻机器人配置装配。默认组合为九个功能插件、七个 Agent；会议纪要和外部 AI Hot 调度插件没有独立 Agent，会议纪要保留 dormant 开关，外部 AI Hot 能力仍需单独安装。全局维护/成员同步、业务 API、页面和基础服务还未全部改为插件贡献；不能把本阶段描述为“整个产品已完全插件化”。
 
 ## 实现流程图
 
@@ -29,6 +29,8 @@ flowchart TD
     MR --> E
     D --> SJ[注册插件拥有的群业务计划与轮询]
     SJ --> E
+    D --> RA[注册成功 Run 的后续动作与文本状态]
+    RA --> E
     D --> NS[原生插件可调用宿主 Orchestrator 与 Tool Gateway]
     NS --> E
     E --> F[恢复外部 Agent 与持久化 Bot Binding]
@@ -58,20 +60,24 @@ flowchart TD
 
 ## HTTP 工作台组合
 
-团队 SDK 默认仍为九个插件、七个 Agent；HTTP 入口默认另加示例 Markdown 来源与 RAG 回答，共 11 个插件、9 个 Agent。页面可保存个人 Markdown/公开网页来源，重启后选择一组来源/回答插件；显式 AGENT_PLUGINS_FILE 优先并完全管理组合。插件页面展示真实已装配 Manifest、版本与依赖，尚未提供在线任意仓库安装。工作台不是额外的业务 Agent。
+团队 SDK 默认仍为九个插件、七个 Agent；HTTP 入口默认另加示例 Markdown 来源、RAG 回答与引用复核，共 12 个插件、10 个 Agent。页面可保存个人 Markdown/公开网页来源，重启后选择一组来源/回答/复核插件；显式 AGENT_PLUGINS_FILE 优先并完全管理组合。插件页面展示真实已装配 Manifest、版本与依赖，尚未提供在线任意仓库安装。工作台不是额外的业务 Agent。
 
 ## 核心规则
 
 1. `manifest.apiVersion` 必须为 `1.0`；ID 唯一，版本采用 SemVer 形式，名称与说明不能为空。配置可使用 Cordis Standard Schema 接口，如 Zod。
 2. `requires` 声明插件依赖；缺失、重复或循环在调用任何 `apply` 前拒绝。Cordis 注入对应的就绪服务。
 3. Agent ID、安装 ID、Capability、默认 Binding ID 和领域行为在迁移中保留；团队 SDK 默认组合继续提供七个 Agent。
-4. `ctx.delivery.tools`、`nativeAgents`、`modelAgents`、`skills`、`messageRoutes` 和 `schedules` 的注册返回 disposer，并自动归属当前插件的 Cordis effect。连接、定时器等自有资源显式使用 `ctx.effect`。
+4. `ctx.delivery.tools`、`nativeAgents`、`modelAgents`、`skills`、`messageRoutes`、`schedules` 和 `runActions` 的注册返回 disposer，并自动归属当前插件的 Cordis effect。连接、定时器等自有资源显式使用 `ctx.effect`。
 5. 插件声明的 Skill 包必须存在。路径限定为 Skill 根目录的直接子包名，指令引用继续执行原有目录边界校验。
 6. `delivery/restored` 在外部 Agent 和持久化 Bot 配置恢复后触发。新闻机器人配置由新闻插件维护，Host 不包含新闻业务规则。
 7. 移除插件后，它的 Agent/Tool/Skill/消息路由/群业务调度不装配；历史引用、免 @ 回复和帮助也不会恢复该功能。引用缺失安装的持久化 Binding 保留在数据库、暂不投影。缺少可用入口 Capability 的 Bot 在本次内存投影中停用，不删除用户配置。
-8. `AgentHost.stop` 拒绝新的消息和调度请求，等待在途确定性消息、调度轮次、Agent 执行和投递，再释放插件；停止后的 Host、消息和调度注册表不能重新启动，应创建新实例。运行、Artifact、Session 与用户绑定数据保留。
+8. `AgentHost.stop` 拒绝新的消息和调度请求，等待在途动作状态读取、确定性消息、调度轮次、Agent 执行和投递，再释放插件；停止后的 Host、消息和调度注册表不能重新启动，应创建新实例。运行、Artifact、Session 与用户绑定数据保留。
 9. `messageRoutes` 可声明静态贡献或通过受作用域管理的注册函数按配置添加。上下文阶段只选择首个匹配者，普通消息按唯一优先级执行；业务判断留在插件与 Handler，Router 不导入内置功能。
 10. `orchestrator` 与 `toolGateway.execute` 供受信任 Native 插件组合模型和 Tool；调用者必须传同一 Run 的身份、Manifest 工具列表、预算和取消信号。它们不是原生恶意代码的权限沙箱。知识回答插件实际使用这条链路并在发布前验收引用。
+
+## 运行后续动作
+
+插件通过 ctx.delivery.runActions.register 声明唯一动作 ID、标签、Capability、appliesTo、固定目标输入函数和只读 readState。仅匹配成功 Run；Host 校验本地 Scope 与可派发能力后通过既有 Runtime 执行。状态与结果使用 StatusPanel 1.0 文本协议，不加载远程 UI 代码。注册随 Cordis effect 回滚和释放；Host 停止先等待在途状态读取。knowledge.impact 注册 knowledge.review，是实际使用者；详见作者规范。
 
 ## 用户能力
 
@@ -120,6 +126,9 @@ flowchart TD
 
 ### 主要实现
 
+- `backend/src/platform/plugins/runActions.ts`：动作注册、校验、匹配与文本面板协议。
+- `backend/src/knowledge/impact/plugin.ts`、`presentation.ts`：知识复核动作与报告呈现。
+
 - `backend/src/platform/scheduling/registry.ts`、`calendar.ts`：群调度协议、唯一优先级、通用日历与在途跟踪。
 - `backend/src/knowledge/answer/plugin.ts`：复用宿主模型与受治理 Tool 的实际插件示例。
 - `backend/src/core/scheduler.ts`：执行插件贡献，统一重试、幂等和记录；保留全局维护/成员同步。
@@ -138,6 +147,8 @@ flowchart TD
 
 ### 主要测试
 
+- `backend/test/runActions.test.ts`、`backend/test/workspaceActions.test.ts`：第三方动作、校验、Scope、幂等与在途清理。
+
 - `backend/test/knowledgeAnswer.test.ts`：原生插件模型/Tool 组合、依赖、步骤记录、引用拒绝与本地 HTTP 模型集成。
 - `backend/test/schedulePlugins.test.ts`：群调度贡献、空组合、插件禁用、错误隔离与在途停止。
 
@@ -153,6 +164,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 新增随插件生命周期释放的运行后续动作，通用文本面板与知识引用检查实例 | 插件动作/API 专项、后端回归、前端检查与桌面/375px 浏览器验收 |
 | 2026-11-05 | 区分团队 SDK 与 HTTP 个人知识默认组合 | 工作台专项、后端回归、前端检查与本地浏览器验收 |
 | 2026-11-05 | 向原生插件提供宿主 Orchestrator 和 Tool Gateway；独立 RAG 插件验证同 Run 检索、生成与验收 | RAG/插件专项、类型与后端全量回归；默认业务不变 |
 | 2026-11-05 | 群业务调度改为可释放插件贡献，新增外部 AI Hot 调度插件；空组合不隐式执行群任务；停机等待本轮结束 | 调度/日历/插件回归、后端 428 通过 / 1 TAPD 跳过、类型检查 |

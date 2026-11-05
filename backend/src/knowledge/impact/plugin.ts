@@ -6,6 +6,7 @@ import { KNOWLEDGE_MARKDOWN_VERSIONS_TOOL } from '../markdown/plugin';
 import { requirePersonalScope } from '../scope';
 import { versionResult } from '../versions';
 import { KnowledgeImpactService, type ImpactReport } from './service';
+import { knowledgeReviewPanel } from './presentation';
 
 export const KNOWLEDGE_IMPACT_CAPABILITY = 'knowledge.impact.check';
 const inputSchema = z.object({ runIds: z.array(z.string().min(1).max(256)).min(1).max(20).refine(ids => new Set(ids).size === ids.length, 'Duplicate target run ID'), operation: z.enum(['check', 'status']).default('check') }).strict();
@@ -25,6 +26,12 @@ export function createKnowledgeImpactPlugin(source = { pluginId: 'knowledge.mark
         manifest: { apiVersion: '1.0', id: 'knowledge.impact', name: manifest.name, version: '1.0.0', description: manifest.description, requires: [source.pluginId] },
         agents: [{ manifest, installationId: 'install-knowledge-impact' }],
         apply(ctx) {
+            ctx.delivery.runActions.register({
+                id: 'knowledge.review', label: '检查引用变化', description: '只检查此结果实际引用的资料，不修改原回答。',
+                capability: KNOWLEDGE_IMPACT_CAPABILITY, appliesTo: ['knowledge.answer', 'release.prepare'],
+                input: runId => ({ operation: 'check', runIds: [runId] }),
+                readState: async run => knowledgeReviewPanel(await new KnowledgeImpactService(ctx.delivery.getContext().store).latest(run, run.id)),
+            });
             ctx.delivery.nativeAgents.register(manifest.id, manifest.version, async (request, _resolved, signal) => {
                 requirePersonalScope(request.scope);
                 const input = inputSchema.parse(request.input);
@@ -72,7 +79,12 @@ export function createKnowledgeImpactPlugin(source = { pluginId: 'knowledge.mark
                 }
                 const data = { operation: 'check', assessments, checksOnlyDirectReferences: true };
                 return { status: 'succeeded', data, metrics: { modelCalls: 0, toolCalls: wanted.size ? 1 : 0 }, artifacts: [{
-                    type: 'json', mediaType: 'application/json', schemaVersion: '1.0', content: data, metadata: { privateKnowledge: true, title: 'Knowledge change impact', semanticImpact: 'not_assessed' },
+                    type: 'json', mediaType: 'application/json', schemaVersion: '1.0', content: data, metadata: {
+                        privateKnowledge: true, title: 'Knowledge change impact', semanticImpact: 'not_assessed',
+                        statusPanels: assessments.map(report => ({ ...knowledgeReviewPanel(report), relatedRun: { id: report.runId, label: '返回原结果' },
+                            ...(!report.recordedAsLatest ? { tone: 'warning', title: '该次检查不是最新评估', description: '检查完成前已有更新的评估，请回到原结果查看最新状态。' } : {}),
+                        })),
+                    },
                 }] };
             });
         },

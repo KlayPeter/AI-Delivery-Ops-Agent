@@ -44,6 +44,11 @@ flowchart LR
     O --> KI[历史产物引用复核插件]
     IV --> KI
     KI --> AS[独立评估；原证据保留]
+    UI --> RA[插件贡献的运行后续动作]
+    FP --> RA
+    RA --> KI
+    AS --> PANEL[带检查时间的通用文本面板]
+    PANEL --> UI
 ```
 
 ## 1. 当前功能
@@ -66,7 +71,7 @@ flowchart LR
 | `personal-knowledge-answer` | 个人知识 RAG 回答、原文引用核验与不足表达；本地 CLI | active | `native.knowledge-answer`；显式安装，默认团队不启用 | [查看](../../backend/src/knowledge/answer/FEATURE.md) |
 | `meeting-summary` | 会议纪要生成、归档、查看与邮件分发 | dormant | 无 | [查看](../../backend/src/services/messageHandler/meeting-summary/FEATURE.md) |
 | `configuration-scheduling` | 群组、成员、通讯录、模块开关与定时任务 | active | 无 | [查看](../../backend/src/core/configuration-scheduling/FEATURE.md) |
-| `plugin-runtime` | Cordis 功能插件、消息/群调度贡献、依赖与资源生命周期 | active | 无独立业务 Agent | [查看](../../backend/src/platform/plugins/FEATURE.md) |
+| `plugin-runtime` | Cordis 功能插件、消息/群调度/运行动作贡献、依赖与资源生命周期 | active | 无独立业务 Agent | [查看](../../backend/src/platform/plugins/FEATURE.md) |
 | `agent-platform` | Agent、Tool、Skill、会话、外部 Agent 与多机器人控制面 | active | Agent Host 及全部 Agent | [查看](../../backend/src/platform/FEATURE.md) |
 | `operations-observability` | 审计日志、上下文、手动触发、Run 与可靠投递 | active | 无独立业务 Agent | [查看](../../backend/src/platform/runtime/FEATURE.md) |
 
@@ -146,5 +151,5 @@ flowchart LR
 - **推荐在功能代码 Owner 目录使用 `FEATURE.md`，不推荐再放业务型 `AGENTS.md`。** `FEATURE.md` 面向人和 AI 共同解释产品能力；根目录 `AGENTS.md` 统一约束 AI 的修改流程。这样代码与功能事实相邻，又不会让业务说明和开发规则混在一起。
 - **系统已经是 Agent 系统。** 它具备 Registry、三类 Adapter、Model Loop、Tool/Skill Runtime、委派、Session/Checkpoint、Run/Artifact、Outbox 和 Bot Binding，不只是“调用一次大模型”的普通业务系统。
 - **系统采用混合架构是正确的。** 自主决策和可插拔执行使用 Agent，强一致状态交给 Domain Service，确定性管理和查询保留为服务/控制面。强行把每个页面或函数 Agent 化会增加成本、随机性和数据冲突。
-- **当前功能文档覆盖 19 个能力。** 团队 SDK 组合包含 7 个 Agent；HTTP 工作台默认额外装配示例知识来源与回答，共 9 个 Agent；个人 Markdown、公开网页检索、RAG 回答、发布准备与知识变更复核是五个可选 Native Agent，AI Hot 是可选外部 Agent；会议纪要处于 dormant，其余功能通过 Agent、领域服务和控制面协作完成。
+- **当前功能文档覆盖 19 个能力。** 团队 SDK 组合包含 7 个 Agent；HTTP 工作台默认额外装配示例知识来源、回答与复核，共 10 个 Agent；个人 Markdown、公开网页检索、RAG 回答、发布准备与知识变更复核是五个可选 Native Agent，AI Hot 是可选外部 Agent；会议纪要处于 dormant，其余功能通过 Agent、领域服务和控制面协作完成。
 - **下一步维护重点**是保证功能卡与代码同提交更新，并继续把业务写入口收敛到 `TaskService`、`StandupService` 和受治理 Tool；新增机器人优先增加 Binding，新增自治能力再增加 Agent。

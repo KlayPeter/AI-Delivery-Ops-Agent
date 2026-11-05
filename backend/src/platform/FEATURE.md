@@ -41,6 +41,9 @@ flowchart TD
     X --> I["Tool / Skill / Adapter 注册"]
     X --> MR["消息路由、引用上下文与帮助贡献"]
     MR --> Q
+    X --> RA[成功 Run 的插件动作与状态面板]
+    UI --> RA
+    RA -- 显式执行 --> B
     X --> SJ[群业务计划与轮询贡献]
     SJ --> A
     C --> D["Trigger / Session / Run Runtime"]
@@ -83,7 +86,7 @@ flowchart TD
 
 ## 本地工作台
 
-HTTP 应用首页提供任务、运行详情、Agent/插件清单和连接表单，复用现有 Host；本地请求固定默认 workspace/bot，最终结果不投递会话。HTTP 入口在团队组合之外默认装配示例知识来源和回答插件；团队 SDK 组合保持九个插件、七个 Agent。管理 API 校验回环 Host/Origin；这不是多人认证。详见 [工作台功能卡](workspace/FEATURE.md)。
+HTTP 应用首页提供任务、运行详情、Agent/插件清单和连接表单，复用现有 Host；本地请求固定默认 workspace/bot，最终结果不投递会话。HTTP 入口在团队组合之外默认装配示例知识来源、回答与复核插件（12 个插件、10 个 Agent）；团队 SDK 组合保持九个插件、七个 Agent。管理 API 校验回环 Host/Origin；这不是多人认证。详见 [工作台功能卡](workspace/FEATURE.md)。
 
 ## 核心规则
 
@@ -109,6 +112,10 @@ Tool Gateway 在预取消和领取账本期间取消时拒绝进入 Handler；�
 14. **机器人日志最小化且可验收。** AI 新闻入站和出站审计只保留 bot、message、chat、投递结果等路由元数据，不保存私聊或卡片正文；飞书事件先以 workspace、BotInstance、message ID 建立数据库原子 Claim，再写入最多 1000 条的进程内快速缓存，`/readyz` 要求所有启用的入站机器人连接可用。默认复用模式不增加连接数。
 15. **外部投递遵守供应商反馈。** 飞书请求接收 Worker 的取消信号；429 使用 `Retry-After`，月额度耗尽按 App ID 进入不可重试熔断，不能重新运行 Agent 或误伤其他机器人。
 15. **文章产物由平台安全渲染。** `article_list` 只接受 HTTP/HTTPS 原文链接，平台负责追加信号来源和操作提示；Provider 返回内容不能控制提示语、生成任意卡片结构或暴露内部 cursor。
+
+## 插件运行后续动作
+
+Host 持有 RunActionRegistry，Cordis 管理注册生命周期。状态 GET 先核对默认 workspace/bot，再读取插件状态并校验 StatusPanel 1.0；读取失败返回错误面板。POST 仅接受 UUID，由插件固定目标与输入，经已启用 Capability 进入正常 Runtime；幂等键绑定动作和目标 Run。Host 停止等待在途状态读取和动作执行后释放插件。原始历史与后续报告分别持久化，不修改旧 Artifact。
 
 ## 本地启动
 
@@ -195,6 +202,8 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 ### 主要实现
 
+- `backend/src/platform/plugins/runActions.ts`：成功 Run 的插件动作注册与文本面板协议。
+
 - `backend/src/platform/persistence/sqliteStore.ts`：CLI 私有 KV、专用 schema 和独占会话。
 - `backend/test/localState.test.ts`：KV/重开、权限、跨进程与强制退出恢复。
 - `backend/src/platform/plugins/contracts.ts`、`runtime.ts`：版本化功能插件与 Cordis 生命周期。
@@ -210,6 +219,8 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 - `backend/src/agents/**`：当前 Agent 定义。
 
 ### 主要测试
+
+- `backend/test/runActions.test.ts`、`backend/test/workspaceActions.test.ts`：动作校验、Scope、固定输入、幂等与停机等待。
 
 - `backend/test/knowledgeAnswer.test.ts`：真实 SDK/本地模拟模型、无 Tool 生成、引用核验、Scope 和运行证据。
 - `backend/test/toolSkillRuntime.test.ts`：预取消与领取期间取消不执行处理者，及原工具/Skill 预算和幂等回归。
@@ -232,6 +243,7 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | Host 支持受 Scope 与生命周期约束的插件动作，复用现有 Capability 与 Runtime | 插件动作/API 专项、后端回归、前端检查与桌面/375px 浏览器验收 |
 | 2026-11-05 | 修复已有 CLI 状态文件的文件检查释放 POSIX 会话锁，重复拒绝不能放行其他进程 | 本地状态与知识复核专项、类型检查、后端回归 |
 | 2026-11-05 | 增加本地控制面、固定 Scope 运行与人工继续；区分 HTTP 与 SDK 插件组合 | 工作台专项、后端回归、前端检查与本地浏览器验收 |
 | 2026-11-05 | 未配置默认飞书时支持本地启动；连接与就绪共用候选列表，拒绝部分凭据；增加 HOST 绑定 | 多机器人/健康回归、空库本地启动与 HTTP 就绪检查、后端全量回归 |

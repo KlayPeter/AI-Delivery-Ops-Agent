@@ -56,6 +56,6 @@ export default function KnowledgePage() {
         <p className="muted">来源配置保存在本机，重启后端后生效。笔记内容始终只读。</p><Button type="primary" htmlType="submit" loading={saving}>保存来源</Button>
       </Form>}
     </Drawer>
-    <RunDrawer key={runId || 'closed'} runId={runId} onClose={() => setRunId(null)} />
+    <RunDrawer key={runId || 'closed'} runId={runId} onClose={() => setRunId(null)} onSelectRun={setRunId} />
   </div>;
 }

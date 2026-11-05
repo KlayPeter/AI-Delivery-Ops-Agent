@@ -15,7 +15,7 @@ last_reviewed: 2026-11-05
 
 `knowledge.impact` 是独立确定性功能插件。选择 Markdown 或网页来源版本 Tool，通过现有 Run/Artifact 存储读取指定历史运行，并保存独立评估。它不调用模型、不复制来源读取、不修改原 Artifact。
 
-当前是显式选择 Run ID 的本地检查，不是全库自动监控或文件变更推送。原有产品方向仍要求后续补齐自动索引、界面和全局变更提示；本功能提供其来源身份、版本协议和评估记录。
+当前是显式选择 Run ID 的本地检查，不是全库自动监控或文件变更推送。本机工作台已提供原结果的显式复核入口；自动索引和全局变更提示仍待实现；本功能提供其来源身份、版本协议和评估记录。
 
 ## 实现流程图
 
@@ -23,7 +23,7 @@ last_reviewed: 2026-11-05
 flowchart TD
     FS[可选 CLI 状态：已有文件仅元数据检查] --> LK[SQLite 独占会话锁]
     LK --> U
-    U[本地 CLI --state --check-run / SDK] --> P[Cordis: knowledge.impact]
+    U[本地 CLI --state --check-run / SDK / 工作台插件动作] --> P[Cordis: knowledge.impact]
     P --> V[校验个人 Scope、最多二十个 Run]
     V --> R[先核对所有目标 Run 的 workspace 与 bot]
     R --> A[读取原 JSON Artifact，核对引用并提取实际被引用知识]
@@ -37,7 +37,10 @@ flowchart TD
     O --> G[CAS 写独立最新评估，旧检查不得覆盖新检查]
     G --> J[检查报告 Artifact]
     A -. 原产物与原引文保持 .-> H[历史证据]
-    L[CLI --impact-status] --> K[只读取最近评估与检查时间]
+    L[CLI --impact-status / 动作状态 GET] --> K[只读取最近评估与检查时间]
+    K --> PANEL[StatusPanel 1.0：时间、引用版本与检查记录]
+    J --> PANEL
+    PANEL --> NAV[原结果与独立检查报告互相查看]
 ```
 
 ## 能力边界
@@ -67,7 +70,8 @@ flowchart TD
 9. 根目录/整轮读取失败或跨插件协议不一致时，把本次检查记为 unverifiable，不回退旧 current。取消则中止运行，留下的不完整评估在 status 中显示 check_incomplete。
 10. 每次检查以 CAS 领取新 revision；完成时仅更新自己仍持有的 revision。后完成的旧检查不能覆盖更新检查。独立检查 Artifact 仍记录其实际结果，并返回 recordedAsLatest。
 11. 原 Run/Artifact/正文/引文不修改。评估按 workspace/bot/目标 Run 独立保存；状态读取返回最近评估及其 checkedAt，不刷新来源，不声称是当前实时状态。
-12. CLI 默认仍为内存；显式 --state 才保存记录。文件私有权限、专用数据库身份和独占会话锁由 SQLitePersistentKeyValueStore 提供。同一状态文件不允许两个 CLI 同时启动 Host，避免重启恢复误标仍活跃的运行。
+12. knowledge.review 动作由本插件注册，匹配成功的回答/发布 Run。GET 只读评估；POST 固定一个目标 Run，经既有 Capability 执行，不重新调用模型。文本面板显示检查时间；旧检查未成为最新评估时明确提示，不伪装最新结论。卸载插件不删除历史。
+13. CLI 默认仍为内存；显式 --state 才保存记录。文件私有权限、专用数据库身份和独占会话锁由 SQLitePersistentKeyValueStore 提供。同一状态文件不允许两个 CLI 同时启动 Host，避免重启恢复误标仍活跃的运行。
 
 ## 用户能力
 
@@ -79,6 +83,7 @@ flowchart TD
 
 | 入口 | 输入 | 输出 |
 | --- | --- | --- |
+| 工作台「检查引用变化」 | 当前成功回答/草稿 | 独立检查 Run、缓存状态与报告跳转 |
 | knowledge.impact.check | runIds、可选 operation=check/status | 独立评估、原 Artifact ID 与检查报告 |
 | knowledge.ts --check-run | 目录或网页、原状态文件、重复 Run ID | 刷新来源并检查 |
 | --impact-status | 同一状态文件、--check-run | 最近评估，不发起来源读取 |
@@ -120,7 +125,8 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 ### 主要实现
 
-- `backend/src/knowledge/impact/plugin.ts`：检查编排、协议核对和 Artifact。
+- `backend/src/knowledge/impact/plugin.ts`：检查编排、协议核对、插件动作和 Artifact。
+- `backend/src/knowledge/impact/presentation.ts`：评估到通用文本面板，拒绝缺少证据/时间的绿色状态。
 - `backend/src/knowledge/impact/service.ts`：原引用提取、Scope、CAS 与缓存。
 - `backend/src/knowledge/impact/webPlugin.ts`：网页版本来源组合。
 - `backend/src/knowledge/versions.ts`：版本请求/响应协议。
@@ -131,6 +137,8 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 ### 主要测试
 
+- `backend/test/runActions.test.ts`、`backend/test/workspaceActions.test.ts`：状态不刷新、显式复核、原 Artifact 不变、独立报告与错误呈现。
+
 - `backend/test/knowledgeImpact.test.ts`：引用准确性、变化/缺失/失败/范围、旧格式、Scope、竞争、网页与真实跨进程 CLI。
 - `backend/test/localState.test.ts`：重开、原子 KV、权限、拒绝外部数据、并发进程和强制退出后的恢复。
 - `backend/test/knowledgeAnswer.test.ts`、`backend/test/releasePreparation.test.ts`：原生成与引用回归。
@@ -139,5 +147,6 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 插件贡献工作台复核动作、检查时间与原结果/检查记录跳转，保持历史证据不变 | 插件动作/API 专项、后端回归、前端检查与桌面/375px 浏览器验收 |
 | 2026-11-05 | 修复已有 CLI 状态文件的文件检查释放 POSIX 会话锁，重复拒绝不能放行其他进程 | 本地状态与知识复核专项、类型检查、后端回归 |
 | 2026-11-05 | 新增显式历史知识复核、稳定来源身份与本地持久化 | 15 项新增专项；干净安装类型检查与后端 502 通过 / 1 TAPD 跳过；跨进程模拟模型验证，不连接服务器或执行外部写入 |

@@ -22,7 +22,7 @@ flowchart TD
     G --> CFG[配置字段校验]
     CFG --> FILE[connections.json 原子写入·0600]
     FILE --> BOOT[重启后注入环境变量]
-    BOOT --> PL[团队插件 + 选定知识来源/回答插件]
+    BOOT --> PL[团队插件 + 选定知识来源/回答/复核插件]
     PL --> H[Agent Host]
     G --> T[固定默认 workspace/bot·manual Trigger]
     T --> H
@@ -34,6 +34,11 @@ flowchart TD
     H --> K[只读笔记或公开网页检索]
     K --> EV[带行号、内容版本和原文定位的结果]
     EV --> V
+    V --> ACT[插件贡献的后续动作与上次检查时间]
+    ACT -- 只读状态 --> KV[最近评估，不刷新来源或创建 Run]
+    ACT -- 显式执行 --> T
+    H --> CHECK[新的检查 Run / Artifact，原结果保留]
+    CHECK --> V
 ```
 
 ## 能力边界
@@ -60,10 +65,16 @@ flowchart TD
 5. 本地连接字段采用 allowlist；密钥只返回已配置布尔值。省略字段保留当前值，null 仅用于明确清除密钥；空凭据的飞书可保持未连接，部分凭据拒绝保存。
 6. 配置写入独占创建的临时文件、flush、原子 rename，文件权限 0600；读取拒绝符号链接、硬链接和共享权限文件。配置为本机明文，不声称加密。连接更新串行合并，失败保留原文件。
 7. 保存不改变在途任务的配置。重启时本地文件覆盖同名环境值；模型供应商/地址/名称和 TAPD 项目/地址/工作项环境值优先于旧 config.json。页面持续提示待重启状态。
-8. HTTP 入口默认在原九个团队插件上增加示例 Markdown 来源与回答插件，合计 11 个插件、9 个 Agent。选择公开网页时替换来源组合。SDK 团队工厂仍为九个插件、七个 Agent。显式 AGENT_PLUGINS_FILE 完全管理组合，不自动叠加页面知识配置。
+8. HTTP 入口默认在原九个团队插件上增加示例 Markdown 来源、回答与复核插件，合计 12 个插件、10 个 Agent。选择公开网页时替换来源组合。SDK 团队工厂仍为九个插件、七个 Agent。显式 AGENT_PLUGINS_FILE 完全管理组合，不自动叠加页面知识配置。
 9. 知识请求保留无 chat/conversation 的个人手动 Scope。检索不调用模型，生成回答使用当前宿主模型并发送所选片段；证据沿用来源和引用核验协议。
 10. 结果 Markdown 不执行 HTML，不自动加载远端图片；原文链接仅允许 HTTP/HTTPS 和 Obsidian open。原始 JSON 放在详情，不作为主要操作入口。
 11. 首页新工作台保留 `?groupId` / `?dashboardId` 的既有看板入口，以及旧 HTML 长链接兜底；项目看板新增 `/dashboard` 导航。
+
+## 插件后续动作
+
+成功 Run 的动作由插件通过 RunActionRegistry 贡献。工作台只负责通用文本状态面板和执行按钮，不导入知识业务逻辑。状态 GET 只读取最近评估，显示检查时间；显式 POST 才执行插件指定的 Capability。请求仅接受可选 UUID，目标与输入由服务端插件固定，幂等键包含动作、目标 Run 和 UUID。
+
+知识复核是首个使用者：检查原回答或发布草稿实际引用的文档版本，产生独立检查记录，不重新生成答案，不改变原 Run 的成功状态或原 Artifact。移除插件后不显示动作，历史产物保留。面板协议为 StatusPanel 1.0；无效或未知 Artifact 展示协议回退原有结果，状态读取失败显示错误，不沿用绿色状态。
 
 ## 用户能力
 
@@ -84,6 +95,8 @@ flowchart TD
 | `/api/workspace/connections` | GET / PUT 字段 Patch | 脱敏配置快照 |
 | `/api/workspace/runs` | POST 能力、input、triggerId | Run ID 与实际状态 |
 | `/api/workspace/runs/:runId` | GET 本地 Run ID | 结果、步骤、Checkpoint、子 Run |
+| `/api/workspace/runs/:runId/actions` | GET 本地成功 Run | 插件动作及缓存状态，不创建 Run |
+| `/api/workspace/runs/:runId/actions/:actionId` | POST 可选 triggerId | 固定目标的新执行，复用 Runtime 与幂等 |
 | `/api/workspace/runs/:runId/resume` | POST input、triggerId | 原 Run 恢复结果 |
 
 ## 运行逻辑
@@ -126,10 +139,15 @@ flowchart TD
 - `backend/src/platform/bootstrap/agentHost.ts`：本地根 Run 列表、详情、发起与继续。
 - `frontend/src/layouts/MainLayout.tsx`、`frontend/src/App.tsx`、`frontend/src/index.css`：浅色响应式应用壳与路由。
 - `frontend/src/pages/workspace/WorkspacePage.tsx`、`RunDrawer.tsx`：任务、历史和执行结果。
+- `frontend/src/pages/workspace/RunActions.tsx`、`panels.ts`：插件动作、版本化文本面板与内部 Run 导航。
+- `backend/src/platform/plugins/runActions.ts`：动作注册与面板 Schema。
 - `frontend/src/pages/workspace/CatalogPage.tsx`、`ConnectionsPage.tsx`、`KnowledgePage.tsx`：能力、连接与知识。
 - `frontend/src/pages/workspace/state.ts`、`input.ts`、`frontend/src/api.ts`：共享请求、输入和链接边界。
 
 ### 主要测试
+
+- `backend/test/workspaceActions.test.ts`、`backend/test/runActions.test.ts`：第三方贡献、目标/作用域、幂等、缓存不刷新、独立评估和停机等待。
+- `frontend/src/pages/workspace/panels.test.mjs`：面板版本、大小与非法格式降级。
 
 - `backend/test/workspace.test.ts`：私有配置、重启生效、串行保存、坏配置拒绝、本机 Origin、真实插件 API、Scope、幂等、示例知识与人工继续。
 - `frontend/src/pages/workspace/input.test.mjs`：知识请求契约、旧看板链接与原文协议限制。
@@ -139,4 +157,5 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 增加插件拥有的后续动作、知识引用检查与独立报告；HTTP 默认加载复核插件 | 插件动作/API 专项、后端回归、前端检查与桌面/375px 浏览器验收 |
 | 2026-11-05 | 本地 Agent 工作台、真实运行与知识入口、可填写连接设置、响应式浅色应用壳 | 工作台专项、后端回归、前端检查和本地浏览器验收 |

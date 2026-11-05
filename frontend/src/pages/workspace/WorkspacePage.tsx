@@ -48,12 +48,13 @@ export default function WorkspacePage({ history = false }: { history?: boolean }
         <section className="task-composer" aria-labelledby="new-task-title">
           <div className="composer-heading"><div className="icon-tile"><RobotOutlined aria-hidden /></div><h2 id="new-task-title">发起一个任务</h2><span className="muted">本地工作区</span></div>
           <label className="sr-only" htmlFor="task-prompt">任务内容</label>
-          <Input.TextArea id="task-prompt" className="task-input" value={prompt} onChange={e => setPrompt(e.target.value)} autoSize={{ minRows: 4, maxRows: 12 }} maxLength={4000} placeholder={capability.startsWith('knowledge.') ? '输入你想检索或回答的问题…' : '描述你想完成的工作，例如：帮我梳理本周项目的风险与下一步安排…'} />
+          <Input.TextArea id="task-prompt" className="task-input" value={prompt} onChange={e => setPrompt(e.target.value)} autoSize={{ minRows: 4, maxRows: 12 }} maxLength={4000} placeholder={capability === 'knowledge.impact.check' ? '填写历史回答或发布草稿的运行 ID，多项用逗号或空格分隔…' : capability.startsWith('knowledge.') ? '输入你想检索或回答的问题…' : '描述你想完成的工作，例如：帮我梳理本周项目的风险与下一步安排…'} />
           {groupTask && <div className="group-picker"><label htmlFor="run-group">目标团队</label><Select id="run-group" placeholder="选择已配置的群组" value={groupId} onChange={setGroupId} options={(config?.groups || []).map((g: { chat_id: string; name?: string }) => ({ value: g.chat_id, label: g.name || g.chat_id }))} notFoundContent={<Link to="/config">先配置团队</Link>} /></div>}
           <div className="composer-footer"><div className="agent-picker"><label htmlFor="task-agent">执行能力</label><Select id="task-agent" value={capability} onChange={selectCapability} options={data?.agents.filter(a => a.status === 'active').flatMap(a => a.capabilities.map(value => ({ value, label: capabilityName(value) })))} /></div>
             <Button type="primary" icon={<ArrowUpOutlined aria-hidden />} loading={running} onClick={execute} disabled={!agent || (!jsonInput.trim() && (groupTask ? !groupId : !prompt.trim())) || Boolean(requiresModel && !data?.modelConfigured)}>开始执行</Button>
           </div>
           {requiresModel && !data?.modelConfigured && <div className="composer-notice">此能力需要模型服务。<Link to="/connections">去连接模型 <ArrowRightOutlined aria-hidden /></Link>，也可以先体验下方的笔记检索。</div>}
+          {capability === 'knowledge.impact.check' && <div className="composer-notice">也可以在<Link to="/runs">历史结果详情</Link>中直接点击「检查引用变化」。</div>}
           <Collapse ghost className="advanced-input" items={[{ key: 'input', label: '高级任务参数', children: <><p className="muted">为已安装插件提供结构化输入；填写后替代上方任务描述。</p><Input.TextArea aria-label="JSON 任务参数" value={jsonInput} onChange={e => setJsonInput(e.target.value)} placeholder={'{ "prompt": "任务描述" }'} rows={4} /></> }]} />
         </section>
         {runError && <Alert type="error" showIcon title="任务未能发起" description={runError} />}
@@ -72,6 +73,6 @@ export default function WorkspacePage({ history = false }: { history?: boolean }
         ]} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={<><strong>还没有运行记录</strong><p>发起第一个任务后，执行过程和结果会保存在这里。</p></>} /> }} />
       </section>
     </>}
-    <RunDrawer key={runId || 'closed'} runId={runId} onClose={() => setRunId(null)} />
+    <RunDrawer key={runId || 'closed'} runId={runId} onClose={() => setRunId(null)} onSelectRun={setRunId} />
   </div>;
 }

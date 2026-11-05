@@ -7,6 +7,7 @@ import { isLocalWorkspaceRequest, type LocalConnections } from './connections';
 
 const runInput = z.object({ capability: z.string().min(1).max(200), input: z.record(z.string(), z.unknown()).refine(value => Buffer.byteLength(JSON.stringify(value)) <= 32768), triggerId: z.string().uuid().optional() }).strict();
 const resumeInput = runInput.omit({ capability: true });
+const actionInput = z.object({ triggerId: z.string().uuid().optional() }).strict();
 
 export function createWorkspaceApi(host: AgentHost, connections: LocalConnections, getConfig: () => AppConfig) {
     return new Elysia({ prefix: '/api/workspace', name: 'local-agent-workspace' })
@@ -40,6 +41,16 @@ export function createWorkspaceApi(host: AgentHost, connections: LocalConnection
             const details = await host.getLocalRunDetails(params.runId);
             if (!details) { set.status = 404; return { error: '未找到运行记录' }; }
             return details;
+        })
+        .get('/runs/:runId/actions', async ({ params, set }) => {
+            const actions = await host.getLocalRunActions(params.runId);
+            if (!actions) { set.status = 404; return { error: '未找到运行记录' }; }
+            return { actions };
+        })
+        .post('/runs/:runId/actions/:actionId', async ({ params, body }) => {
+            const input = actionInput.parse(body);
+            const result = await host.runLocalAction(params.runId, params.actionId, input.triggerId || randomUUID());
+            return { runId: result.execution?.run.id || result.claim.runId, status: result.execution?.run.status || result.status };
         })
         .post('/runs/:runId/resume', async ({ params, body }) => {
             const input = resumeInput.parse(body);

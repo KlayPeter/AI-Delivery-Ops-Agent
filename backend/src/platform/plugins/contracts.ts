@@ -12,6 +12,7 @@ import type { MessageRoute, MessageRouteRegistry } from '@/services/messageHandl
 import type { GroupSchedule, ScheduleRegistry } from '@/platform/scheduling/registry';
 import type { OrchestratorAdapter } from '@/platform/models/contracts';
 import type { ToolGateway } from '@/platform/tools/gateway';
+import type { RunActionRegistry } from './runActions';
 
 export interface PluginManifest {
     apiVersion: '1.0';
@@ -36,6 +37,7 @@ export interface PluginHostServices {
     skills: Pick<SkillRegistry, 'register'>;
     messageRoutes: Pick<MessageRouteRegistry, 'register'>;
     schedules: Pick<ScheduleRegistry, 'register'>;
+    runActions: Pick<RunActionRegistry, 'register'>;
     orchestrator: OrchestratorAdapter;
     toolGateway: Pick<ToolGateway, 'execute'>;
     bots: BotRegistry;

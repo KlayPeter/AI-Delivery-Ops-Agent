@@ -1,4 +1,5 @@
 import { PluginRuntime } from '@/platform/plugins/runtime';
+import { RunActionRegistry, statusPanelSchema, type StatusPanel } from '@/platform/plugins/runActions';
 import type { FeaturePlugin } from '@/platform/plugins/contracts';
 import type { SourceMessage } from '@/models/types';
 import type { AgentManifest, AgentRun } from '@/platform/agents/contracts';
@@ -76,6 +77,7 @@ export interface AgentHostOptions {
 export class AgentHost {
     readonly messageRoutes: MessageRouteRegistry;
     readonly schedules: ScheduleRegistry;
+    readonly runActions = new RunActionRegistry();
     readonly registry = new AgentRegistry();
     readonly nativeAdapter = new NativeAgentAdapter();
     readonly bots = new BotRegistry();
@@ -368,10 +370,35 @@ export class AgentHost {
     }
 
     async getLocalRunDetails(runId: string) {
+        return await this.localRun(runId) ? this.getRunDetails(runId) : null;
+    }
+
+    private async localRun(runId: string) {
         await this.initialize();
         const run = await this.runStore!.get(runId);
         if (!run || run.workspaceId !== DEFAULT_WORKSPACE_ID || run.botInstanceId !== DEFAULT_BOT_INSTANCE_ID) return null;
-        return this.getRunDetails(runId);
+        return run;
+    }
+
+    async getLocalRunActions(runId: string) {
+        const run = await this.localRun(runId);
+        if (!run) return null;
+        return this.track(() => Promise.all(this.runActions.forRun(run).map(async action => {
+            let panel: StatusPanel;
+            try { panel = statusPanelSchema.parse(await action.readState(run)); }
+            catch { panel = { schemaVersion: '1.0' as const, tone: 'error' as const, title: '动作状态暂不可用', description: '读取状态失败，请稍后重试。' }; }
+            return { id: action.id, label: action.label, description: action.description, available: this.canDispatch(action.capability, run.workspaceId, run.botInstanceId), panel };
+        })));
+    }
+
+    async runLocalAction(runId: string, actionId: string, triggerId: string) {
+        return this.track(async () => {
+            const run = await this.localRun(runId);
+            if (!run) throw new Error('Run not found in local workspace');
+            const action = this.runActions.forRun(run).find(item => item.id === actionId);
+            if (!action || !this.canDispatch(action.capability, run.workspaceId, run.botInstanceId)) throw new Error('Run action is not available for this run');
+            return this.runLocal(action.capability, action.input(run.id), `run-action:${encodeURIComponent(action.id)}:${encodeURIComponent(run.id)}:${triggerId}`);
+        });
     }
 
     listPlugins() {
@@ -472,6 +499,7 @@ export class AgentHost {
             skills: this.skillRegistry,
             messageRoutes: this.messageRoutes,
             schedules: this.schedules,
+            runActions: this.runActions,
             orchestrator,
             toolGateway: this.toolGateway,
             bots: this.bots,

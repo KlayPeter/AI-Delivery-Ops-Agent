@@ -33,6 +33,7 @@ flowchart TD
     V -- 整轮失败或取消 --> F[明确失败，不查询旧索引]
     I --> VT[versions Tool：来源身份、当前版本与可用性]
     VT --> IC[可选历史引用复核]
+    UI[本机工作台显式检查引用变化] --> IC
     I --> Q[与网页源共享中文分词和关键词排序]
     Q --> E[来源版本、引用 ID、行号、原文片段与链接状态]
     E --> A[JSON Artifact / CLI 输出]
@@ -79,6 +80,10 @@ flowchart TD
 - 用 `bun run src/scripts/knowledge.ts --root examples/knowledge-vault --query 'API 迁移说明'` 执行真实检索。
 - 不传 query 时获取同步报告；可传目录排除前缀和可选 Obsidian Vault 名称。
 - 使用虚构样例 Vault 验证来源、链接和引用。
+
+## 工作台来源组合
+
+HTTP 默认组合将所选来源、knowledge.answer 与 knowledge.impact 一起装配。回答详情的「检查引用变化」来自 impact 插件，显式核验旧结果实际引用的版本；状态刷新只读最近评估，原文与回答不重写。SDK 团队组合不默认装配知识功能，显式 AGENT_PLUGINS_FILE 仍完全管理插件选择。
 
 ## 入口与触发
 
@@ -131,6 +136,8 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 ### 主要实现
 
+- `backend/src/platform/workspace/knowledge.ts`：HTTP 选定来源/回答/复核组合。
+
 - `backend/src/knowledge/versions.ts`：版本请求与响应协议。
 - `backend/src/platform/persistence/sqliteStore.ts`：CLI 可选私有持久化与单会话锁。
 - `backend/src/knowledge/modelConfiguration.ts`：知识 CLI 与发布准备共用显式模型配置，query/sync 不使用模型。
@@ -143,12 +150,15 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 ### 主要测试
 
+- `backend/test/workspaceActions.test.ts`：工作台组合、只读缓存、实际版本复核与原证据保留。
+
 - `backend/test/knowledgeMarkdown.test.ts`：解析定位、链接歧义、增删改/改名、排除与符号链接、预算、失败关闭、取消、真实 Host/Artifact、入口限制和 CLI 只读。
 
 ## 变更记录
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | HTTP 来源/回答组合默认加入复核插件，提供显式界面入口 | 插件动作/API 专项、后端回归、前端检查与桌面/375px 浏览器验收 |
 | 2026-11-05 | 修复已有 CLI 状态文件的文件检查释放 POSIX 会话锁，重复拒绝不能放行其他进程 | 本地状态与知识复核专项、类型检查、后端回归 |
 | 2026-11-05 | 增加本机工作台来源配置与检索/回答入口，保留个人 Scope 和来源契约 | 工作台专项、后端回归、前端检查与本地浏览器验收 |
 | 2026-11-05 | 首次实现只读 Markdown/Obsidian 来源插件、版本化关键词检索与本地 CLI | 专项 10 项测试与 CLI 执行、类型及打包检查；后端全量 438 通过 / 1 真实 TAPD 跳过 |
