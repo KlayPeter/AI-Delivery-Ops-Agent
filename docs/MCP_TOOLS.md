@@ -27,7 +27,7 @@ args:
   - /actual/selected-vault
 ```
 
-该包声明 Node.js >=24；也可使用符合版本要求的 node。此次真实接入验收使用 Bun 1.3.14，不代表已覆盖所有平台与 Node 版本。上游[许可证](https://github.com/modelcontextprotocol/servers/blob/main/LICENSE)处于 MIT/Apache-2.0 迁移阶段，分发时按所选版本核对；本项目仅提供连接配置与自己的示例，不复制上游服务源码。
+该包声明 Node.js >=24；也可使用符合版本要求的 node。此次真实接入验收使用 Bun 1.3.13；CI 配置使用 Bun 1.3.14，不代表已覆盖所有平台与 Node 版本。上游[许可证](https://github.com/modelcontextprotocol/servers/blob/main/LICENSE)处于 MIT/Apache-2.0 迁移阶段，分发时按所选版本核对；本项目仅提供连接配置与自己的示例，不复制上游服务源码。
 
 按[本地运行说明](LOCAL_DEVELOPMENT.md)初始化数据库，在 backend 目录使用此配置启动：
 
