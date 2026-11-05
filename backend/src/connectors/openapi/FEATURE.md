@@ -14,7 +14,7 @@ last_reviewed: 2026-11-06
 
 ## 功能定位
 
-`openapi.setup` 拥有发现 Agent/Tool、页面与配置导出 API；`connector.openapi` 拥有实际 GET Tool、通用 Native 运行 Agent、页面与描述 API。两者都是显式组合，默认个人工作台仍为十四插件、九 Agent。使用既有 Cordis、Host、Tool Gateway、Run/Step/Artifact，不执行第三方仓库代码，不新增数据库或模型调用。
+`openapi.setup` 拥有发现 Agent/Tool、页面与配置导出 API；`connector.openapi` 拥有实际 GET Tool、通用 Native 运行 Agent、页面与描述 API。两者都是显式组合，默认个人工作台为十五插件、九 Agent。使用既有 Cordis、Host、Tool Gateway、Run/Step/Artifact，不执行第三方仓库代码，不新增数据库或模型调用。
 
 ## 实现流程图
 
@@ -34,6 +34,8 @@ flowchart TD
     ROUTE --> GET[白名单 Tool：参数 Schema 与固定地址]
     GET --> NET
     NET --> RESULT[有界 JSON、响应指纹、原始产物与文本预览]
+    YAML --> PC[可选插件组合：保留原契约并统一路径]
+    PC --> PERSONAL_COMBO[个人基底加不同种类插件；下载后保存重启]
 ```
 
 ## 能力边界
@@ -118,3 +120,7 @@ OAuth/Bearer、私网/本机 API、Swagger 2、写入方法、任意 Header/Cook
 | --- | --- | --- |
 | 2026-11-06 | 导出可选保留个人工作台与本机来源；旧独立请求保持 | 实际基底重载、固定 GET 与知识检索、回归及浏览器验证 |
 | 2026-11-06 | 新增显式 OpenAPI 发现、记录绑定授权与固定契约读取插件 | 专项、类型/前端门禁、后端回归及 Open-Meteo 本地端到端验收；见用户指南与提交证据 |
+
+## 与其他已审查插件组合
+
+个人默认 plugins.compose 可把本功能导出文件与不同种类的 Skill/MCP/OpenAPI 导出文件一起校验、预览并生成 backend 根目录的个人基底配置。每种各一份，拒绝重复或未知模块；原始 Skill 形态/ID、内容/许可与工具授权/来源契约保留。不会合并当前自定义配置或重新审查来源，下载后手动保存重启。当前基底十五插件、九 Agent，历史验证批次的数量以当时提交为准。流程与验证见[组合功能卡](../profile-workbench/FEATURE.md)，代码：connectors/profile-workbench/compose.ts、plugin.ts；测试：backend/test/profileComposer.test.ts 及本功能既有回归。

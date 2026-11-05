@@ -45,7 +45,7 @@ await host.stop();
 AGENT_PLUGINS_FILE=profiles/agents/team.yaml bun run dev
 ```
 
-团队 SDK 未指定插件时仍为十二个功能插件、七个 Agent；HTTP 工作台默认只装配选定知识来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收、MCP 接入助手、个人研究及任务配方，共十四个插件、九个 Agent；配置 GitHub 发布组合后为 16 个插件、10 个 Agent。HTTP 不再隐式装配团队能力；使用 profiles/agents/team.yaml 可显式选择九个团队功能插件及三个模型插件。会议纪要和外部 AI Hot 调度插件没有独立 Agent。会议纪要仍受原有模块开关控制，外部 AI Hot 能力仍需另行安装。示例还包括 `profiles/agents/native-demo.yaml`、`profiles/agents/empty.yaml` 和 `backend/examples/plugins.collectors.yaml`，分别选择 Echo 模板、零业务插件和采集/资料库三个插件。显式插件文件完全决定组合；未装配的插件页面和 API 不开放，基础服务仍由应用拥有。
+团队 SDK 未指定插件时仍为十二个功能插件、七个 Agent；HTTP 工作台默认只装配选定知识来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收、MCP 接入助手、个人研究及任务配方，共十五个插件、九个 Agent；配置 GitHub 发布组合后为 17 个插件、10 个 Agent。HTTP 不再隐式装配团队能力；使用 profiles/agents/team.yaml 可显式选择九个团队功能插件及三个模型插件。会议纪要和外部 AI Hot 调度插件没有独立 Agent。会议纪要仍受原有模块开关控制，外部 AI Hot 能力仍需另行安装。示例还包括 `profiles/agents/native-demo.yaml`、`profiles/agents/empty.yaml` 和 `backend/examples/plugins.collectors.yaml`，分别选择 Echo 模板、零业务插件和采集/资料库三个插件。显式插件文件完全决定组合；未装配的插件页面和 API 不开放，基础服务仍由应用拥有。
 
 ```yaml
 apiVersion: '1.0'
@@ -314,3 +314,7 @@ retrievalEvidence.source 可选 sources 覆盖数组（最多两项，markdown/w
 ## 无 MCP 的公开 REST 项目
 
 提供 OpenAPI 3.0/3.1 JSON/YAML 的服务可选择内置 openapi.setup / connector.openapi，经过目录发现、成功原记录绑定授权导出和固定 GET 运行；无需执行仓库代码或编写专属 Agent。支持边界、参数序列化、配置与复现见 [OpenAPI 工具](OPENAPI_TOOLS.md)。这是原生插件中的受控适配方式，不承诺兼容任意 OpenAPI 或仓库。
+
+## 已审查导出文件的组合
+
+个人默认 plugins.compose 提供本机页面与结构转换 API，见[组合指南](PLUGIN_PROFILES.md)。它只接受固定模块集合的 Skill/MCP/OpenAPI 导出文件，不调用通用动态加载器验证未知代码；普通原生配置仍按上面的可信代码装配规范处理。输出使用 base personal 和 backend 根目录相对模块，保留旧单份 Skill 的 ID 形态、集合固定 ID 和原始指令/许可，MCP 授权必须与运行器一致，OpenAPI 固定契约不扩大。它不自动继承其他显式配置。

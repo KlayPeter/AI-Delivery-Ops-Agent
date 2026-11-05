@@ -101,3 +101,7 @@ KNOWLEDGE_PROVIDER=ollama KNOWLEDGE_MODEL='<已有模型名>' bun run src/script
 本机接口仅允许 HTTP 回环地址、固定 /v1 Chat Completions，不经过全局代理，也不发送旧云端密钥。Ollama 自身可以选择云端模型；如需本地推理，请确认你使用的是本机权重。当前测试采用真实 SDK 与本机协议服务，未在本机安装或验证真实 Ollama 推理。显式 YAML 需自行加入[模型提供者插件](PLUGIN_AUTHORING.md#模型提供者插件)；空组合不会隐式提供模型。
 
 接口来源：[Ollama OpenAI 兼容说明](https://github.com/ollama/ollama/blob/main/docs/api/openai-compatibility.mdx)、[本机与云端认证范围](https://github.com/ollama/ollama/blob/main/docs/api/authentication.mdx)。
+
+## 让多个已接入插件共同启用
+
+在「插件 → 组合接入配置」选择已审查并下载的 Skill、MCP、OpenAPI YAML，各一份。校验后核对来源、工具与完整配置，再下载到 backend/；按页面命令从仓库根目录重启。个人知识来源和连接设置沿用本机，已有运行记录保留；不会自动合并当前自定义组合。完整步骤与限制见[插件配置组合](PLUGIN_PROFILES.md)。

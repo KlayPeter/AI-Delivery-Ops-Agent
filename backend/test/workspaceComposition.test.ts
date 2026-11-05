@@ -32,7 +32,7 @@ const createHost = async (store = new InMemoryPersistentKeyValueStore(), file = 
 
 test('HTTP default loads personal plugins without implicit team agents, routes or manual jobs', async () => {
     const selected = await loadWorkspacePlugins(directory, '');
-    expect(selected.plugins).toHaveLength(14);
+    expect(selected.plugins).toHaveLength(15);
     expect(selected.plugins.some(plugin => plugin.manifest.id.startsWith('builtin.'))).toBe(false);
     const host = await createHost();
     try {
@@ -74,7 +74,7 @@ test('an explicit personal base retains actual source settings, adds plugins and
     await writeFile(file, JSON.stringify({ apiVersion: '1.0', base: 'personal', plugins: [{ module: path.resolve(import.meta.dir, '../examples/plugins/echo.ts') }] }));
     process.env.AGENT_PLUGINS_FILE = file;
     const selection = await loadWorkspacePlugins(directory), config = { ...buildConfig({}), data_path: directory };
-    expect(selection.base).toBe('personal'); expect(selection.plugins).toHaveLength(15);
+    expect(selection.base).toBe('personal'); expect(selection.plugins).toHaveLength(16);
     const host = new AgentHost(() => ({ store: new InMemoryPersistentKeyValueStore(), config, feishu: {}, tapd: {} } as any), 1000, undefined, [], { plugins: selection.plugins, pluginConfig: selection.config });
     try {
         const result = await host.runLocal('knowledge.markdown.retrieve', { operation: 'search', query: 'API 迁移说明', limit: 5 }, randomUUID());
@@ -94,7 +94,7 @@ test('an explicit personal base retains actual source settings, adds plugins and
     expect(library.config['knowledge.markdown']!.root).not.toContain(process.env.DATA_DIR!);
     process.env.RELEASE_GITHUB_REPOSITORY = 'example/project';
     const github = await loadWorkspacePlugins(directory);
-    expect(github.plugins).toHaveLength(17); expect(github.config['connector.github']!.repository).toBe('example/project');
+    expect(github.plugins).toHaveLength(18); expect(github.config['connector.github']!.repository).toBe('example/project');
     await writeFile(file, JSON.stringify({ apiVersion: '1.0', base: 'personal', plugins: [{ module: 'knowledge.markdown' }] }));
     await expect(loadWorkspacePlugins(directory)).rejects.toThrow('Duplicate plugin');
 });
@@ -119,7 +119,7 @@ test('switching profiles preserves successful run artifacts and does not re-enab
 test('mixed HTTP selection composes both sources, matching answer/research/impact, and the optional mixed release port', async () => {
     process.env.KNOWLEDGE_KIND = 'mixed'; process.env.KNOWLEDGE_ROOT = path.join(import.meta.dir, '../examples/knowledge-vault'); process.env.KNOWLEDGE_URLS = 'https://example.com/policy';
     const selection = await loadWorkspacePlugins(directory, '');
-    expect(selection.plugins).toHaveLength(16);
+    expect(selection.plugins).toHaveLength(17);
     expect(selection.plugins.find(plugin => plugin.manifest.id === 'knowledge.answer')!.manifest.requires).toEqual(['knowledge.mixed']);
     const host = new AgentHost(() => ({ config: { ...buildConfig({}), data_path: directory }, store: new InMemoryPersistentKeyValueStore(), feishu: {}, tapd: {} } as any), 1000, undefined, [], {
         plugins: selection.plugins.map(plugin => plugin.manifest.id === 'knowledge.web' ? createKnowledgeWebPlugin(async () => ({ url: 'https://example.com/policy', body: Buffer.from('# API policy\nAPI needs migration notes.'), contentType: 'text/markdown' })) : plugin), pluginConfig: selection.config,
@@ -131,7 +131,7 @@ test('mixed HTTP selection composes both sources, matching answer/research/impac
         expect((result.execution!.result.data as any).hits.some((hit: any) => hit.sourceKind === 'web')).toBe(true);
     } finally { await host.stop(); }
     process.env.RELEASE_GITHUB_REPOSITORY = 'example/project';
-    const release = await loadWorkspacePlugins(directory, ''); expect(release.plugins).toHaveLength(18);
+    const release = await loadWorkspacePlugins(directory, ''); expect(release.plugins).toHaveLength(19);
     expect(release.plugins.find(plugin => plugin.manifest.id === 'release.prepare')?.manifest.requires).toContain('knowledge.mixed');
     const demo = await loadWorkspacePlugins(directory, profile('knowledge-mixed-demo'));
     expect(demo.plugins).toHaveLength(11); expect(demo.plugins.reduce((sum, plugin) => sum + (plugin.agents?.length || 0), 0)).toBe(7); expect(demo.plugins.find(plugin => plugin.manifest.id === 'personal.research')?.manifest.requires).toContain('knowledge.mixed');

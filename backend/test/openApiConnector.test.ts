@@ -140,7 +140,7 @@ test('a personal OpenAPI export retains the actual knowledge workbench and only 
         const exported = await exportOpenApiProfile(store, { inspectionRunId: inspection.execution!.run.id, reviewedReadOnly: true, selections: [{ key: 'GET /items/{id}', serverUrl: 'https://api.example.com/v1' }], includePersonalWorkspace: true });
         expect(exported.filename).toBe('openapi-fixture.personal.local.yaml'); expect(parse(exported.yaml).base).toBe('personal'); expect(parse(exported.yaml).plugins).toHaveLength(2);
         await writeFile(file, exported.yaml); await expect(loadPluginConfiguration(file)).rejects.toThrow('本机工作台');
-        const selection = await loadWorkspacePlugins(directory, file); expect(selection.base).toBe('personal'); expect(selection.plugins).toHaveLength(16);
+        const selection = await loadWorkspacePlugins(directory, file); expect(selection.base).toBe('personal'); expect(selection.plugins).toHaveLength(17);
         const config = { ...buildConfig({}), data_path: directory };
         runner = new AgentHost(() => ({ store, config, feishu: {}, tapd: {} } as any), 1000, undefined, [], { plugins: selection.plugins.map(plugin => plugin.manifest.id === 'connector.openapi' ? createOpenApiConnectorPlugin(f.network) : plugin), pluginConfig: selection.config });
         await runner.initialize(); expect(await runner.listAgents()).toHaveLength(11);

@@ -40,6 +40,8 @@ flowchart TD
     ROUTE --> GATE[同一 Run、Scope、取消信号及共享两次 Tool 预算]
     GATE --> CALL[已授予的 MCP Tool；校验实时参数与输出]
     CALL --> RESULT[Agent 与两个 Tool 步骤、简洁状态面板、原始 JSON 与可读文本]
+    YAML --> PC[可选插件组合：保留原契约并统一路径]
+    PC --> PERSONAL_COMBO[个人基底加不同种类插件；下载后保存重启]
 ```
 
 ## 能力边界
@@ -141,3 +143,7 @@ flowchart TD
 ## 共用有界输入读取
 
 profileRequest 委托 backend/src/platform/workspace/request.ts 的 readSmallJsonBody，保留 16 KiB、5 秒、AbortSignal 和流取消；前端 mcpInput.ts 兼容导出 toolInput.ts 的原 JSON 对象/32 KiB 校验。无 MCP 协议或导出字段变化。验证：mcpWorkbench.test.ts、openApiConnector.test.ts、mcpInput.test.mjs。
+
+## 与其他已审查插件组合
+
+个人默认 plugins.compose 可把本功能导出文件与不同种类的 Skill/MCP/OpenAPI 导出文件一起校验、预览并生成 backend 根目录的个人基底配置。每种各一份，拒绝重复或未知模块；原始 Skill 形态/ID、内容/许可与工具授权/来源契约保留。不会合并当前自定义配置或重新审查来源，下载后手动保存重启。当前基底十五插件、九 Agent，历史验证批次的数量以当时提交为准。流程与验证见[组合功能卡](../profile-workbench/FEATURE.md)，代码：connectors/profile-workbench/compose.ts、plugin.ts；测试：backend/test/profileComposer.test.ts 及本功能既有回归。

@@ -75,6 +75,8 @@ flowchart TD
     MCPRUN --> H
     REC[任务配方：原参数与版本审查] --> RECRUN[固定本机新运行；Runtime 核对实际契约]
     RECRUN --> RECEIPT[独立来源回执，原记录保留]
+    PC[插件页组合入口] --> PVF[固定 Skill/MCP/OpenAPI 导出契约校验]
+    PVF --> PD[下载个人基底配置；用户保存重启]
 ```
 
 ## 能力边界
@@ -426,3 +428,9 @@ Host 跟踪回执准备及其后台 completion。关闭时持续排空在途集�
 代码：backend/src/platform/agents/runtime.ts、contracts.ts；backend/src/platform/runtime/triggerRuntime.ts、triggerStore.ts、persistentTriggerStore.ts；backend/src/platform/bootstrap/agentHost.ts、workspace/api.ts；frontend/src/api.ts、pages/workspace/RunDrawer.tsx 及上述五类发起页面。验证：backend/test/runControl.test.ts、localRunApi.test.ts、既有 Runtime/Host/工作台回归；frontend/src/api.test.mjs 验证响应丢失复用 UUID、服务拒绝不重试与未确认提示。操作与限制见 [本机运行控制](../../../../docs/LOCAL_RUN_CONTROL.md)。
 
 2026-11-06 首次体验复验：从公开 main 的 1267801 新克隆，无项目依赖/配置/数据库，实际执行根 setup:local，浏览器无密钥检索成功；正常停止后本次两个监听端口关闭，local 再启动保留同一 Run/Step/Artifact 与原 .env（0600）。使用普通包缓存，未复用工作目录的 node_modules；记录见 docs/PROJECT_EVIDENCE.md 的“公开 main 全新安装复验”。运行行为保持，验证继续由 backend/test/localLauncher.test.ts、workspaceComposition.test.ts、featureIndex.test.ts 覆盖。
+
+## 插件组合配置（2026-11-06）
+
+默认个人组合新增可独立移除的 plugins.compose 控制面插件，当前十五插件、九 Agent；GitHub 配置后十七插件、十 Agent。插件页按实际页面贡献展示入口，页面不增加侧栏项目。只转换已审查的 Skill、匿名 HTTPS MCP 和固定 GET OpenAPI 导出文件，各一份；输出 base personal 与 backend 根目录相对模块路径。原 Skill 形态/ID、内容/许可及工具授权保留，不读取当前自定义配置、不导入输入指定模块、不联网、不持久化或创建 Run。下载后由用户保存并重启；历史运行数据保留。组合校验不替代来源/许可/用途审查。
+
+共享 JSON 读取器仅新增宿主指定的字节上限：默认仍 16 KiB，组合入口为 3 MiB 请求、1 MiB YAML 内容，保留五秒、取消和流清理。功能流程、代码与边界见[组合功能卡](../../connectors/profile-workbench/FEATURE.md)。实现：backend/src/connectors/profile-workbench/compose.ts、plugin.ts，frontend/src/pages/workspace/ProfileComposerPage.tsx / CatalogPage.tsx / PluginPage.tsx，platform/workspace/knowledge.ts / request.ts；验证：backend/test/profileComposer.test.ts、workspaceComposition.test.ts、featureIndex.test.ts，既有 Skill/MCP/OpenAPI 回归及前端门禁。

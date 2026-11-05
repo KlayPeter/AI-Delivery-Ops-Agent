@@ -80,6 +80,8 @@ button, summary { cursor: pointer; }
 .runs-section .ant-empty-description p { color: var(--muted); font-size: 13px; }
 .primary-link { display: inline-flex; gap: 8px; align-items: center; font-size: 14px; padding: 8px 0; }
 .catalog-search { max-width: 360px; margin-bottom: 24px; }
+.profile-file-input { display: block; max-width: 100%; min-height: 44px; margin: 8px 0; padding: 8px 0; font: inherit; }
+.profile-file-input::file-selector-button { min-height: 36px; margin-right: 12px; cursor: pointer; }
 .catalog-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
 .catalog-card { display: flex; flex-direction: column; padding: 22px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); min-width: 0; }
 .catalog-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }

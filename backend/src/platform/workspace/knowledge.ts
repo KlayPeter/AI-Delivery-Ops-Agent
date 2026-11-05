@@ -26,6 +26,7 @@ import { libraryRoot } from '@/knowledge/library/service';
 import { buildConfig } from '@/core/config';
 import { pluginChecksPlugin } from '@/quality/plugin';
 import { mcpSetupPlugin } from '@/connectors/mcp-workbench/plugin';
+import { profileWorkbenchPlugin } from '@/connectors/profile-workbench/plugin';
 import { createPersonalResearchPlugin } from '@/agents/personal-research/plugin';
 import { runRecipesPlugin } from '@/recipes/plugin';
 
@@ -45,7 +46,7 @@ export function workspaceKnowledge(dataPath = buildConfig({}).data_path): Plugin
             mixed ? knowledgeMixedAnswerPlugin : web ? knowledgeWebAnswerPlugin : knowledgeAnswerPlugin,
             mixed ? knowledgeMixedImpactPlugin : web ? knowledgeWebImpactPlugin : knowledgeImpactPlugin,
             createKnowledgeWorkspacePlugin(kind as 'sample' | 'markdown' | 'web' | 'library' | 'mixed'), webCapturePlugin, markItDownPlugin, knowledgeLibraryPlugin, pluginChecksPlugin, mcpSetupPlugin,
-            createPersonalResearchPlugin(mixed ? 'mixed' : web ? 'web' : 'markdown'), runRecipesPlugin], config,
+            createPersonalResearchPlugin(mixed ? 'mixed' : web ? 'web' : 'markdown'), runRecipesPlugin, profileWorkbenchPlugin], config,
     };
     if (!process.env.RELEASE_GITHUB_REPOSITORY) return selected;
     return {

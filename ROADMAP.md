@@ -35,6 +35,10 @@ are deferred while the local product is being validated.
 
 ## C. First useful product
 
+- [x] Compose reviewed Skill, MCP and OpenAPI export files through a plugin-owned
+  preview/download page, preserving the personal workspace and original grants.
+  One export per kind; custom native configs and authenticated onboarding remain separate.
+
 - [x] Provide local no-credential onboarding with labeled fictional notes, plus
   optional GitHub connection and release preparation from the workspace.
 - [x] Connect selected Markdown/Obsidian folders and public webpage URLs as source plugins;

@@ -14,7 +14,7 @@ last_reviewed: 2026-11-06
 
 ## 功能定位
 
-两个独立 FeaturePlugin：skills.setup 负责发现、审查与配置导出，skills.prompt 装配最多八份逐项审查的固定文本 Skill，由同一个 Native Agent 按明确选择运行。默认十四插件九 Agent 保持；本机独立组合显式启用。Native Agent 提供独立任务、时限与可观测结果，模型生成由已有 Prompt Skill Runtime 承担，没有复制模型或工具运行时。
+两个独立 FeaturePlugin：skills.setup 负责发现、审查与配置导出，skills.prompt 装配最多八份逐项审查的固定文本 Skill，由同一个 Native Agent 按明确选择运行。默认十五插件九 Agent；本机独立组合显式启用。Native Agent 提供独立任务、时限与可观测结果，模型生成由已有 Prompt Skill Runtime 承担，没有复制模型或工具运行时。
 
 ## 实现流程图
 
@@ -41,6 +41,8 @@ flowchart TD
     RUN --> SK[宿主 SkillRuntime：兼容性、输入、取消、步骤]
     SK --> MODEL[原 Prompt Executor 与模型网关]
     MODEL --> RESULT[文本 Artifact、实际模型步骤与指令 SHA]
+    EXPORT --> PC[可选插件组合：保留原契约并统一路径]
+    PC --> PERSONAL_COMBO[个人基底加不同种类插件；下载后保存重启]
 ```
 
 ## 能力边界
@@ -126,3 +128,7 @@ flowchart TD
 ## 本机任务体验
 
 本功能发起页使用持久启动回执，立即进入可轮询详情；手动根任务可请求停止，关闭页面后仍可从运行记录找回。停止沿既有执行信号传递，取消后不能继续或接受迟到成功，已保存产物与完成操作保留；子任务由父任务管理。CLI/SDK 与内联审查操作仍使用原同步接口。完整协议见[工作台功能卡](../../platform/workspace/FEATURE.md)；验证：backend/test/runControl.test.ts、localRunApi.test.ts 和本功能既有回归，frontend/src/api.test.mjs。
+
+## 与其他已审查插件组合
+
+个人默认 plugins.compose 可把本功能导出文件与不同种类的 Skill/MCP/OpenAPI 导出文件一起校验、预览并生成 backend 根目录的个人基底配置。每种各一份，拒绝重复或未知模块；原始 Skill 形态/ID、内容/许可与工具授权/来源契约保留。不会合并当前自定义配置或重新审查来源，下载后手动保存重启。当前基底十五插件、九 Agent，历史验证批次的数量以当时提交为准。流程与验证见[组合功能卡](../profile-workbench/FEATURE.md)，代码：connectors/profile-workbench/compose.ts、plugin.ts；测试：backend/test/profileComposer.test.ts 及本功能既有回归。

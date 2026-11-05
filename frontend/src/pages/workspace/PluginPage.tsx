@@ -26,6 +26,7 @@ const SkillSetupPage = lazy(() => import('./SkillSetupPage'));
 const SkillRunnerPage = lazy(() => import('./SkillRunnerPage'));
 const EvaluationsPage = lazy(() => import('./EvaluationsPage'));
 const RecipesPage = lazy(() => import('./RecipesPage'));
+const ProfileComposerPage = lazy(() => import('./ProfileComposerPage'));
 
 export default function PluginPage() {
   const { data, error, isLoading, mutate } = useWorkspace();
@@ -34,6 +35,7 @@ export default function PluginPage() {
   if (isLoading) return <div className="workspace-page"><Skeleton active /></div>;
   const page = findPluginPage(data?.pages, pathname, search);
   if (page?.view.kind === 'agent') return <Navigate replace to={pluginAgentHref(page.view.capability)} />;
+  if (page?.view.kind === 'builtin' && page.view.id === 'profile-composer') return <ProfileComposerPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'standups') return <StandupsPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'dashboard') return <DashboardPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'human-gantt') return <HumanGanttPage />;
