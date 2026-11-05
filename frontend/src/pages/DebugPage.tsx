@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Typography, Card, Button, Row, Col, message, Select, Space } from 'antd';
+import { Typography, Card, Button, Row, Col, message, Select, Space, Switch } from 'antd';
 import { PlayCircleOutlined } from '@ant-design/icons';
 import { api } from '@/api';
 
 const { Title } = Typography;
 
 const JOBS = [
-  { id: 'standup-push', name: '推送站会模板', desc: '向所有成员私聊发送每日站会模板' },
+  { id: 'standup-push', name: '推送普通站会模板', desc: '向成员私聊发送每日普通站会模板' },
+  { id: 'task-standup-template', name: '推送任务型站会模板', desc: '向群发送任务登记模板；关闭群聊投递时不发送消息' },
   { id: 'standup-remind', name: '站会未交提醒', desc: '检查未交站会的成员并私聊提醒' },
   { id: 'standup-summary', name: '生成站会汇总', desc: '读取所有站会信息汇总发到研发群' },
   { id: 'overdue-scan', name: '超期任务扫描', desc: '扫描 TAPD 延期任务并通知负责人' },
@@ -18,6 +19,7 @@ const DebugPage = () => {
   const [runningJob, setRunningJob] = useState<string | null>(null);
   const [groups, setGroups] = useState<any[]>([]);
   const [selectedGroup, setSelectedGroup] = useState('');
+  const [sendToGroup, setSendToGroup] = useState(false);
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -42,7 +44,7 @@ const DebugPage = () => {
     }
     setRunningJob(jobId);
     try {
-      const res = await api.triggerJob(jobId, selectedGroup, false);
+      const res = await api.triggerJob(jobId, selectedGroup, false, sendToGroup);
       if (res.ok) {
         const jobName = JOBS.find(j => j.id === jobId)?.name || jobId;
         message.success(res.message || `任务【${jobName}】运行完成`);
@@ -62,7 +64,7 @@ const DebugPage = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
           <Title level={3} style={{ margin: 0, marginBottom: 8 }}>手动触发任务</Title>
-          <Typography.Text type="secondary" style={{ display: 'block' }}>手动触发各个自动化任务进行立即执行与状态验证</Typography.Text>
+          <Typography.Text type="secondary" style={{ display: 'block' }}>手动触发各个自动化任务进行立即执行与状态验证；关闭群聊投递时仍会执行数据更新</Typography.Text>
         </div>
         <Space>
           <span>目标群聊：</span>
@@ -73,6 +75,10 @@ const DebugPage = () => {
             placeholder="请选择群聊"
             options={groups.map((g: any) => ({ label: g.name || g.chat_id, value: g.chat_id }))}
           />
+          <Space size={8}>
+            <Switch checked={sendToGroup} onChange={setSendToGroup} />
+            <span>发送到群聊</span>
+          </Space>
         </Space>
       </div>
 

@@ -5,6 +5,7 @@ import dayjs from 'dayjs';
 import { isActiveTask } from '@/services/taskScope';
 import { overduePolicy } from '@/domains/task/overduePolicy';
 import { TaskService } from '@/services/taskService';
+import { aiDegradationNotice, classifyAiFailure, type AiFailureCategory } from '@/platform/aiDegradation';
 
 export const TASK_HINTS = ["任务", "负责", "跟进", "处理", "完成", "联调", "提测", "修复"];
 export const PROGRESS_HINTS = ["进度", "完成了", "已完成", "推进", "联调", "提测", "上线"];
@@ -23,7 +24,45 @@ export const DAILY_SUMMARY_LLM_REQUEST_TIMEOUT_MS = 30_000;
 interface MessageClassificationResult {
     classified: Record<string, any[]>;
     abstract?: string;
+    ai_degraded?: boolean;
+    ai_failure_category?: AiFailureCategory;
 }
+
+interface DailyMessageNote {
+    message_id: string;
+    sender_name: string;
+    sent_at: string;
+    disposition: "business" | "context" | "noise" | "unresolved";
+    semantic_note: string;
+    topic_hint: string;
+    type: string;
+    related_message_ids: string[];
+    confidence: number;
+}
+
+interface DailyMessageBatch {
+    context: any[];
+    targets: any[];
+}
+
+interface DailySummaryJsonResponse {
+    result: LLMResult;
+    raw?: any;
+    error?: string;
+    recovery?: "balanced_closures" | "model_retry" | "model_retry_and_balanced_closures";
+    retry_attempted: boolean;
+}
+
+interface DailySummaryJsonParse {
+    ok: boolean;
+    value?: any;
+    error?: string;
+    repaired: boolean;
+}
+
+const DAILY_SUMMARY_BATCH_MAX_MESSAGES = 60;
+const DAILY_SUMMARY_BATCH_MAX_CHARS = 24_000;
+const DAILY_SUMMARY_CONTEXT_MESSAGE_COUNT = 8;
 
 export const STATUS_MAP: Record<string, string> = {
     "pending_primary_owner": "待主负责人处理",
@@ -101,8 +140,17 @@ export async function buildDailySummary(
         .forEach(item => uniqueTasks.set(`${item.parent_id || "root"}:${item.title}`, item));
     const tasks = Array.from(uniqueTasks.values());
 
-    const updates = (await store.listTaskUpdates())
-        .filter(item => inPeriod(item.created_at || "") && groupTaskIds.has(item.task_id || ""))
+    const periodUpdates = (await store.listTaskUpdates())
+        .filter(item => inPeriod(item.created_at || "") && groupTaskIds.has(item.task_id || ""));
+    const latestCommitmentUpdateByTask = new Map<string, any>();
+    for (const item of periodUpdates.filter(item => item.metadata?.standup_commitment)) {
+        const current = latestCommitmentUpdateByTask.get(item.task_id || "");
+        if (!current || String(item.created_at || "") > String(current.created_at || "")) {
+            latestCommitmentUpdateByTask.set(item.task_id || "", item);
+        }
+    }
+    const updates = periodUpdates
+        .filter(item => !item.metadata?.standup_commitment || latestCommitmentUpdateByTask.get(item.task_id || "")?.id === item.id)
         .map(item => ({
             ...updateSummaryItem(item, sourceMessagesById),
             task_title: tasksById[item.task_id || ""]?.title || "",
@@ -189,7 +237,9 @@ export async function buildDailySummary(
         meetings: classified.meetings,
         discusses,
         created_at: utcNowIso(),
-        ai_abstract: aiAbstract
+        ai_abstract: aiAbstract,
+        ai_degraded: classification.ai_degraded,
+        ai_failure_category: classification.ai_failure_category,
     };
 }
 
@@ -197,7 +247,12 @@ export function renderDailySummary(summary: DailySummary): string {
     const hasData = summary.highlights?.length || summary.tasks?.length || summary.progress_updates?.length ||
                     summary.blockers?.length || summary.decisions?.length || summary.risks?.length ||
                     summary.helps?.length || summary.shares?.length || summary.meetings?.length || summary.discusses?.length;
-    if (!hasData) return `${summary.date} 群内无可总结的有效工作信息。`;
+    const degradationNotice = summary.ai_degraded
+        ? aiDegradationNotice(summary.ai_failure_category || "unavailable", "确定性规则")
+        : "";
+    if (!hasData) {
+        return [degradationNotice, `${summary.date} 群内无可总结的有效工作信息。`].filter(Boolean).join("\n\n");
+    }
 
     const lines: string[] = [];
     const taskBlockers = (summary.blockers || []).filter(isTaskSummaryItem);
@@ -207,8 +262,9 @@ export function renderDailySummary(summary: DailySummary): string {
     const workDynamics = (summary.discusses || []).filter(item => ["progress", "task_plan"].includes(item.type));
     const collaborationItems = (summary.discusses || []).filter(item => item.type === "collaboration");
     const otherDiscusses = (summary.discusses || []).filter(item => !["progress", "task_plan", "collaboration"].includes(item.type));
+    if (degradationNotice) lines.push(degradationNotice, "");
     if (summary.ai_abstract) {
-        lines.push("🤖 **AI 总结：**", summary.ai_abstract, "");
+        lines.push(summary.ai_degraded ? "🧭 **规则归纳（AI 降级）：**" : "🤖 **AI 总结：**", summary.ai_abstract, "");
     }
 
     lines.push("**💼 第一部分：任务与交付**");
@@ -230,6 +286,11 @@ export function renderDailySummary(summary: DailySummary): string {
     if (summary.progress_updates?.length) {
         summary.progress_updates.forEach((item) => {
             const sender = senderName(item);
+            if (item.update_type === "standup_unreported") {
+                const taskTitle = item.task_title || item.title || item.content || "任务型站会事项";
+                lines.push(`${count++}. ${sender}：**未完成（未汇报）**${taskTitle ? `（${taskTitle}）` : ""}`);
+                return;
+            }
             if (item.progress_details?.length) {
                 lines.push(`${count++}. ${sender}${item.task_title ? `｜**${item.task_title}**` : ""}`);
                 item.progress_details.forEach((detail: any) => {
@@ -284,13 +345,11 @@ export function renderDailySummary(summary: DailySummary): string {
     }
 
     lines.push("", "---");
-    lines.push("**💬 第二部分：群聊天内容**");
+    lines.push("**💬 第二部分：群聊讨论归纳**");
     lines.push("");
     lines.push("**🗣️ 一、工作动态**");
     if (workDynamics.length) {
-        workDynamics.forEach((item, idx) => {
-            lines.push(`${idx + 1}. **【${chatTypeLabel(item.type)}】** ${senderName(item)}：${item.title || ''}`);
-        });
+        renderChatSummaryItems(lines, workDynamics);
     } else {
         lines.push("暂无工作动态。");
     }
@@ -298,7 +357,7 @@ export function renderDailySummary(summary: DailySummary): string {
     lines.push("", "**📅 二、决策与排期**");
     const decisionsAndSchedule = [...(summary.decisions || []), ...(summary.meetings || [])];
     if (decisionsAndSchedule.length) {
-        decisionsAndSchedule.forEach((item, idx) => lines.push(`${idx + 1}. **【${chatTypeLabel(item.type)}】** ${senderName(item)}：${item.title || ''}`));
+        renderChatSummaryItems(lines, decisionsAndSchedule);
     } else {
         lines.push("暂无决策与排期。");
     }
@@ -306,7 +365,7 @@ export function renderDailySummary(summary: DailySummary): string {
     lines.push("", "**🚧 三、风险与协作**");
     const risksAndCollaboration = [...chatBlockers, ...chatRisks, ...(summary.helps || []), ...collaborationItems];
     if (risksAndCollaboration.length) {
-        risksAndCollaboration.forEach((item, idx) => lines.push(`${idx + 1}. **【${chatTypeLabel(item.type)}】** ${senderName(item)}：${item.title || item.content || ''}`));
+        renderChatSummaryItems(lines, risksAndCollaboration);
     } else {
         lines.push("暂无风险与协作事项。");
     }
@@ -314,12 +373,7 @@ export function renderDailySummary(summary: DailySummary): string {
     lines.push("", "**🔗 四、资料与其他**");
     const resourcesAndOthers = [...(summary.shares || []), ...otherDiscusses];
     if (resourcesAndOthers.length) {
-        resourcesAndOthers.forEach((item, idx) => {
-            lines.push(`${idx + 1}. **【${chatTypeLabel(item.type)}】** ${senderName(item)}：${item.title || ''}`);
-            const ai = item.ai_result || {};
-            const urls = item.urls || ai.urls || (ai.url ? [ai.url] : []);
-            urls.forEach((url: string) => lines.push(`   - 链接：${url}`));
-        });
+        renderChatSummaryItems(lines, resourcesAndOthers);
     } else {
         lines.push("暂无资料或其他群内讨论。");
     }
@@ -421,16 +475,19 @@ async function classifyMessages(messages: any[], llm?: LLMAdapter, store?: Prism
     const candidateMessages = messages.filter(message => {
         if (message.message_type === "system") return false;
         const text = String(message.text || "").trim();
-        return text && !isIgnorableChatMessage(text) && !isTaskCreationCommandMessage(message);
+        return text && !isSystemOrSummaryCommandMessage(text) && !isTaskCreationCommandMessage(message);
     });
     const aiResult = llm ? await classifyMessagesWithAi(candidateMessages, llm, store) : null;
-    const classified = ensureRelevantMessageCoverage(
+    const aiDegraded = Boolean(llm && candidateMessages.length && !aiResult);
+    const classified = aiResult?.classified || ensureRelevantMessageCoverage(
         candidateMessages,
-        aiResult?.classified || classifyMessagesWithRules(candidateMessages),
+        classifyMessagesWithRules(candidateMessages),
     );
     return {
         classified: mergeClassificationTopics(classified),
         abstract: aiResult?.abstract,
+        ai_degraded: aiDegraded || undefined,
+        ai_failure_category: aiDegraded ? "unavailable" : undefined,
     };
 }
 
@@ -653,6 +710,49 @@ function chatTypeLabel(type: string): string {
     return labels[type] || "群聊动态";
 }
 
+function renderChatSummaryItems(lines: string[], items: any[]): void {
+    items.forEach((item, index) => {
+        const ai = item.ai_result || {};
+        const summaryText = String(item.title || item.content || "").trim();
+        const topicTitle = String(ai.topic_title || "").trim();
+        const status = topicStatusLabel(ai.status);
+        const label = [chatTypeLabel(item.type), status].filter(Boolean).join("｜");
+        const hasDistinctTopicTitle = topicTitle && comparableSummaryText(topicTitle) !== comparableSummaryText(summaryText);
+
+        if (ai.parser === "llm_daily_summary" && hasDistinctTopicTitle) {
+            lines.push(`${index + 1}. **【${label}】${topicTitle}**`);
+            if (summaryText) lines.push(`   - 讨论归纳：${summaryText}`);
+        } else {
+            const sender = ai.parser === "llm_daily_summary" ? "" : `${senderName(item)}：`;
+            lines.push(`${index + 1}. **【${label}】** ${sender}${summaryText}`);
+        }
+
+        const participants = stringList(ai.related_users);
+        if (participants.length) lines.push(`   - 参与：${participants.join("、")}`);
+        const conclusions = stringList(ai.conclusions);
+        if (conclusions.length) lines.push(`   - 已明确：${conclusions.join("；")}`);
+        const nextActions = stringList(ai.next_actions);
+        if (nextActions.length) lines.push(`   - 下一步：${nextActions.join("；")}`);
+        const openQuestions = stringList(ai.open_questions);
+        if (openQuestions.length) lines.push(`   - 待确认：${openQuestions.join("；")}`);
+
+        const urls = Array.from(new Set<string>(
+            stringList(item.urls || ai.urls || (ai.url ? [ai.url] : [])),
+        ));
+        urls.forEach(url => lines.push(`   - 链接：${url}`));
+    });
+}
+
+function topicStatusLabel(status: string): string {
+    const labels: Record<string, string> = {
+        resolved: "已形成结论",
+        in_progress: "推进中",
+        pending: "待确认",
+        informational: "信息同步",
+    };
+    return labels[status] || "";
+}
+
 function managerAttentionItems(summary: DailySummary): any[] {
     const candidates = [
         ...(summary.blockers || []),
@@ -688,34 +788,68 @@ function managerAttentionItems(summary: DailySummary): any[] {
 async function classifyMessagesWithAi(messages: any[], llm: LLMAdapter, store?: PrismaStore): Promise<MessageClassificationResult | null> {
     if (!messages.length) return { classified: emptyClassification() };
 
+    const orderedMessages = [...messages].sort((left, right) =>
+        String(left.sent_at || "").localeCompare(String(right.sent_at || ""))
+    );
+    const notes = await analyzeDailyMessages(orderedMessages, llm, store);
+    if (!notes) return null;
+
     const payload = {
-        messages: messages.map(item => ({
-            id: item.id || "",
-            sender_name: item.sender_name || "",
-            sent_at: item.sent_at || "",
-            text: item.text || "",
-        }))
+        message_notes: notes.map(note => ({
+            message_id: note.message_id,
+            sender_name: note.sender_name,
+            sent_at: note.sent_at,
+            disposition: note.disposition,
+            semantic_note: note.semantic_note,
+            topic_hint: note.topic_hint,
+            type: note.type,
+            related_message_ids: note.related_message_ids,
+            confidence: note.confidence,
+        })),
     };
 
-    const system = "你是研发交付群聊日报分析器。只输出 JSON，不要 Markdown。先完整阅读所有消息，再按业务主题合并总结，不要逐条复述消息。忽略纯确认词、机器人指令、日报生成/AI超时/上下文限制/重新总结等机器人运行讨论，以及无实质信息的闲聊；但链接资料、明确进展、任务安排、决策、评审排期、业务风险阻塞、协作要求必须保留。识别 progress(进展与交付)、task_plan(任务安排与分工)、decision(明确结论)、meeting(评审/会议/时间计划)、blocker(已发生阻塞)、risk(潜在延期/产能/优先级风险)、help(明确求助)、collaboration(跨角色协作)、share(链接或资料)、discuss(有业务意义的其他讨论)。同一主题的多条消息必须合并为一个 topic，并列出该主题全部真实 message_ids，短回复若补充同一排期也要并入已有 topic。长消息必须读到末尾，提炼主张、约束、行动和结论，不得整段照抄；每个 title 控制在30至100字，保留编号、负责人、时间、前置条件、结论和限制。管理者关注最多标记 3 个最突出的问题，仅限人力产能、优先级冲突、严重延期/阻塞、跨角色责任失衡、质量底线或关键承诺；普通评审通知不得标记。输出格式：{\"abstract\":\"80至150字的当日整体总结\",\"topics\":[{\"message_ids\":[\"真实消息ID\"],\"type\":\"progress|task_plan|decision|meeting|blocker|risk|help|collaboration|share|discuss\",\"title\":\"30至100字、按主题归并后的中文摘要，不得复制整段原文\",\"related_users\":[\"姓名\"],\"risk_level\":\"low|medium|high|\",\"impact_scope\":\"受影响范围\",\"urls\":[\"完整链接\"],\"manager_attention\":false,\"attention_reason\":\"仅在确需管理者关注时填写\",\"confidence\":0.0}]}。";
+    const system = [
+        "你是研发交付群聊日报的总编辑。只输出 JSON，不要 Markdown。",
+        "输入是模型已经逐条阅读并结合前文生成的语义笔记。你必须按完整时间线、回复关系和 related_message_ids 还原讨论，而不是逐条复述。",
+        "先识别同一业务问题的背景、追问、补充、分歧、结论与后续动作，再把整段对话合并成一个 topic；同一主题不得拆成多条。",
+        "只输出经过重新组织的第三人称归纳：summary 必须说明讨论对象与关键约束，并尽量交代当前结论、未决问题或下一步。禁止复制 semantic_note，更禁止拼接聊天原句。",
+        "disposition=noise 的笔记不进入正文；context 只有在帮助解释业务主题时才并入。每个 business 笔记必须被某个 topic 的 message_ids 覆盖。",
+        "类型只能是 progress、task_plan、decision、meeting、blocker、risk、help、collaboration、share、discuss。",
+        "status 只能是 resolved、in_progress、pending、informational。related_users 是实际参与讨论或承担动作的人。",
+        "conclusions 只写已明确的结论，next_actions 只写明确或可合理归纳的后续动作，open_questions 只写仍未解决的问题；不得臆造负责人或日期。",
+        "管理者关注最多 3 项，仅限产能、优先级冲突、严重延期/阻塞、责任失衡、质量底线或关键承诺。",
+        "abstract 用 100 至 220 字概括当天真正推进了什么、形成了什么结论、还有什么待处理，不要写“共归纳N项”之类统计套话。",
+        "输出格式：{\"abstract\":\"全日综述\",\"topics\":[{\"message_ids\":[\"真实消息ID\"],\"type\":\"progress|task_plan|decision|meeting|blocker|risk|help|collaboration|share|discuss\",\"topic_title\":\"8至24字主题名\",\"summary\":\"45至160字的上下文归纳，不得照抄输入\",\"status\":\"resolved|in_progress|pending|informational\",\"related_users\":[\"姓名\"],\"conclusions\":[\"结论\"],\"next_actions\":[\"下一步\"],\"open_questions\":[\"未决问题\"],\"risk_level\":\"low|medium|high|\",\"impact_scope\":\"受影响范围\",\"urls\":[\"完整链接\"],\"manager_attention\":false,\"attention_reason\":\"原因\",\"confidence\":0.0}]}。",
+    ].join("");
 
-    const result = await chatWithDailySummaryTimeout(llm, system, JSON.stringify(payload));
-    if (!result.ok || !result.content.trim()) {
-        if (store) await store.appendAuditLog("ai_daily_summary_failed", { stage: "classification", reason: result.error || "empty_response", message_count: messages.length });
+    const response = await requestDailySummaryJson(
+        llm,
+        system,
+        JSON.stringify(payload),
+    );
+    if (response.raw === undefined) {
+        if (store && typeof store.appendAuditLog === "function") {
+            const failure = classifyAiFailure(response.error || response.result.error || "empty_response");
+            await store.appendAuditLog("ai_daily_summary_failed", { stage: "synthesis", reason: failure.error, category: failure.category, fallback: "deterministic_rule", retry_attempted: response.retry_attempted, message_count: messages.length });
+        }
         return null;
     }
-
-    let raw: any;
-    try {
-        raw = JSON.parse(extractJson(result.content));
-    } catch (exc: any) {
-        if (store) await store.appendAuditLog("ai_daily_summary_failed", { stage: "classification", reason: `invalid_json: ${exc.message}`, message_count: messages.length });
-        return null;
+    if (response.recovery && store && typeof store.appendAuditLog === "function") {
+        await store.appendAuditLog("ai_daily_summary_recovered", {
+            stage: "synthesis",
+            recovery: response.recovery,
+            retry_attempted: response.retry_attempted,
+            message_count: messages.length,
+        });
     }
+    const raw = response.raw;
 
     const rawItems = Array.isArray(raw?.topics) ? raw.topics : (Array.isArray(raw?.items) ? raw.items : (Array.isArray(raw) ? raw : []));
     if (!Array.isArray(rawItems)) {
-        if (store) await store.appendAuditLog("ai_daily_summary_failed", { stage: "classification", reason: "items_not_list", message_count: messages.length });
+        if (store && typeof store.appendAuditLog === "function") {
+            const failure = classifyAiFailure("items_not_list");
+            await store.appendAuditLog("ai_daily_summary_failed", { stage: "synthesis", reason: failure.error, category: failure.category, fallback: "deterministic_rule", message_count: messages.length });
+        }
         return null;
     }
 
@@ -735,18 +869,25 @@ async function classifyMessagesWithAi(messages: any[], llm: LLMAdapter, store?: 
         const confidence = parseConfidence(rawItem.confidence);
         if (confidence < 0.6) continue;
 
-        let title = normalizeAiTopicTitle(String(rawItem.title || "").trim(), topicMessages);
+        let title = normalizeAiTopicTitle(aiTopicNarrative(rawItem, topicMessages), topicMessages);
         if (confidence < 0.85 && confidence !== 1.0) title = `可能：${title}`;
 
+        const sourceUrls = topicMessages.flatMap(topic => extractUrls(String(topic.text || "")));
+        const urls = Array.from(new Set([...stringList(rawItem.urls), ...sourceUrls]));
         const aiResult: any = {
             type: itemType,
             parser: "llm_daily_summary",
             title,
+            topic_title: conciseTopicTitle(String(rawItem.topic_title || rawItem.title || "").trim() || title, 40),
+            status: normalizeTopicStatus(rawItem.status),
             related_users: stringList(rawItem.related_users),
+            conclusions: stringList(rawItem.conclusions),
+            next_actions: stringList(rawItem.next_actions),
+            open_questions: stringList(rawItem.open_questions),
             risk_level: String(rawItem.risk_level || "").trim(),
             impact_scope: String(rawItem.impact_scope || "").trim(),
-            urls: stringList(rawItem.urls),
-            url: String(rawItem.url || rawItem.urls?.[0] || "").trim(),
+            urls,
+            url: String(rawItem.url || urls[0] || "").trim(),
             manager_attention: rawItem.manager_attention === true,
             attention_reason: String(rawItem.attention_reason || "").trim(),
         };
@@ -757,13 +898,228 @@ async function classifyMessagesWithAi(messages: any[], llm: LLMAdapter, store?: 
         item.sender_name = senderNames.length === 1 ? senderNames[0] : "多人";
         item.raw_text = rawText;
         item.trace = { ...item.trace, source_message_ids: messageIds, raw_text: rawText, ai_result: aiResult };
-        if (aiResult.urls.length || aiResult.url) item.urls = aiResult.urls.length ? aiResult.urls : [aiResult.url];
+        if (urls.length || aiResult.url) item.urls = urls.length ? urls : [aiResult.url];
         classified[summaryBucket(itemType)].push(item);
     }
+
+    const relevantIds = new Set(notes.filter(note => note.disposition === "business").map(note => note.message_id));
+    const coveredIds = new Set(
+        Object.values(classified).flatMap(items => items.flatMap(item => item.source_message_ids || [])).map(String)
+    );
+    const omittedNotes = notes.filter(note => relevantIds.has(note.message_id) && !coveredIds.has(note.message_id));
+    if (omittedNotes.length) recoverOmittedBusinessNotes(classified, omittedNotes, messagesById);
+    if (omittedNotes.length && store && typeof store.appendAuditLog === "function") {
+        await store.appendAuditLog("ai_daily_summary_incomplete", {
+            stage: "synthesis_recovered",
+            omitted_message_ids: omittedNotes.map(note => note.message_id),
+            message_count: messages.length,
+        });
+    }
+
     return {
         classified,
         abstract: String(raw?.abstract || "").trim() || undefined,
     };
+}
+
+async function analyzeDailyMessages(messages: any[], llm: LLMAdapter, store?: PrismaStore): Promise<DailyMessageNote[] | null> {
+    const batches = buildDailyMessageBatches(messages);
+    const notes: DailyMessageNote[] = [];
+
+    for (const [batchIndex, batch] of batches.entries()) {
+        const payload = {
+            context_messages: batch.context.map(dailyMessagePayload),
+            target_messages: batch.targets.map(dailyMessagePayload),
+        };
+        const system = [
+            "你是群聊日报的逐条语义分析器。只输出 JSON，不要 Markdown。",
+            "context_messages 只用于理解前文，target_messages 中的每一条都必须单独返回一条 analysis，不能漏 ID。",
+            "结合时间顺序、parent_id、root_id、@人和前后追问判断一句话在讨论中的真实作用。短回复可能是在确认、追问、纠正或形成结论，不能脱离上文单独解释。",
+            "semantic_note 用第三人称重新表达这条消息对讨论新增了什么信息，保留产品名、字段名、人员、日期、数量、限制和结论，但不得复制整句原文。",
+            "disposition 取 business、context、noise：有交付事实或业务信息为 business；只承接前文但有助于理解为 context；寒暄、纯确认、日报机器人运行排障等为 noise。",
+            "type 取 progress、task_plan、decision、meeting、blocker、risk、help、collaboration、share、discuss 或空字符串。",
+            "related_message_ids 填与本条直接构成问答、补充、纠正或结论链的真实消息 ID。",
+            "输出格式：{\"analyses\":[{\"message_id\":\"目标消息ID\",\"disposition\":\"business|context|noise\",\"semantic_note\":\"结合上下文后的改写\",\"topic_hint\":\"所属业务主题\",\"type\":\"类型或空字符串\",\"related_message_ids\":[\"相关消息ID\"],\"confidence\":0.0}]}。",
+        ].join("");
+        const response = await requestDailySummaryJson(
+            llm,
+            system,
+            JSON.stringify(payload),
+        );
+        if (response.raw === undefined) {
+            if (store && typeof store.appendAuditLog === "function") {
+                const failure = classifyAiFailure(response.error || response.result.error || "empty_response");
+                await store.appendAuditLog("ai_daily_summary_failed", {
+                    stage: "message_analysis",
+                    batch_index: batchIndex,
+                    reason: failure.error,
+                    category: failure.category,
+                    fallback: "deterministic_rule",
+                    retry_attempted: response.retry_attempted,
+                    message_count: batch.targets.length,
+                });
+            }
+            return null;
+        }
+        if (response.recovery && store && typeof store.appendAuditLog === "function") {
+            await store.appendAuditLog("ai_daily_summary_recovered", {
+                stage: "message_analysis",
+                batch_index: batchIndex,
+                recovery: response.recovery,
+                retry_attempted: response.retry_attempted,
+                message_count: batch.targets.length,
+            });
+        }
+        const raw = response.raw;
+
+        const rawAnalyses = Array.isArray(raw?.analyses) ? raw.analyses : [];
+        const analysesById = new Map(
+            rawAnalyses
+                .filter((item: any) => item && typeof item === "object")
+                .map((item: any) => [String(item.message_id || "").trim(), item]),
+        );
+        const missingIds: string[] = [];
+        for (const message of batch.targets) {
+            const messageId = String(message.id || "");
+            const analysis: any = analysesById.get(messageId);
+            if (!analysis) missingIds.push(messageId);
+            notes.push({
+                message_id: messageId,
+                sender_name: String(message.sender_name || ""),
+                sent_at: String(message.sent_at || ""),
+                disposition: normalizeMessageDisposition(analysis?.disposition),
+                semantic_note: String(analysis?.semantic_note || message.text || "").trim(),
+                topic_hint: String(analysis?.topic_hint || "").trim(),
+                type: normalizeSummaryType(analysis?.type) || "",
+                related_message_ids: stringList(analysis?.related_message_ids),
+                confidence: parseConfidence(analysis?.confidence),
+            });
+        }
+        if (missingIds.length && store && typeof store.appendAuditLog === "function") {
+            await store.appendAuditLog("ai_daily_summary_incomplete", {
+                stage: "message_analysis",
+                batch_index: batchIndex,
+                omitted_message_ids: missingIds,
+                message_count: batch.targets.length,
+            });
+        }
+    }
+
+    return notes;
+}
+
+function buildDailyMessageBatches(messages: any[]): DailyMessageBatch[] {
+    const batches: DailyMessageBatch[] = [];
+    let targets: any[] = [];
+    let targetChars = 0;
+
+    const flush = () => {
+        if (!targets.length) return;
+        const previousTargets = batches.flatMap(batch => batch.targets);
+        batches.push({
+            context: previousTargets.slice(-DAILY_SUMMARY_CONTEXT_MESSAGE_COUNT),
+            targets,
+        });
+        targets = [];
+        targetChars = 0;
+    };
+
+    for (const message of messages) {
+        const messageChars = String(message.text || "").length;
+        if (
+            targets.length > 0 &&
+            (targets.length >= DAILY_SUMMARY_BATCH_MAX_MESSAGES || targetChars + messageChars > DAILY_SUMMARY_BATCH_MAX_CHARS)
+        ) flush();
+        targets.push(message);
+        targetChars += messageChars;
+    }
+    flush();
+    return batches;
+}
+
+function dailyMessagePayload(message: any): Record<string, string> {
+    return {
+        id: String(message.id || ""),
+        sender_name: String(message.sender_name || ""),
+        sent_at: String(message.sent_at || ""),
+        parent_id: String(message.parent_id || ""),
+        root_id: String(message.root_id || ""),
+        text: String(message.text || ""),
+    };
+}
+
+function normalizeMessageDisposition(value: any): DailyMessageNote["disposition"] {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (normalized === "business" || normalized === "context" || normalized === "noise") return normalized;
+    return "unresolved";
+}
+
+function normalizeTopicStatus(value: any): string {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (["resolved", "in_progress", "pending", "informational"].includes(normalized)) return normalized;
+    return "";
+}
+
+function recoverOmittedBusinessNotes(
+    classified: Record<string, any[]>,
+    omittedNotes: DailyMessageNote[],
+    messagesById: Record<string, any>,
+): void {
+    const grouped = new Map<string, DailyMessageNote[]>();
+    for (const note of omittedNotes) {
+        const key = `${note.type || "discuss"}:${note.topic_hint || note.message_id}`;
+        grouped.set(key, [...(grouped.get(key) || []), note]);
+    }
+
+    for (const notes of grouped.values()) {
+        const messageIds = notes.map(note => note.message_id);
+        const relatedIds = new Set(notes.flatMap(note => note.related_message_ids));
+        const topicHint = notes.map(note => note.topic_hint).find(Boolean) || "补充业务动态";
+        const noteSummary = notes.map(note => note.semantic_note).filter(Boolean).join("；");
+        const existing = Object.values(classified).flat().find(item => {
+            const existingTitle = comparableSummaryText(String(item.ai_result?.topic_title || item.title || ""));
+            const comparableHint = comparableSummaryText(topicHint);
+            return (
+                (comparableHint && existingTitle && (existingTitle.includes(comparableHint) || comparableHint.includes(existingTitle))) ||
+                (item.source_message_ids || []).some((messageId: string) => relatedIds.has(String(messageId)))
+            );
+        });
+
+        if (existing) {
+            const sourceMessageIds = Array.from(new Set([...(existing.source_message_ids || []), ...messageIds].map(String)));
+            existing.source_message_ids = sourceMessageIds;
+            existing.title = conciseTopicTitle(`${existing.title || ""}；补充：${noteSummary}`, 160);
+            existing.raw_text = sourceMessageIds.map(messageId => String(messagesById[messageId]?.text || "")).filter(Boolean).join("\n\n");
+            existing.trace = { ...(existing.trace || {}), source_message_ids: sourceMessageIds, raw_text: existing.raw_text };
+            continue;
+        }
+
+        const firstMessage = messagesById[messageIds[0]];
+        if (!firstMessage) continue;
+        const itemType = normalizeSummaryType(notes[0].type) || "discuss";
+        const confidence = Math.min(...notes.map(note => note.confidence));
+        const aiResult: any = {
+            type: itemType,
+            parser: "llm_daily_summary",
+            title: conciseTopicTitle(noteSummary, 160),
+            topic_title: conciseTopicTitle(topicHint, 40),
+            status: "pending",
+            related_users: Array.from(new Set(notes.map(note => note.sender_name).filter(Boolean))),
+            conclusions: [],
+            next_actions: [],
+            open_questions: [],
+            urls: messageIds.flatMap(messageId => extractUrls(String(messagesById[messageId]?.text || ""))),
+            manager_attention: false,
+            attention_reason: "",
+        };
+        const item = messageSummaryItem(firstMessage, itemType, confidence, "llm_daily_summary", aiResult.title, aiResult);
+        item.source_message_ids = messageIds;
+        item.sender_name = aiResult.related_users.length === 1 ? aiResult.related_users[0] : "多人";
+        item.raw_text = messageIds.map(messageId => String(messagesById[messageId]?.text || "")).filter(Boolean).join("\n\n");
+        item.trace = { ...item.trace, source_message_ids: messageIds, raw_text: item.raw_text, ai_result: aiResult };
+        if (aiResult.urls.length) item.urls = Array.from(new Set(aiResult.urls));
+        classified[summaryBucket(itemType)].push(item);
+    }
 }
 
 async function chatWithDailySummaryTimeout(
@@ -795,6 +1151,118 @@ async function chatWithDailySummaryTimeout(
     }
 }
 
+async function requestDailySummaryJson(
+    llm: LLMAdapter,
+    systemPrompt: string,
+    userMessage: string,
+): Promise<DailySummaryJsonResponse> {
+    const firstResult = await chatWithDailySummaryTimeout(llm, systemPrompt, userMessage);
+    if (!firstResult.ok || !firstResult.content.trim()) {
+        return { result: firstResult, retry_attempted: false };
+    }
+
+    const firstParse = parseDailySummaryJson(firstResult.content);
+    if (firstParse.ok) {
+        return {
+            result: firstResult,
+            raw: firstParse.value,
+            recovery: firstParse.repaired ? "balanced_closures" : undefined,
+            retry_attempted: false,
+        };
+    }
+
+    const retryResult = await chatWithDailySummaryTimeout(
+        llm,
+        `${systemPrompt}上一轮输出不是有效的目标 JSON。请对同一输入重新输出完整 JSON；输出前确认顶层结构正确、所有数组和对象括号闭合，并且可被标准 JSON.parse 直接解析。不要解释错误。`,
+        userMessage,
+    );
+    if (!retryResult.ok || !retryResult.content.trim()) {
+        return {
+            result: retryResult,
+            error: retryResult.error || firstParse.error || "invalid_json: unexpected response shape",
+            retry_attempted: true,
+        };
+    }
+
+    const retryParse = parseDailySummaryJson(retryResult.content);
+    if (retryParse.ok) {
+        return {
+            result: retryResult,
+            raw: retryParse.value,
+            recovery: retryParse.repaired ? "model_retry_and_balanced_closures" : "model_retry",
+            retry_attempted: true,
+        };
+    }
+
+    return {
+        result: retryResult,
+        error: retryParse.error || "invalid_json: unexpected response shape",
+        retry_attempted: true,
+    };
+}
+
+function parseDailySummaryJson(content: string): DailySummaryJsonParse {
+    const json = extractJson(content);
+    try {
+        return { ok: true, value: JSON.parse(json), repaired: false };
+    } catch (exc: any) {
+        const repaired = balanceJsonClosures(json);
+        if (!repaired || repaired === json) {
+            return { ok: false, error: `invalid_json: ${exc.message}`, repaired: false };
+        }
+        try {
+            return { ok: true, value: JSON.parse(repaired), repaired: true };
+        } catch {
+            return { ok: false, error: `invalid_json: ${exc.message}`, repaired: false };
+        }
+    }
+}
+
+function balanceJsonClosures(json: string): string | null {
+    const output: string[] = [];
+    const expectedClosures: string[] = [];
+    let inString = false;
+    let escaped = false;
+
+    for (const char of json) {
+        if (inString) {
+            output.push(char);
+            if (escaped) {
+                escaped = false;
+            } else if (char === "\\") {
+                escaped = true;
+            } else if (char === '"') {
+                inString = false;
+            }
+            continue;
+        }
+
+        if (char === '"') {
+            inString = true;
+            output.push(char);
+            continue;
+        }
+        if (char === "{" || char === "[") {
+            expectedClosures.push(char === "{" ? "}" : "]");
+            output.push(char);
+            continue;
+        }
+        if (char === "}" || char === "]") {
+            const matchingIndex = expectedClosures.lastIndexOf(char);
+            if (matchingIndex < 0) return null;
+            while (expectedClosures.length - 1 > matchingIndex) {
+                output.push(expectedClosures.pop()!);
+            }
+            expectedClosures.pop();
+        }
+        output.push(char);
+    }
+
+    if (inString) return null;
+    while (expectedClosures.length) output.push(expectedClosures.pop()!);
+    return output.join("");
+}
+
 function messageSummaryItem(message: any, itemType: string, confidence: number, parser: string = "llm_daily_summary", title?: string, aiResult?: any): any {
     const text = String(message.text || "").trim();
     const t = conciseTopicTitle(title || text);
@@ -824,6 +1292,9 @@ function messageSummaryItem(message: any, itemType: string, confidence: number, 
 
 function taskSummaryItem(task: any, messagesById: Record<string, any>): any {
     const item = { ...task };
+    if (Array.isArray(item.tags) && item.tags.includes("standup_commitment") && dayjs(item.due_date).isValid()) {
+        item.due_date = dayjs(item.due_date).format("YYYY-MM-DD HH:mm");
+    }
     const sourceMessageId = item.source_message_id;
     const aiResult = item.ai_result || { type: "task", parser: "structured_record", title: item.title || "" };
     const confidence = item.confidence !== undefined ? item.confidence : 1.0;
@@ -908,9 +1379,14 @@ function hasAny(text: string, keywords: string[]): boolean {
 function isIgnorableChatMessage(text: string): boolean {
     const normalized = text.replace(/\s+/g, " ").trim();
     if (/^(好|好的|收到|明白|了解|可以|行|嗯|ok|OK|谢谢)[。.!！~～]*$/.test(normalized)) return true;
+    if (/(?:ai|AI|机器人).{0,24}(?:超时|上下文限制)|(?:超时|上下文限制).{0,24}(?:ai|AI|机器人)/.test(normalized) && /(?:日报|总结|重新总结|重试)/.test(normalized)) return true;
+    return isSystemOrSummaryCommandMessage(normalized);
+}
+
+function isSystemOrSummaryCommandMessage(text: string): boolean {
+    const normalized = text.replace(/\s+/g, " ").trim();
     if (/总结一下(?:今天|昨天|本日)?.*日报/.test(normalized) && /机器人|AI 交付助理/.test(normalized)) return true;
     if (normalized.includes("@") && /机器人|AI 交付助理/.test(normalized) && /(日报|日总结|群聊总结|研发总结|每日总结|总结聊天|聊天总结)/.test(normalized)) return true;
-    if (/(?:ai|AI|机器人).{0,24}(?:超时|上下文限制)|(?:超时|上下文限制).{0,24}(?:ai|AI|机器人)/.test(normalized) && /(?:日报|总结|重新总结|重试)/.test(normalized)) return true;
     if (/^[{[]/.test(normalized) && /clipped content to top/i.test(normalized)) return true;
     if (/^[{[]/.test(normalized)) {
         try {
@@ -944,6 +1420,24 @@ function conciseTopicTitle(text: string, maxLength: number = 180): string {
     if (summary.length <= maxLength) return summary;
     const headLength = Math.ceil((maxLength - 1) * 0.62);
     return `${summary.slice(0, headLength).trim()}…${summary.slice(-(maxLength - headLength - 1)).trim()}`;
+}
+
+function aiTopicNarrative(rawItem: any, topicMessages: any[]): string {
+    const candidate = String(rawItem.summary || rawItem.title || "").trim();
+    const comparableCandidate = comparableSummaryText(candidate);
+    const isVerbatim = comparableCandidate.length >= 20 && topicMessages.some(message => {
+        const comparableSource = comparableSummaryText(String(message.text || ""));
+        return comparableSource.includes(comparableCandidate) || comparableCandidate.includes(comparableSource);
+    });
+    if (!isVerbatim) return candidate;
+
+    const structuredNarrative = [
+        String(rawItem.topic_title || "").trim(),
+        ...stringList(rawItem.conclusions).map(value => `已明确${value}`),
+        ...stringList(rawItem.next_actions).map(value => `下一步${value}`),
+        ...stringList(rawItem.open_questions).map(value => `仍需确认${value}`),
+    ].filter(Boolean).join("；");
+    return structuredNarrative || conciseTopicTitle(candidate, 60);
 }
 
 function normalizeAiTopicTitle(rawTitle: string, topicMessages: any[]): string {

@@ -23,16 +23,26 @@ export async function maybeHandleAiIntent(
     const contextualTask = await resolver.taskFromReplyContext(replyContext);
     const allMembers = ctx.config.groups.flatMap(g => g.members);
 
-    const intent = await ctx.intentParser.parse(
-        message,
-        replyContext,
-        contextualTask,
-        allMembers,
-        undefined,
-        explicitCreateCommand ? "create_task" : undefined
-    );
+    let intent: MessageIntent;
+    try {
+        intent = await ctx.intentParser.parse(
+            message,
+            replyContext,
+            contextualTask,
+            allMembers,
+            undefined,
+            explicitCreateCommand ? "create_task" : undefined
+        );
+    } catch (error: any) {
+        const failure = aiIntentFailure(error);
+        await auditAiIntentFailure(ctx, message, failure);
+        await saveAiFallbackMetadata(ctx, message, failure);
+        return null;
+    }
     if (!intent.available) {
-        ctx.store.appendAuditLog("ai_intent_failed", { message_id: message.id, error: intent.error });
+        const failure = aiIntentFailure(intent.error);
+        await auditAiIntentFailure(ctx, message, failure);
+        await saveAiFallbackMetadata(ctx, message, failure);
         return null;
     }
     if (explicitCreateCommand) {
@@ -95,6 +105,50 @@ export async function maybeHandleAiIntent(
     }
     auditAiIntent(ctx, message, intent, false, reason || "not_executed");
     return null;
+}
+
+type AiIntentFailure = {
+    category: "rate_limited" | "timeout" | "unavailable";
+    error: string;
+};
+
+function aiIntentFailure(error: unknown): AiIntentFailure {
+    const messageText = String(error instanceof Error ? error.message : error || "AI intent unavailable").slice(0, 500);
+    const category = /too many requests|rate limit|quota|\b429\b/i.test(messageText)
+        ? "rate_limited"
+        : /timed out|timeout|abort/i.test(messageText)
+            ? "timeout"
+            : "unavailable";
+    return { category, error: messageText };
+}
+
+async function auditAiIntentFailure(ctx: HandlerContext, message: SourceMessage, failure: AiIntentFailure): Promise<void> {
+    try {
+        await ctx.store.appendAuditLog("ai_intent_failed", {
+            message_id: message.id,
+            category: failure.category,
+            error: failure.error,
+            fallback: "deterministic_rule",
+        });
+    } catch (auditError) {
+        console.error("Failed to audit AI intent failure:", auditError);
+    }
+}
+
+async function saveAiFallbackMetadata(ctx: HandlerContext, message: SourceMessage, failure: AiIntentFailure): Promise<void> {
+    message.ai_result = {
+        type: "message_intent",
+        parser: "llm",
+        available: false,
+        category: failure.category,
+        fallback: "deterministic_rule",
+    };
+    message.confidence = 0;
+    try {
+        await ctx.store.saveSourceMessage(message);
+    } catch (saveError) {
+        console.error("Failed to persist AI fallback metadata:", saveError);
+    }
 }
 
 function constrainToExplicitCreate(intent: MessageIntent, command: ParsedTaskCommand): void {

@@ -6,7 +6,7 @@ export class FeishuDeliveryAdapter implements DeliveryAdapter {
 
     async deliver(record: DeliveryRecord, signal: AbortSignal): Promise<Readonly<Record<string, unknown>>> {
         if (signal.aborted) throw Object.assign(new Error('Delivery cancelled'), { code: 'DELIVERY_CANCELLED', retryable: true });
-        if (record.artifact.type === 'image') return this.deliverImage(record);
+        if (record.artifact.type === 'image') return this.deliverImage(record, signal);
         const content = record.artifact.type === 'article_list' ? this.renderArticleList(record.artifact.content) : record.artifact.content;
         if (typeof content !== 'string') throw Object.assign(new Error('Feishu text delivery requires string content'), { code: 'UNSUPPORTED_ARTIFACT', retryable: false });
         if (!['markdown', 'text', 'article_list'].includes(record.artifact.type)) throw Object.assign(new Error(`Unsupported Feishu artifact type: ${record.artifact.type}`), { code: 'UNSUPPORTED_ARTIFACT', retryable: false });
@@ -14,20 +14,32 @@ export class FeishuDeliveryAdapter implements DeliveryAdapter {
         const feishu = this.feishu();
         const title = typeof record.artifact.metadata.title === 'string' ? record.artifact.metadata.title : undefined;
         const result = record.target.channel === 'group'
-            ? await feishu.sendGroupMarkdown(content, record.target.targetId, title)
-            : await feishu.sendPrivateMarkdown(record.target.targetId, content, title);
-        if (!result.ok) throw Object.assign(new Error(result.error || 'Feishu delivery failed'), { code: 'FEISHU_DELIVERY_FAILED', retryable: true });
+            ? await feishu.sendGroupMarkdown(content, record.target.targetId, title, signal)
+            : await feishu.sendPrivateMarkdown(record.target.targetId, content, title, signal);
+        if (!result.ok) throw Object.assign(new Error(result.error || 'Feishu delivery failed'), {
+            code: result.error_code || 'FEISHU_DELIVERY_FAILED',
+            retryable: result.retryable !== false,
+            retryAfterMs: result.retry_after_ms,
+        });
         return { messageId: result.message_id, chatId: result.chat_id };
     }
 
-    private async deliverImage(record: DeliveryRecord): Promise<Readonly<Record<string, unknown>>> {
+    private async deliverImage(record: DeliveryRecord, signal: AbortSignal): Promise<Readonly<Record<string, unknown>>> {
         if (record.target.channel !== 'group') throw Object.assign(new Error('Private image delivery is not supported'), { code: 'UNSUPPORTED_TARGET', retryable: false });
         if (!record.artifact.storageRef) throw Object.assign(new Error('Image Artifact storageRef is required'), { code: 'ARTIFACT_STORAGE_REF_MISSING', retryable: false });
         const feishu = this.feishu();
-        const uploaded = await feishu.uploadImage(record.artifact.storageRef);
-        if (!uploaded.ok || !uploaded.image_key) throw Object.assign(new Error(uploaded.error || 'Feishu image upload failed'), { code: 'FEISHU_IMAGE_UPLOAD_FAILED', retryable: true });
-        const sent = await feishu.sendGroupImageKey(uploaded.image_key, record.target.targetId);
-        if (!sent.ok) throw Object.assign(new Error(sent.error || 'Feishu image delivery failed'), { code: 'FEISHU_DELIVERY_FAILED', retryable: true });
+        const uploaded = await feishu.uploadImage(record.artifact.storageRef, signal);
+        if (!uploaded.ok || !uploaded.image_key) throw Object.assign(new Error(uploaded.error || 'Feishu image upload failed'), {
+            code: uploaded.error_code || 'FEISHU_IMAGE_UPLOAD_FAILED',
+            retryable: uploaded.retryable !== false,
+            retryAfterMs: uploaded.retry_after_ms,
+        });
+        const sent = await feishu.sendGroupImageKey(uploaded.image_key, record.target.targetId, signal);
+        if (!sent.ok) throw Object.assign(new Error(sent.error || 'Feishu image delivery failed'), {
+            code: sent.error_code || 'FEISHU_DELIVERY_FAILED',
+            retryable: sent.retryable !== false,
+            retryAfterMs: sent.retry_after_ms,
+        });
         return { messageId: sent.message_id, chatId: sent.chat_id, imageKey: uploaded.image_key };
     }
 

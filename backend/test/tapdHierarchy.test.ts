@@ -45,6 +45,43 @@ describe('TAPD task hierarchy projection', () => {
         expect(projection.isActionableLeaf(grandchild)).toBe(false);
     });
 
+    test('projects a parent transfer to test onto unfinished descendants without changing their TAPD status', () => {
+        const parent = task('30', 'owner_marked_done');
+        const child = task('31', 'overdue', '30');
+        const grandchild = task('32', 'in_progress', '31');
+        const projection = TaskService.projectHierarchy([parent, child, grandchild]);
+
+        expect(projection.get(child)).toMatchObject({
+            inherited_phase: 'transfer_test',
+            inherited_phase_source_id: parent.id,
+        });
+        expect(projection.get(grandchild)).toMatchObject({
+            inherited_phase: 'transfer_test',
+            inherited_phase_source_id: parent.id,
+        });
+        expect(child.status).toBe('overdue');
+        expect(grandchild.status).toBe('in_progress');
+    });
+
+    test('projects a parent testing state as testing for unfinished descendants', () => {
+        const parent = task('40', 'testing');
+        const child = task('41', 'in_progress', '40');
+        const projection = TaskService.projectHierarchy([parent, child]);
+
+        expect(projection.get(child)).toMatchObject({
+            inherited_phase: 'testing',
+            inherited_phase_source_id: parent.id,
+        });
+    });
+
+    test('does not downgrade a child that is already further along than its parent projection', () => {
+        const parent = task('50', 'owner_marked_done');
+        const child = task('51', 'testing', '50');
+        const projection = TaskService.projectHierarchy([parent, child]);
+
+        expect(projection.get(child).inherited_phase).toBeNull();
+    });
+
     test('counts only active unfinished leaf tasks as actionable', () => {
         const parent = task('20', 'in_progress');
         const activeChild = task('21', 'in_progress', '20');

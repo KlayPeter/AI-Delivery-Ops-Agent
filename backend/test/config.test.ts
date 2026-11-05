@@ -30,6 +30,22 @@ describe("config", () => {
         }
     });
 
+    test("should cap model and Feishu retry counts", () => {
+        const capped = buildConfig({
+            feishu: { send_retry_count: 99 },
+            ai: { retry_count: 99 },
+        });
+        expect(capped.feishu.send_retry_count).toBe(3);
+        expect(capped.ai.retry_count).toBe(3);
+
+        const normalized = buildConfig({
+            feishu: { send_retry_count: -5 },
+            ai: { retry_count: "invalid" },
+        });
+        expect(normalized.feishu.send_retry_count).toBe(0);
+        expect(normalized.ai.retry_count).toBe(1);
+    });
+
     test("should let Feishu bot env override file config", () => {
         const previousBotOpenId = process.env.FEISHU_BOT_OPEN_ID;
         const previousBotName = process.env.FEISHU_BOT_NAME;
@@ -103,6 +119,28 @@ describe("config", () => {
 
         expect(config.groups[0].schedule.module_daily_summary_enabled).toBe(true);
         expect(config.groups[0].schedule.daily_summary_enabled).toBe(true);
+    });
+
+    test("should keep task standup template time independent from normal standup time", () => {
+        const config = buildConfig({
+            groups: [{
+                chat_id: "oc_task_only",
+                schedule: {
+                    module_standup_enabled: true,
+                    standup_push: "09:00",
+                    standup_push_enabled: false,
+                    task_standup_enabled: true,
+                    task_standup_template: "10:15",
+                },
+            }],
+        });
+
+        expect(config.groups[0].schedule).toMatchObject({
+            standup_push: "09:00",
+            standup_push_enabled: false,
+            task_standup_enabled: true,
+            task_standup_template: "10:15",
+        });
     });
 
     test("should normalize the overdue scan working window", () => {

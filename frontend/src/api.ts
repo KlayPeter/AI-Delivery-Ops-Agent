@@ -100,7 +100,7 @@ export const api = {
     const data = await request(client.post(`/meeting-summaries/${id}/send-email`));
     return data;
   },
-  fetchStandups: (date: string, groupId: string) => request(client.get(`/standups?date=${date}${groupId ? '&groupId=' + encodeURIComponent(groupId) : ''}`)),
+  fetchStandups: (date: string, groupId: string, type: 'normal' | 'task' = 'normal') => request(client.get(`/standups?date=${date}${groupId ? '&groupId=' + encodeURIComponent(groupId) : ''}&type=${type}`)),
   fetchStandupSummary: async (date: string, groupId: string) => {
     const data = await request(client.get(`/standups/summary?date=${date}&groupId=${encodeURIComponent(groupId)}`));
     return data.summary;
@@ -118,5 +118,5 @@ export const api = {
     request(client.post(`/human-gantt/tasks/${encodeURIComponent(taskId)}/plan`, plan)),
   deleteHumanGanttPlan: (taskId: string, plan: { employee_open_id: string; role: string }) =>
     request(client.delete(`/human-gantt/tasks/${encodeURIComponent(taskId)}/plan`, { data: plan })),
-  triggerJob: (jobName: string, groupId: string, dryRun = true) => request(client.post(`/jobs/${encodeURIComponent(jobName)}`, { groupId, dryRun })),
+  triggerJob: (jobName: string, groupId: string, dryRun = true, sendToGroup = false) => request(client.post(`/jobs/${encodeURIComponent(jobName)}`, { groupId, dryRun, sendToGroup })),
 };

@@ -19,6 +19,7 @@ interface ConnectionManagerDependencies {
 
 interface AuditStore {
     appendAuditLog(action: string, payload: unknown): Promise<unknown>;
+    claimIdempotencyKey?(key: string, value: unknown): Promise<boolean>;
 }
 
 export class FeishuBotConnectionManager {
@@ -90,7 +91,7 @@ export class FeishuBotConnectionManager {
                 return;
             }
             const messageId = String(data?.event?.message?.message_id || data?.message?.message_id || '');
-            if (messageId && this.isDuplicate(bot.id, messageId)) return;
+            if (messageId && await this.isDuplicate(bot, messageId)) return;
             Promise.resolve(this.onMessage(bot, adapter, data)).catch(error => {
                 this.audit('feishu_bot_handler_failed', {
                     bot_instance_id: bot.id,
@@ -126,9 +127,19 @@ export class FeishuBotConnectionManager {
         };
     }
 
-    private isDuplicate(botInstanceId: string, messageId: string): boolean {
-        const key = `${botInstanceId}:${messageId}`;
+    private async isDuplicate(bot: BotInstance, messageId: string): Promise<boolean> {
+        const key = `${bot.id}:${messageId}`;
         if (this.processedEvents.has(key)) return true;
+        if (this.store.claimIdempotencyKey) {
+            const persistentKey = `feishu:event:${encodeURIComponent(bot.workspaceId)}:${encodeURIComponent(bot.id)}:${encodeURIComponent(messageId)}`;
+            const claimed = await this.store.claimIdempotencyKey(persistentKey, {
+                received_at: new Date().toISOString(),
+                workspace_id: bot.workspaceId,
+                bot_instance_id: bot.id,
+                message_id: messageId,
+            });
+            if (!claimed) return true;
+        }
         this.processedEvents.set(key, Date.now());
         if (this.processedEvents.size > 1000) {
             const cutoff = Date.now() - 3600_000;

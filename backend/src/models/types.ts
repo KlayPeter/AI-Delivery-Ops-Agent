@@ -144,6 +144,8 @@ export interface DailySummary {
   discusses: any[];
   created_at: string;
   ai_abstract?: string | null;
+  ai_degraded?: boolean;
+  ai_failure_category?: import("@/platform/aiDegradation").AiFailureCategory;
 }
 
 export interface DashboardArtifact {

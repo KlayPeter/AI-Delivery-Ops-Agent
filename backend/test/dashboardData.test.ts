@@ -65,6 +65,33 @@ const config: any = {
 };
 
 describe("TaskService project dashboard synchronization", () => {
+    test("coalesces concurrent TAPD refreshes, reuses a short cache, and supports a forced refresh", async () => {
+        let calls = 0;
+        const ctx = {
+            config,
+            tapd: {
+                listStories: async () => {
+                    calls++;
+                    await Bun.sleep(5);
+                    return { ok: true, raw: { data: [] as any[] } };
+                },
+            },
+            store: { listTasks: async (): Promise<any[]> => [], saveTask: async () => {} },
+        };
+
+        const first = TaskService.syncProjectScope(ctx);
+        const second = TaskService.syncProjectScope(ctx);
+        expect(await Promise.all([first, second])).toEqual([
+            expect.objectContaining({ ok: true, fetched: 0 }),
+            expect.objectContaining({ ok: true, fetched: 0 }),
+        ]);
+        expect(calls).toBe(1);
+        await TaskService.syncProjectScope(ctx);
+        expect(calls).toBe(1);
+        await TaskService.syncProjectScope(ctx, { force: true });
+        expect(calls).toBe(2);
+    });
+
     test("imports every TAPD story, updates linked tasks, marks missing stories deleted, and preserves local-only work", async () => {
         const tasks = new Map<string, any>();
         const linked = localTask({
@@ -281,5 +308,46 @@ describe("TaskService project dashboard synchronization", () => {
         expect(result.ok).toBe(true);
         expect(savedTask.status).toBe("in_progress");
         expect(savedTask.trace.workflow.phase).toBe("development_completed");
+    });
+
+    test("stops TAPD project pagination at a non-retryable page budget", async () => {
+        let calls = 0;
+        const store = { listTasks: async (): Promise<any[]> => [], saveTask: async () => {} };
+        const result = await TaskService.syncProjectScope({
+            config,
+            tapd: {
+                listStories: async () => {
+                    calls++;
+                    return { ok: true, raw: { data: [remoteStory({ id: `story-${calls}` })] } };
+                },
+            },
+            store,
+        }, { pageSize: 1, maxPages: 2, force: true });
+
+        expect(calls).toBe(2);
+        expect(result).toMatchObject({
+            ok: false,
+            code: "TAPD_SYNC_PAGE_LIMIT_EXCEEDED",
+            retryable: false,
+        });
+        expect(TaskService.projectSyncError("同步失败", result)).toMatchObject({
+            code: "TAPD_SYNC_PAGE_LIMIT_EXCEEDED",
+            retryable: false,
+        });
+    });
+
+    test("stops a stalled TAPD project page at the total sync timeout", async () => {
+        const store = { listTasks: async (): Promise<any[]> => [], saveTask: async () => {} };
+        const result = await TaskService.syncProjectScope({
+            config,
+            tapd: { listStories: async () => new Promise(() => {}) },
+            store,
+        }, { timeoutMs: 5, force: true });
+
+        expect(result).toMatchObject({
+            ok: false,
+            code: "TAPD_SYNC_TIMEOUT",
+            retryable: false,
+        });
     });
 });

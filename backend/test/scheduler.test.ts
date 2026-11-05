@@ -1,7 +1,116 @@
 import { describe, expect, test } from "bun:test";
 import { InProcessScheduler } from "@/core/scheduler";
+import { ScheduledAgentDispatcher } from "@/platform/bootstrap/scheduledAgentDispatcher";
 
 describe("InProcessScheduler group dashboard", () => {
+    test("preserves permanent Agent failures so the scheduler cannot retry them", async () => {
+        const dispatcher = new ScheduledAgentDispatcher(() => ({ ctx: {} }) as any);
+        (dispatcher as any).host = {
+            dispatch: async () => ({
+                status: "failed",
+                claim: { error: { code: "TAPD_SYNC_TIMEOUT", message: "TAPD sync timed out", retryable: false } },
+            }),
+            flushDeliveries: async () => ({ delivered: 0, retried: 0, deadLettered: 0 }),
+        };
+
+        await expect(dispatcher.dailySummary("oc_dev", new Date("2026-07-10T18:30:00+08:00"))).rejects.toMatchObject({
+            code: "TAPD_SYNC_TIMEOUT",
+            retryable: false,
+        });
+    });
+
+    test("claims scheduled deliveries with the actual flush time instead of the stale trigger time", async () => {
+        const dispatcher = new ScheduledAgentDispatcher(() => ({ ctx: {} }) as any);
+        let flushedAt: Date | undefined;
+        (dispatcher as any).host = {
+            dispatch: async () => ({ status: "completed", claim: {}, execution: { run: { id: "run-1" }, result: { data: {} } } }),
+            flushDeliveries: async (now: Date) => {
+                flushedAt = now;
+                return { delivered: 1, retried: 0, deadLettered: 0 };
+            },
+        };
+        const before = Date.now();
+
+        await dispatcher.dailySummary("oc_dev", new Date("2026-07-10T18:30:00+08:00"));
+
+        expect(flushedAt).toBeInstanceOf(Date);
+        expect(flushedAt!.getTime()).toBeGreaterThanOrEqual(before);
+        expect(flushedAt!.getTime()).toBeLessThanOrEqual(Date.now());
+    });
+
+    test("coalesces overlapping scheduler ticks into one in-flight execution", async () => {
+        let release!: () => void;
+        const gate = new Promise<void>(resolve => { release = resolve; });
+        let configReads = 0;
+        const rawConfig: any = { project: { name: "Demo Project" }, runtime: {}, schedule: {}, groups: [] };
+        const ctx: any = {
+            config: rawConfig,
+            store: {
+                getDynamicConfig: async () => {
+                    configReads++;
+                    await gate;
+                    return rawConfig;
+                },
+                appendAuditLog: async () => {},
+            },
+        };
+        const scheduler = new InProcessScheduler(() => ({ ctx }) as any, 30, 0);
+
+        const first = scheduler.tick(new Date("2026-07-10T09:00:00+08:00"));
+        const second = scheduler.tick(new Date("2026-07-10T09:00:30+08:00"));
+        release();
+
+        expect(await Promise.all([first, second])).toEqual([{}, {}]);
+        expect(configReads).toBe(1);
+    });
+
+    test("runs the task standup template at its own time when fixed standup prompts are disabled", async () => {
+        const idempotency = new Map<string, any>();
+        const rawConfig: any = {
+            project: { name: "Demo Project" },
+            runtime: {},
+            schedule: { workdays_only: false },
+            groups: [{ chat_id: "oc_dev", name: "Demo 研发组", members: [], schedule: {
+                standup_push: "09:00",
+                standup_push_enabled: false,
+                task_standup_template: "10:00",
+                module_standup_enabled: true,
+                task_standup_enabled: true,
+                overdue_scan: "09:00",
+                overdue_scan_end: "18:30",
+                overdue_scan_interval_minutes: 30,
+                overdue_scan_timezone: "Asia/Shanghai",
+                overdue_scan_enabled: false,
+                workdays_only: false,
+            } }],
+        };
+        const ctx: any = {
+            config: rawConfig,
+            store: {
+                getDynamicConfig: async () => rawConfig,
+                listTasks: async (): Promise<any[]> => [],
+                claimIdempotencyKey: async (key: string, value: any) => {
+                    if (idempotency.has(key)) return false;
+                    idempotency.set(key, value);
+                    return true;
+                },
+                setIdempotencyKey: async (key: string, value: any) => idempotency.set(key, value),
+                appendAuditLog: async () => {},
+            },
+            feishu: {},
+        };
+        const scheduler = new InProcessScheduler(() => ({ ctx }) as any, 30, 0) as any;
+        const runs: string[] = [];
+        scheduler.runJob = async (_handler: any, jobName: string) => {
+            runs.push(jobName);
+            return { ok: true };
+        };
+
+        expect(await scheduler.tick(new Date(2026, 7, 13, 9, 0, 0))).toEqual({});
+        expect(await scheduler.tick(new Date(2026, 7, 13, 10, 0, 0))).toEqual({ "task-standup-template:oc_dev": "completed" });
+        expect(runs).toEqual(["task-standup-template"]);
+    });
+
     test("runs overdue scans every 30 minutes only in the Beijing working window", async () => {
         const idempotency = new Map<string, any>();
         const rawConfig: any = {
@@ -230,6 +339,7 @@ describe("InProcessScheduler group dashboard", () => {
 
     test("lets the Agent trigger store own daily-summary idempotency", async () => {
         const idempotency = new Map<string, any>();
+        const audits: Array<{ eventType: string; detail: any }> = [];
         const rawConfig: any = {
             project: { name: "Demo Project" }, runtime: { public_base_url: "" }, schedule: { workdays_only: false },
             groups: [{ chat_id: "oc_dev", name: "Demo 研发组", members: [], schedule: { daily_summary: "18:40", daily_summary_enabled: true, module_daily_summary_enabled: true, workdays_only: false } }],
@@ -240,7 +350,7 @@ describe("InProcessScheduler group dashboard", () => {
                 getDynamicConfig: async () => rawConfig,
                 claimIdempotencyKey: async (key: string, value: any) => { if (idempotency.has(key)) return false; idempotency.set(key, value); return true; },
                 setIdempotencyKey: async (key: string, value: any) => idempotency.set(key, value),
-                appendAuditLog: async () => {},
+                appendAuditLog: async (eventType: string, detail: any) => { audits.push({ eventType, detail }); },
             },
         };
         let dispatches = 0; let flushes = 0;
@@ -250,8 +360,10 @@ describe("InProcessScheduler group dashboard", () => {
         };
         const scheduler = new InProcessScheduler(() => ({ ctx }) as any, 30, 0, agentJobs);
         expect(await scheduler.tick(new Date(2026, 6, 10, 18, 40, 0))).toEqual({ "daily-summary:oc_dev": "completed" });
-        expect(await scheduler.tick(new Date(2026, 6, 10, 18, 40, 30))).toEqual({ "daily-summary:oc_dev": "completed" });
+        expect(await scheduler.tick(new Date(2026, 6, 10, 18, 40, 30))).toEqual({ "daily-summary:oc_dev": "duplicate" });
         expect(dispatches).toBe(2); expect(flushes).toBe(2);
+        expect(audits.filter(item => item.eventType === "job_completed")).toHaveLength(1);
+        expect(audits.filter(item => item.eventType === "job_duplicate_skipped")).toHaveLength(1);
         expect(idempotency.has("scheduled:daily-summary:oc_dev:2026-07-10:18:40")).toBe(false);
     });
 
@@ -372,5 +484,37 @@ describe("InProcessScheduler group dashboard", () => {
         expect(runs).toBe(2);
         expect(auditLogs.some(item => item.eventType === "job_failed" && item.detail.attempts === 2 && item.detail.first_error === "failure-1")).toBe(true);
         expect(idempotency.get("scheduled:overdue-scan:oc_dev:2026-07-10:18:00").status).toBe("failed");
+    });
+
+    test("does not retry a scheduled job after a permanent provider failure", async () => {
+        const idempotency = new Map<string, any>();
+        const rawConfig: any = {
+            project: { name: "Demo Project" }, runtime: { data_dir: "test_data", public_base_url: "" }, schedule: { workdays_only: false },
+            groups: [{ chat_id: "oc_dev", name: "Demo 研发组", members: [], schedule: {
+                overdue_scan: "18:00", overdue_scan_end: "18:30", overdue_scan_interval_minutes: 30,
+                overdue_scan_timezone: "Asia/Shanghai", overdue_scan_enabled: true, workdays_only: false,
+            } }],
+        };
+        const auditLogs: any[] = [];
+        const ctx: any = {
+            config: rawConfig,
+            store: {
+                getDynamicConfig: async () => rawConfig,
+                claimIdempotencyKey: async (key: string, value: any) => { idempotency.set(key, value); return true; },
+                setIdempotencyKey: async (key: string, value: any) => idempotency.set(key, value),
+                appendAuditLog: async (eventType: string, detail: any) => auditLogs.push({ eventType, detail }),
+            },
+        };
+        const scheduler = new InProcessScheduler(() => ({ ctx }) as any, 30, 0, undefined, 0) as any;
+        let runs = 0;
+        scheduler.runJob = async () => {
+            runs++;
+            throw Object.assign(new Error('monthly quota exhausted'), { retryable: false, code: 'FEISHU_MONTHLY_QUOTA_EXHAUSTED' });
+        };
+
+        expect(await scheduler.tick(new Date("2026-07-10T18:00:00+08:00"))).toEqual({ "overdue-scan:oc_dev": "failed" });
+        expect(runs).toBe(1);
+        expect(auditLogs.some(item => item.eventType === "job_retrying")).toBe(false);
+        expect(auditLogs.some(item => item.eventType === "job_failed" && item.detail.attempts === 1)).toBe(true);
     });
 });

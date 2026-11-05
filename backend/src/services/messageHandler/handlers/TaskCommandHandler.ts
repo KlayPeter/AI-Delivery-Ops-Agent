@@ -25,6 +25,9 @@ export class TaskCommandHandler {
             replyContext,
             command.should_create ? command : undefined
         );
+        const aiFallback = (message.ai_result as any)?.fallback === "deterministic_rule"
+            ? (message.ai_result as any)
+            : null;
         if (aiResult) {
             if (["task_created", "ai_tasks_created", "independent_tasks_created"].includes(aiResult.action)) {
                 await ctx.store.setIdempotencyKey(key, aiResult);
@@ -39,7 +42,8 @@ export class TaskCommandHandler {
                 reason: command.reason,
                 title: command.title,
                 priority: command.priority,
-                due_date: command.due_date
+                due_date: command.due_date,
+                ai_fallback: aiFallback ? { category: aiFallback.category } : undefined,
             };
             message.confidence = 1.0;
             await ctx.store.saveSourceMessage(message);
@@ -48,6 +52,27 @@ export class TaskCommandHandler {
             const parentId = contextualTask ? contextualTask.tapd_story_id : undefined;
             const result = await TaskService.createFromCommand(ctx, message, command, parentId);
             await ctx.store.setIdempotencyKey(key, result);
+            if (aiFallback && ["task_created", "independent_tasks_created", "pending_primary_owner"].includes(result.action)) {
+                const reason = aiFallback.category === "rate_limited"
+                    ? "AI 服务当前限流"
+                    : aiFallback.category === "timeout"
+                        ? "AI 服务响应超时"
+                        : "AI 服务暂时不可用";
+                try {
+                    await reply(ctx, message, source, `ℹ️ ${reason}，已按任务规则继续处理。`);
+                } catch (replyError) {
+                    console.error("Failed to send task rule fallback notice:", replyError);
+                }
+                try {
+                    await ctx.store.appendAuditLog("task_command_rule_fallback", {
+                        message_id: message.id,
+                        category: aiFallback.category,
+                        action: result.action,
+                    });
+                } catch (auditError) {
+                    console.error("Failed to audit task rule fallback:", auditError);
+                }
+            }
             return result;
         }
 

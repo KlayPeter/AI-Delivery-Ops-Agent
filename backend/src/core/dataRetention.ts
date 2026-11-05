@@ -23,6 +23,7 @@ export interface DataRetentionResult {
 }
 
 type StoredExecution = {
+    received_at?: unknown;
     completed_at?: unknown;
     failed_at?: unknown;
     started_at?: unknown;
@@ -34,6 +35,7 @@ function timestampOf(record: RawIdempotencyRecord): number | null {
     try {
         const value = JSON.parse(record.value) as StoredExecution;
         for (const candidate of [
+            value.received_at,
             value.completed_at,
             value.failed_at,
             value.started_at,
@@ -79,6 +81,8 @@ export class DataRetentionService {
             await Promise.all([
                 this.store.listRawIdempotencyRecords('scheduled:'),
                 this.store.listRawIdempotencyRecords('maintenance:'),
+                this.store.listRawIdempotencyRecords('feishu:event:'),
+                this.store.listRawIdempotencyRecords('history-sync:'),
             ])
         )
             .flat()

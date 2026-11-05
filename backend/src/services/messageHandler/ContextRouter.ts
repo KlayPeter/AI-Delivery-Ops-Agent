@@ -10,6 +10,8 @@ import { AgentFallbackHandler } from './handlers/AgentFallbackHandler';
 const STANDUP_CONTEXT_TYPES = new Set([
     "standup_prompt",
     "standup_receipt",
+    "task_standup_template",
+    "standup_commitment_prompt",
 ]);
 
 const TASK_CONTEXT_TYPES = new Set([

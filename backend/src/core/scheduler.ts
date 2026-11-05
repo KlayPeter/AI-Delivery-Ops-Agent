@@ -7,12 +7,13 @@ import { GroupMemberSyncService } from '@/services/groupMembers';
 import { StandupService } from '@/services/standupService';
 import { utcNowIso } from '@/models/types';
 import dayjs from 'dayjs';
-import { isWorkday } from 'chinese-days';
+import { isScheduleDateEnabled } from './scheduleCalendar';
 import type { ScheduledAgentDispatcher } from '@/platform/bootstrap/scheduledAgentDispatcher';
 import { isRecurringTimeDue, zonedClock } from './scheduleTime';
 
 const JOB_TO_CONFIG_KEY: Record<string, string> = {
     "standup-push": "standup_push",
+    "task-standup-template": "task_standup_template",
     "standup-second-remind": "standup_second_remind",
     "standup-summary": "standup_summary",
     "standup-supplement-summary": "standup_summary",
@@ -27,6 +28,7 @@ export class InProcessScheduler {
     private getHandler: () => MessageHandler;
     private intervalSeconds: number;
     private timer?: ReturnType<typeof setInterval>;
+    private tickInFlight?: Promise<Record<string, string>>;
     private lastMemberSyncAt = 0;
     private memberSyncIntervalMs: number;
     private agentJobs?: ScheduledAgentDispatcher;
@@ -59,17 +61,43 @@ export class InProcessScheduler {
     }
 
     async tick(now: Date): Promise<Record<string, string>> {
+        if (this.tickInFlight) return this.tickInFlight;
+        const run = this.runTick(now);
+        this.tickInFlight = run;
+        try {
+            return await run;
+        } finally {
+            if (this.tickInFlight === run) this.tickInFlight = undefined;
+        }
+    }
+
+    private async runTick(now: Date): Promise<Record<string, string>> {
         const handler = this.getHandler();
         const ctx = (handler as any).ctx;
         await this.syncMembersIfDue(ctx, now);
         ctx.config = loadConfig(await ctx.store.getDynamicConfig());
         await this.runMaintenanceIfDue(ctx, now);
-        if (this.agentJobs) await this.agentJobs.flushDeliveries(now);
+        if (this.agentJobs) await this.agentJobs.flushDeliveries();
         const results: Record<string, string> = {};
         const jobs = this.createScheduledJobs(handler);
         for (const group of ctx.config.groups) {
             const groupId = group.chat_id;
             if (!groupId) continue;
+
+            try {
+                const taskStandup = isScheduleDateEnabled(dayjs(now).format('YYYY-MM-DD'), group.schedule, true)
+                    ? await jobs.taskStandupRemindDue(groupId, now)
+                    : { sent: 0, failed: 0 };
+                if (taskStandup.sent || taskStandup.failed) {
+                    results[`task-standup-remind:${groupId}`] = taskStandup.failed ? "completed_with_warnings" : "completed";
+                }
+            } catch (error: any) {
+                results[`task-standup-remind:${groupId}`] = "failed";
+                await ctx.store.appendAuditLog("standup_commitment_reminder_failed", {
+                    group_id: groupId,
+                    error: error?.message || String(error),
+                });
+            }
 
             for (const [jobName, configKey] of Object.entries(JOB_TO_CONFIG_KEY)) {
                 const configuredTime = (group.schedule as any)[configKey];
@@ -79,9 +107,12 @@ export class InProcessScheduler {
                 const scheduledTime = supplementSchedule?.time || configuredTime;
                 if (!this.isJobDue(jobName, scheduledTime, now, group.schedule)) continue;
 
-                if ((group.schedule as any)[`${configKey}_enabled`] === false) continue;
+                const jobEnabled = jobName === "task-standup-template"
+                    ? group.schedule?.task_standup_enabled === true
+                    : (group.schedule as any)[`${configKey}_enabled`] !== false;
+                if (!jobEnabled) continue;
 
-                if (configKey.startsWith('standup_') && group.schedule?.module_standup_enabled === false) continue;
+                if ((configKey.startsWith('standup_') || jobName === "task-standup-template") && group.schedule?.module_standup_enabled === false) continue;
                 if (configKey === 'daily_summary' && group.schedule?.module_daily_summary_enabled === false) continue;
                 if (configKey === 'dashboard' && group.schedule?.module_dashboard_enabled === false) continue;
                 if (configKey === 'weekly_report' && group.schedule?.module_weekly_report_enabled === false) continue;
@@ -95,8 +126,8 @@ export class InProcessScheduler {
                     : null;
                 const jobDay = supplementSchedule?.previousDay ? dayjs(now).subtract(1, 'day').toDate() : now;
                 const workdaysOnly = group.schedule.workdays_only ?? ctx.config.schedule.workdays_only;
-                const workdayDate = overdueClock ? calendarDate(overdueClock.date) : jobDay;
-                if (workdaysOnly && jobName !== "weekly-report" && !isWorkday(workdayDate)) continue;
+                const calendarDay = overdueClock?.date || weeklyClock?.date || dayjs(jobDay).format('YYYY-MM-DD');
+                if (!isScheduleDateEnabled(calendarDay, { ...group.schedule, workdays_only: workdaysOnly }, jobName === "weekly-report")) continue;
 
                 const dateIso = overdueClock?.date || weeklyClock?.date || dayjs(jobDay).format('YYYY-MM-DD');
                 const executionTime = overdueClock?.time || weeklyClock?.time || scheduledTime;
@@ -111,6 +142,17 @@ export class InProcessScheduler {
 
                 try {
                     const { payload, attempts } = await this.runJobWithRetry(handler, jobName, groupId, jobDay, jobs);
+                    if (payload?.status === "duplicate") {
+                        await ctx.store.appendAuditLog("job_duplicate_skipped", {
+                            job_name: jobName,
+                            group_id: groupId,
+                            trigger: "scheduler",
+                            attempts,
+                            run_id: payload.run_id,
+                        });
+                        results[`${jobName}:${groupId}`] = "duplicate";
+                        continue;
+                    }
                     const completionStatus = payload?.status === "completed_with_warnings" ? "completed_with_warnings" : "completed";
                     if (!usesAgentRuntime) await ctx.store.setIdempotencyKey(key, { status: completionStatus, completed_at: utcNowIso(), job_name: jobName, group_id: groupId, result: payload });
                     await ctx.store.appendAuditLog(completionStatus === "completed" ? "job_completed" : "job_completed_with_warnings", { job_name: jobName, group_id: groupId, trigger: "scheduler", attempts, result: payload });
@@ -187,6 +229,12 @@ export class InProcessScheduler {
             return { payload: await this.runJob(handler, jobName, groupId, day, 0, jobs), attempts: 1 };
         } catch (firstError: any) {
             const firstMessage = firstError?.message || String(firstError);
+            if (firstError?.retryable === false) {
+                const finalError: any = firstError instanceof Error ? firstError : new Error(firstMessage);
+                finalError.attempts = 1;
+                finalError.firstError = firstMessage;
+                throw finalError;
+            }
             await Promise.resolve(ctx.store.appendAuditLog("job_retrying", {
                 job_name: jobName,
                 group_id: groupId,
@@ -195,8 +243,11 @@ export class InProcessScheduler {
                 max_attempts: 2,
                 error: firstMessage,
             })).catch(() => {});
-            if (this.jobRetryDelayMs > 0) {
-                await new Promise(resolve => setTimeout(resolve, this.jobRetryDelayMs));
+            const retryDelayMs = Number.isFinite(firstError?.retryAfterMs)
+                ? Math.max(0, firstError.retryAfterMs)
+                : this.jobRetryDelayMs;
+            if (retryDelayMs > 0) {
+                await new Promise(resolve => setTimeout(resolve, retryDelayMs));
             }
             try {
                 const payload = await this.runJob(handler, jobName, groupId, day, 1, jobs);
@@ -234,6 +285,7 @@ export class InProcessScheduler {
 
         switch (jobName) {
             case "standup-push": return await scheduledJobs.standupPush(groupId, day);
+            case "task-standup-template": return await scheduledJobs.taskStandupTemplate(groupId, day);
             case "standup-second-remind": return await scheduledJobs.standupSecondRemind(groupId, day);
             case "standup-summary": return await scheduledJobs.standupSummary(groupId, day);
             case "standup-supplement-summary": return await scheduledJobs.standupSupplementSummary(groupId, day);

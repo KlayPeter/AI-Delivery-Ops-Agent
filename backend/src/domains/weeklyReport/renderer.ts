@@ -248,6 +248,9 @@ export function renderWeeklyReportHtml(facts: WeeklyReportFacts, _narrative: Wee
     const recentOverdue = [...facts.overdue_tasks].sort((a, b) =>
         String(b.due_date || "").localeCompare(String(a.due_date || ""))
     );
+    const degradedNotice = _narrative.ai_degraded
+        ? `<aside class="degraded-notice">AI 服务本次不可用，本周报已按确定性事实模板生成；正文数字和任务事实不受影响。</aside>`
+        : "";
 
     return `<!doctype html>
 <html lang="zh-CN">
@@ -261,6 +264,7 @@ export function renderWeeklyReportHtml(facts: WeeklyReportFacts, _narrative: Wee
 .page{max-width:1280px;margin:24px auto 48px;padding:0 18px}.hero{position:relative;overflow:hidden;padding:28px 30px 24px;border:1px solid #111;border-radius:4px;background:var(--ink);color:#fff;box-shadow:8px 8px 0 var(--orange)}
 .hero:after{content:"";position:absolute;right:-35px;top:-70px;width:220px;height:220px;border:42px solid var(--lime);border-radius:50%;opacity:.95}
 .hero h1{position:relative;z-index:1;margin:10px 0 5px;font:700 29px/1.25 "Songti SC","STSong","Noto Serif SC",serif;letter-spacing:.01em}.meta{position:relative;z-index:1;color:#bfc6c1;font-size:12px}
+.degraded-notice{margin-top:18px;padding:12px 14px;border:1px solid #d99b25;border-left:5px solid #d99b25;border-radius:4px;background:#fff5d6;color:#6f4b00;font-weight:650}
 .scoreboard{position:relative;z-index:1;display:grid;grid-template-columns:repeat(5,minmax(90px,1fr));max-width:760px;margin-top:22px;border:1px solid #4b554e}.score{padding:10px 14px;border-right:1px solid #4b554e}.score:last-child{border:0}.score b{display:block;font-size:22px;line-height:1.1;color:var(--lime)}.score span{font-size:11px;color:#cbd0cc}
 .panel{margin-top:18px;padding:22px;background:var(--sheet);border:1px solid var(--ink);border-radius:4px;box-shadow:4px 4px 0 #c8c4b9}.section-head{margin-bottom:14px}.section-head h2{margin:0;font:700 21px/1.2 "Songti SC","STSong","Noto Serif SC",serif}.section-note{margin:5px 0 0;color:var(--muted);font-size:12px}
 .table-wrap{overflow-x:auto;border:1px solid var(--line)}table{width:100%;min-width:980px;border-collapse:collapse}th,td{text-align:left;padding:12px 11px;border-bottom:1px solid var(--line);vertical-align:top}tr:last-child td{border-bottom:0}th{background:#eeeae0;color:#555d57;font-size:11px;letter-spacing:.08em;font-weight:700}tbody tr:hover{background:#fcf8ec}
@@ -288,6 +292,7 @@ export function renderWeeklyReportHtml(facts: WeeklyReportFacts, _narrative: Wee
     <div class="score"><b>${metrics.overdue_tasks}</b><span>近期超期任务</span></div>
   </div>
 </header>
+${degradedNotice}
 <section class="panel">
   <div class="section-head"><h2>成员周度统计</h2></div>
   <div class="table-wrap"><table>

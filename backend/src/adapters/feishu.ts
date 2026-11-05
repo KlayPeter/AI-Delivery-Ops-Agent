@@ -5,11 +5,29 @@ import * as fs from 'fs';
 import axios from 'axios';
 import { FeishuConfig } from '@/core/config';
 import { SourceMessage, Mention, utcNowIso } from '@/models/types';
+import {
+    externalApiCircuit,
+    normalizeExternalApiOperation,
+    observeExternalApiCall,
+    openExternalApiCircuit,
+} from '@/platform/observability/externalApiHealth';
 
 const execFileAsync = promisify(execFile);
 
 export const WORKING_REACTION_EMOJI_TYPES = ["Typing", "OnIt"];
 export const WORKING_REACTION_EMOJI_TYPE = WORKING_REACTION_EMOJI_TYPES[0];
+export const FEISHU_HISTORY_PAGE_SIZE = 50;
+export const FEISHU_HISTORY_MAX_PAGES = 100;
+export const FEISHU_HISTORY_SYNC_TIMEOUT_MS = 30_000;
+export const FEISHU_LIST_MAX_PAGES = 100;
+export const FEISHU_DIRECTORY_MAX_REQUESTS = 200;
+const FEISHU_LIST_SYNC_TIMEOUT_MS = 30_000;
+const FEISHU_DIRECTORY_SYNC_TIMEOUT_MS = 60_000;
+const FEISHU_PAGE_REQUEST_TIMEOUT_MS = 10_000;
+
+function feishuGuardError(code: string, message: string): Error {
+    return Object.assign(new Error(message), { code, retryable: false });
+}
 
 export interface SendResult {
     ok: boolean;
@@ -22,13 +40,57 @@ export interface SendResult {
     warning?: string;
     image_key?: string;
     retryable?: boolean;
+    error_code?: string;
+    retry_after_ms?: number;
+}
+
+export interface FeishuFailureClassification {
+    code: string;
+    message: string;
+    retryable: boolean;
+    retryAfterMs?: number;
+    quotaExhausted: boolean;
+    raw: any;
+}
+
+function retryAfterMs(value: unknown, now: number = Date.now()): number | undefined {
+    const raw = Array.isArray(value) ? value[0] : value;
+    if (raw === null || raw === undefined || raw === '') return undefined;
+    const seconds = Number(raw);
+    if (Number.isFinite(seconds)) return Math.max(0, Math.round(seconds * 1000));
+    const date = Date.parse(String(raw));
+    return Number.isFinite(date) ? Math.max(0, date - now) : undefined;
+}
+
+function nextShanghaiMonthStart(now: Date = new Date()): Date {
+    const shanghaiTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+    return new Date(Date.UTC(shanghaiTime.getUTCFullYear(), shanghaiTime.getUTCMonth() + 1, 1) - 8 * 60 * 60 * 1000);
+}
+
+export function classifyFeishuFailure(error: any): FeishuFailureClassification {
+    const raw = error?.response?.data || error?.raw || {};
+    const status = Number(error?.response?.status || error?.status || 0);
+    const businessCode = Number(raw?.code ?? raw?.error?.code);
+    const quotaExhausted = businessCode === 99991403;
+    const rateLimited = status === 429 || businessCode === 99991400 || businessCode === 99991403;
+    const permanent = quotaExhausted || businessCode === 230001 || status === 400 || status === 401 || status === 403 || status === 404;
+    const headers = error?.response?.headers || {};
+    const retryDelay = retryAfterMs(headers['retry-after'] ?? headers['Retry-After']);
+    return {
+        code: quotaExhausted ? 'FEISHU_MONTHLY_QUOTA_EXHAUSTED' : rateLimited ? 'FEISHU_RATE_LIMITED' : permanent ? 'FEISHU_PERMANENT_ERROR' : 'FEISHU_API_ERROR',
+        message: raw?.msg || raw?.message || error?.message || String(error),
+        retryable: !permanent,
+        retryAfterMs: rateLimited && !quotaExhausted ? retryDelay : undefined,
+        quotaExhausted,
+        raw,
+    };
 }
 
 export function isPermanentFeishuSendFailure(result: Pick<SendResult, "ok" | "raw" | "error" | "retryable">): boolean {
     if (result.ok) return false;
     if (result.retryable === false) return true;
     const code = Number(result.raw?.code ?? result.raw?.error?.code);
-    if (code === 230001) return true;
+    if (code === 230001 || code === 99991403) return true;
     const text = [
         result.error,
         result.raw?.msg,
@@ -213,11 +275,79 @@ export class FeishuAdapter {
     private tokenRequest: Promise<string> | null = null;
 
     private knownNames: Record<string, string>;
+    private readonly memberJobTitleCache = new Map<string, { jobTitle?: string; expiresAt: number }>();
 
     constructor(config: FeishuConfig, dryRun: boolean = false, knownNames: Record<string, string> = {}) {
         this.config = config;
         this.dryRun = dryRun;
         this.knownNames = knownNames;
+    }
+
+    private async _observe<T>(
+        method: string,
+        url: string,
+        request: () => Promise<T>,
+        options: { metered?: boolean; isSuccess?: (result: T) => boolean } = {},
+    ): Promise<T> {
+        return observeExternalApiCall({
+            provider: 'feishu',
+            scope: this.config.app_id || 'unconfigured',
+            operation: normalizeExternalApiOperation(method, url),
+            metered: options.metered,
+            request,
+            isSuccess: options.isSuccess,
+        });
+    }
+
+    private _quotaCircuitFailure(): SendResult | null {
+        const circuit = externalApiCircuit('feishu', this.config.app_id || 'unconfigured');
+        if (!circuit) return null;
+        return {
+            ok: false,
+            raw: { code: 99991403 },
+            error: 'Feishu monthly API quota is exhausted',
+            error_code: 'FEISHU_MONTHLY_QUOTA_EXHAUSTED',
+            retryable: false,
+        };
+    }
+
+    private _assertMeteredApiAvailable(): void {
+        const failure = this._quotaCircuitFailure();
+        if (!failure) return;
+        throw Object.assign(new Error(failure.error), {
+            code: failure.error_code,
+            retryable: false,
+        });
+    }
+
+    private _classifyFailure(error: any): FeishuFailureClassification {
+        const failure = classifyFeishuFailure(error);
+        if (failure.quotaExhausted) {
+            openExternalApiCircuit('feishu', failure.code, nextShanghaiMonthStart(), this.config.app_id || 'unconfigured');
+        }
+        return failure;
+    }
+
+    private _sendFailure(error: any, chatId?: string): SendResult {
+        const failure = this._classifyFailure(error);
+        return {
+            ok: false,
+            raw: failure.raw,
+            chat_id: chatId,
+            error: failure.message,
+            error_code: failure.code,
+            retryable: failure.retryable,
+            retry_after_ms: failure.retryAfterMs,
+        };
+    }
+
+    private _apiError(error: any, prefix: string): Error {
+        const failure = this._classifyFailure(error);
+        return Object.assign(new Error(`${prefix}: ${failure.message}`), {
+            code: failure.code,
+            retryable: failure.retryable,
+            retryAfterMs: failure.retryAfterMs,
+        });
     }
 
     private async _getTenantAccessToken(): Promise<string> {
@@ -237,10 +367,10 @@ export class FeishuAdapter {
     private async _fetchTenantAccessToken(): Promise<string> {
         const url = "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal";
         try {
-            const resp = await axios.post(url, {
+            const resp = await this._observe('POST', url, () => axios.post(url, {
                 app_id: this.config.app_id,
                 app_secret: this.config.app_secret
-            });
+            }), { metered: false, isSuccess: result => result.data?.code === 0 });
             if (resp.data.code === 0) {
                 this.tokenCache = resp.data.tenant_access_token;
                 this.tokenExpires = Date.now() + (resp.data.expire * 1000) - 60000;
@@ -260,9 +390,10 @@ export class FeishuAdapter {
         if (this.knownNames[openId]) return this.knownNames[openId];
         try {
             const token = await this._getTenantAccessToken();
-            const resp = await axios.get(`https://open.feishu.cn/open-apis/contact/v3/users/${openId}`, {
+            const url = `https://open.feishu.cn/open-apis/contact/v3/users/${openId}`;
+            const resp = await this._observe('GET', url, () => axios.get(url, {
                 headers: { Authorization: `Bearer ${token}` }
-            });
+            }), { metered: false, isSuccess: result => result.data?.code === 0 });
             if (resp.data.code === 0 && resp.data.data?.user?.name) {
                 return resp.data.data.user.name;
             }
@@ -272,110 +403,125 @@ export class FeishuAdapter {
         return null;
     }
 
-    async sendGroupText(text: string, chatId: string): Promise<SendResult> {
-        const result = await this._sendMessage("chat_id", chatId, text);
+    async sendGroupText(text: string, chatId: string, signal?: AbortSignal): Promise<SendResult> {
+        const result = await this._sendMessage("chat_id", chatId, text, signal);
         this._auditSend("group", chatId, result);
         return result;
     }
 
-    async sendGroupMarkdown(text: string, chatId: string, title?: string): Promise<SendResult> {
-        const result = await this._sendInteractive("chat_id", chatId, text, title);
+    async sendGroupMarkdown(text: string, chatId: string, title?: string, signal?: AbortSignal): Promise<SendResult> {
+        const result = await this._sendInteractive("chat_id", chatId, text, title, signal);
         this._auditSend("group_markdown", chatId, result);
         return result;
     }
 
-    async sendPrivateText(openId: string, text: string): Promise<SendResult> {
-        const result = await this._sendMessage("open_id", openId, text);
+    async sendGroupCard(card: Record<string, unknown>, chatId: string, title?: string, signal?: AbortSignal): Promise<SendResult> {
+        const result = await this._sendInteractiveCard("chat_id", chatId, card, title, signal);
+        this._auditSend("group_card", chatId, result);
+        return result;
+    }
+
+    async sendPrivateText(openId: string, text: string, signal?: AbortSignal): Promise<SendResult> {
+        const result = await this._sendMessage("open_id", openId, text, signal);
         this._auditSend("private", openId, result);
         return result;
     }
 
-    async sendPrivateMarkdown(openId: string, text: string, title?: string): Promise<SendResult> {
-        const result = await this._sendInteractive("open_id", openId, text, title);
+    async sendPrivateMarkdown(openId: string, text: string, title?: string, signal?: AbortSignal): Promise<SendResult> {
+        const result = await this._sendInteractive("open_id", openId, text, title, signal);
         this._auditSend("private_markdown", openId, result);
         return result;
     }
 
-    async sendReplyText(messageId: string, text: string): Promise<SendResult> {
+    async sendReplyText(messageId: string, text: string, signal?: AbortSignal): Promise<SendResult> {
         if (!messageId) {
             const res = { ok: false, raw: {}, error: "message_id is required for reply" };
             this._auditSend("reply", messageId, res);
             return res;
         }
-        const result = await this._sendReply(messageId, text);
+        const result = await this._sendReply(messageId, text, signal);
         this._auditSend("reply", messageId, result);
         return result;
     }
 
-    async sendReplyMarkdown(messageId: string, text: string, title?: string): Promise<SendResult> {
+    async sendReplyMarkdown(messageId: string, text: string, title?: string, signal?: AbortSignal): Promise<SendResult> {
         if (!messageId) {
             const res = { ok: false, raw: {}, error: "message_id is required for reply" };
             this._auditSend("reply_markdown", messageId, res);
             return res;
         }
-        const result = await this._sendReplyInteractive(messageId, text, title);
+        const result = await this._sendReplyInteractive(messageId, text, title, signal);
         this._auditSend("reply_markdown", messageId, result);
         return result;
     }
 
-    async uploadImage(imagePath: string): Promise<SendResult> {
+    async uploadImage(imagePath: string, signal?: AbortSignal): Promise<SendResult> {
         if (this.dryRun) return { ok: true, raw: { dry_run: true, imagePath }, image_key: "dry-run-image-key" };
+        const circuitFailure = this._quotaCircuitFailure();
+        if (circuitFailure) return circuitFailure;
         try {
             const token = await this._getTenantAccessToken();
             const imageData = fs.readFileSync(path.resolve(imagePath));
             const formData = new FormData();
             formData.append('image_type', 'message');
             formData.append('image', new Blob([imageData]), path.basename(imagePath));
-            const response = await fetch('https://open.feishu.cn/open-apis/im/v1/images', {
+            const url = 'https://open.feishu.cn/open-apis/im/v1/images';
+            const response = await this._observe('POST', url, () => fetch(url, {
                 method: 'POST',
                 headers: { Authorization: `Bearer ${token}` },
                 body: formData,
-                signal: AbortSignal.timeout(60000),
-            });
+                signal: signal || AbortSignal.timeout(60000),
+            }), { isSuccess: result => result.ok });
             const raw: any = await response.json();
             if (raw?.code !== 0 || !raw?.data?.image_key) {
-                return { ok: false, raw, error: raw?.msg || raw?.message || 'Feishu image upload failed' };
+                if (raw?.code !== 0) return this._resultFromApi(raw, 'chat_id', '');
+                return { ok: false, raw, error: raw?.msg || raw?.message || 'Feishu image upload failed', retryable: true };
             }
             return { ok: true, raw, image_key: raw.data.image_key };
         } catch (error: any) {
-            return { ok: false, raw: {}, error: error?.message || String(error) };
+            return this._sendFailure(error);
         }
     }
 
-    async sendGroupImageKey(imageKey: string, chatId: string): Promise<SendResult> {
+    async sendGroupImageKey(imageKey: string, chatId: string, signal?: AbortSignal): Promise<SendResult> {
         if (this.dryRun) return { ok: true, raw: { dry_run: true, imageKey, chatId }, chat_id: chatId };
-        return this._sendImageKey("chat_id", chatId, imageKey);
+        return this._sendImageKey("chat_id", chatId, imageKey, signal);
     }
 
-    async sendReplyImageKey(imageKey: string, messageId: string): Promise<SendResult> {
+    async sendReplyImageKey(imageKey: string, messageId: string, signal?: AbortSignal): Promise<SendResult> {
         if (this.dryRun) return { ok: true, raw: { dry_run: true, imageKey, messageId } };
+        const circuitFailure = this._quotaCircuitFailure();
+        if (circuitFailure) return circuitFailure;
         try {
             const token = await this._getTenantAccessToken();
-            const response = await axios.post(`https://open.feishu.cn/open-apis/im/v1/messages/${encodeURIComponent(messageId)}/reply`, {
+            const url = `https://open.feishu.cn/open-apis/im/v1/messages/${encodeURIComponent(messageId)}/reply`;
+            const response = await this._observe('POST', url, () => axios.post(url, {
                 msg_type: "image",
                 content: JSON.stringify({ image_key: imageKey }),
             }, {
                 headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json; charset=utf-8" },
                 timeout: 60000,
-            });
+                signal,
+            }), { isSuccess: result => result.data?.code === 0 });
             return this._resultFromApi(response.data, "chat_id", "");
         } catch (error: any) {
-            const raw = error.response?.data || {};
-            return { ok: false, raw, error: raw.msg || raw.message || error.message || String(error) };
+            return this._sendFailure(error);
         }
     }
 
 
 
-    private async _sendMessage(receiveIdType: "open_id" | "chat_id", receiveId: string, text: string): Promise<SendResult> {
+    private async _sendMessage(receiveIdType: "open_id" | "chat_id", receiveId: string, text: string, signal?: AbortSignal): Promise<SendResult> {
         if (!String(receiveId || "").trim()) {
             return { ok: false, raw: {}, error: "receive_id is required", retryable: false };
         }
         if (this.dryRun) return { ok: true, raw: { dry_run: true, receiveIdType, receiveId, text }, chat_id: receiveIdType === "chat_id" ? receiveId : undefined };
+        const circuitFailure = this._quotaCircuitFailure();
+        if (circuitFailure) return { ...circuitFailure, chat_id: receiveIdType === "chat_id" ? receiveId : undefined };
         try {
             const token = await this._getTenantAccessToken();
             const url = `https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=${receiveIdType}`;
-            const resp = await axios.post(url, {
+            const resp = await this._observe('POST', url, () => axios.post(url, {
                 receive_id: receiveId,
                 msg_type: "text",
                 content: JSON.stringify({ text }),
@@ -385,63 +531,75 @@ export class FeishuAdapter {
                     "Content-Type": "application/json; charset=utf-8",
                 },
                 timeout: 60000,
-            });
+                signal,
+            }), { isSuccess: result => result.data?.code === 0 });
             return this._resultFromApi(resp.data, receiveIdType, receiveId);
         } catch (e: any) {
-            if (axios.isAxiosError(e)) {
-                if (!e.response || e.response.status >= 500) {
-                    throw new Error(`Feishu API Error (Network/5xx): ${e.message}`);
-                }
-            }
-            const raw = e.response?.data || {};
-            const result: SendResult = { ok: false, raw, chat_id: receiveIdType === "chat_id" ? receiveId : undefined, error: raw.msg || raw.message || e.message || String(e) };
-            result.retryable = !isPermanentFeishuSendFailure(result);
-            return result;
+            return this._sendFailure(e, receiveIdType === "chat_id" ? receiveId : undefined);
         }
     }
 
-    private async _sendImageKey(receiveIdType: "open_id" | "chat_id", receiveId: string, imageKey: string): Promise<SendResult> {
+    private async _sendImageKey(receiveIdType: "open_id" | "chat_id", receiveId: string, imageKey: string, signal?: AbortSignal): Promise<SendResult> {
         if (!String(receiveId || "").trim()) {
             return { ok: false, raw: {}, error: "receive_id is required", retryable: false };
         }
+        if (this.dryRun) return { ok: true, raw: { dry_run: true, receiveIdType, receiveId, imageKey }, chat_id: receiveIdType === "chat_id" ? receiveId : undefined };
+        const circuitFailure = this._quotaCircuitFailure();
+        if (circuitFailure) return { ...circuitFailure, chat_id: receiveIdType === "chat_id" ? receiveId : undefined };
         try {
             const token = await this._getTenantAccessToken();
-            const response = await axios.post(`https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=${receiveIdType}`, {
+            const url = `https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=${receiveIdType}`;
+            const response = await this._observe('POST', url, () => axios.post(url, {
                 receive_id: receiveId,
                 msg_type: "image",
                 content: JSON.stringify({ image_key: imageKey }),
             }, {
                 headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json; charset=utf-8" },
                 timeout: 60000,
-            });
+                signal,
+            }), { isSuccess: result => result.data?.code === 0 });
             return this._resultFromApi(response.data, receiveIdType, receiveId);
         } catch (error: any) {
-            const raw = error.response?.data || {};
-            return { ok: false, raw, chat_id: receiveIdType === "chat_id" ? receiveId : undefined, error: raw.msg || raw.message || error.message || String(error) };
+            return this._sendFailure(error, receiveIdType === "chat_id" ? receiveId : undefined);
         }
     }
 
-    private async _sendInteractive(receiveIdType: "open_id" | "chat_id", receiveId: string, text: string, title?: string): Promise<SendResult> {
+    private async _sendInteractive(receiveIdType: "open_id" | "chat_id", receiveId: string, text: string, title?: string, signal?: AbortSignal): Promise<SendResult> {
+        return this._sendInteractiveCard(receiveIdType, receiveId, {
+            elements: [{ tag: "markdown", content: text }],
+        }, title, signal);
+    }
+
+    private async _sendInteractiveCard(
+        receiveIdType: "open_id" | "chat_id",
+        receiveId: string,
+        input: Record<string, unknown>,
+        title?: string,
+        signal?: AbortSignal,
+    ): Promise<SendResult> {
         if (!String(receiveId || "").trim()) {
             return { ok: false, raw: {}, error: "receive_id is required", retryable: false };
         }
-        if (this.dryRun) return { ok: true, raw: { dry_run: true, receiveIdType, receiveId, text }, chat_id: receiveIdType === "chat_id" ? receiveId : undefined };
+        if (this.dryRun) return { ok: true, raw: { dry_run: true, receiveIdType, receiveId, card: input, title }, chat_id: receiveIdType === "chat_id" ? receiveId : undefined };
+        const circuitFailure = this._quotaCircuitFailure();
+        if (circuitFailure) return { ...circuitFailure, chat_id: receiveIdType === "chat_id" ? receiveId : undefined };
         try {
             const token = await this._getTenantAccessToken();
             const url = `https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=${receiveIdType}`;
             const card: any = {
+                ...input,
                 config: { wide_screen_mode: true },
-                elements: [
-                    { tag: "markdown", content: text }
-                ]
             };
+            if (input.config && typeof input.config === "object") {
+                card.config = { ...(input.config as Record<string, unknown>), wide_screen_mode: true };
+            }
             if (title) {
                 card.header = {
                     title: { tag: "plain_text", content: title },
                     template: "blue"
                 };
             }
-            const resp = await axios.post(url, {
+            const resp = await this._observe('POST', url, () => axios.post(url, {
                 receive_id: receiveId,
                 msg_type: "interactive",
                 content: JSON.stringify(card),
@@ -451,30 +609,28 @@ export class FeishuAdapter {
                     "Content-Type": "application/json; charset=utf-8",
                 },
                 timeout: 60000,
-            });
+                signal,
+            }), { isSuccess: result => result.data?.code === 0 });
             return this._resultFromApi(resp.data, receiveIdType, receiveId);
         } catch (e: any) {
-            if (axios.isAxiosError(e)) {
-                if (!e.response || e.response.status >= 500) {
-                    throw new Error(`Feishu API Error (Network/5xx): ${e.message}`);
-                }
-            }
-            const raw = e.response?.data || {};
-            return { ok: false, raw, chat_id: receiveIdType === "chat_id" ? receiveId : undefined, error: raw.msg || raw.message || e.message || String(e) };
+            return this._sendFailure(e, receiveIdType === "chat_id" ? receiveId : undefined);
         }
     }
 
     private _resultFromApi(raw: any, receiveIdType: "open_id" | "chat_id", receiveId: string): SendResult {
         const { chatId, messageId } = this._extractResultFields(raw);
         if (raw?.code !== 0) {
+            const failure = this._classifyFailure({ raw });
             const result: SendResult = {
                 ok: false,
                 raw,
                 chat_id: chatId || (receiveIdType === "chat_id" ? receiveId : undefined),
                 message_id: messageId,
-                error: raw?.msg || raw?.message || JSON.stringify(raw),
+                error: failure.message || JSON.stringify(raw),
+                error_code: failure.code,
+                retry_after_ms: failure.retryAfterMs,
             };
-            result.retryable = !isPermanentFeishuSendFailure(result);
+            result.retryable = failure.retryable && !isPermanentFeishuSendFailure(result);
             return result;
         }
 
@@ -486,12 +642,14 @@ export class FeishuAdapter {
         };
     }
 
-    private async _sendReply(messageId: string, text: string): Promise<SendResult> {
+    private async _sendReply(messageId: string, text: string, signal?: AbortSignal): Promise<SendResult> {
         if (this.dryRun) return { ok: true, raw: { dry_run: true, messageId, text }, chat_id: undefined };
+        const circuitFailure = this._quotaCircuitFailure();
+        if (circuitFailure) return circuitFailure;
         try {
             const token = await this._getTenantAccessToken();
             const url = `https://open.feishu.cn/open-apis/im/v1/messages/${encodeURIComponent(messageId)}/reply`;
-            const resp = await axios.post(url, {
+            const resp = await this._observe('POST', url, () => axios.post(url, {
                 msg_type: "text",
                 content: JSON.stringify({ text }),
             }, {
@@ -500,21 +658,18 @@ export class FeishuAdapter {
                     "Content-Type": "application/json; charset=utf-8",
                 },
                 timeout: 60000,
-            });
+                signal,
+            }), { isSuccess: result => result.data?.code === 0 });
             return this._resultFromApi(resp.data, "chat_id", "");
         } catch (e: any) {
-            if (axios.isAxiosError(e)) {
-                if (!e.response || e.response.status >= 500) {
-                    throw new Error(`Feishu API Error (Network/5xx): ${e.message}`);
-                }
-            }
-            const raw = e.response?.data || {};
-            return { ok: false, raw, chat_id: undefined, error: raw.msg || raw.message || e.message || String(e) };
+            return this._sendFailure(e);
         }
     }
 
-    private async _sendReplyInteractive(messageId: string, text: string, title?: string): Promise<SendResult> {
+    private async _sendReplyInteractive(messageId: string, text: string, title?: string, signal?: AbortSignal): Promise<SendResult> {
         if (this.dryRun) return { ok: true, raw: { dry_run: true, messageId, text, title }, chat_id: undefined };
+        const circuitFailure = this._quotaCircuitFailure();
+        if (circuitFailure) return circuitFailure;
         try {
             const token = await this._getTenantAccessToken();
             const url = `https://open.feishu.cn/open-apis/im/v1/messages/${encodeURIComponent(messageId)}/reply`;
@@ -532,7 +687,7 @@ export class FeishuAdapter {
                 };
             }
 
-            const resp = await axios.post(url, {
+            const resp = await this._observe('POST', url, () => axios.post(url, {
                 msg_type: "interactive",
                 content: JSON.stringify(card),
             }, {
@@ -541,21 +696,18 @@ export class FeishuAdapter {
                     "Content-Type": "application/json; charset=utf-8",
                 },
                 timeout: 60000,
-            });
+                signal,
+            }), { isSuccess: result => result.data?.code === 0 });
             return this._resultFromApi(resp.data, "chat_id", "");
         } catch (e: any) {
-            if (axios.isAxiosError(e)) {
-                if (!e.response || e.response.status >= 500) {
-                    throw new Error(`Feishu API Error (Network/5xx): ${e.message}`);
-                }
-            }
-            const raw = e.response?.data || {};
-            return { ok: false, raw, chat_id: undefined, error: raw.msg || raw.message || e.message || String(e) };
+            return this._sendFailure(e);
         }
     }
 
     async sendReplyFile(messageId: string, filePath: string): Promise<SendResult> {
         if (this.dryRun) return { ok: true, raw: { dry_run: true, messageId, filePath }, chat_id: undefined };
+        const circuitFailure = this._quotaCircuitFailure();
+        if (circuitFailure) return circuitFailure;
         const resolvedPath = path.resolve(filePath);
         try {
             const token = await this._getTenantAccessToken();
@@ -567,23 +719,23 @@ export class FeishuAdapter {
             formData.append('file', new Blob([fileData]));
 
             const uploadUrl = `https://open.feishu.cn/open-apis/im/v1/files`;
-            const uploadResp = await fetch(uploadUrl, {
+            const uploadResp = await this._observe('POST', uploadUrl, () => fetch(uploadUrl, {
                 method: 'POST',
                 headers: {
                     "Authorization": `Bearer ${token}`
                 },
                 body: formData
-            });
+            }), { isSuccess: result => result.ok });
             const uploadJson: any = await uploadResp.json();
 
             if (uploadJson.code !== 0) {
-                return { ok: false, raw: uploadJson, error: uploadJson.msg };
+                return this._resultFromApi(uploadJson, 'chat_id', '');
             }
 
             const fileKey = uploadJson.data.file_key;
 
             const replyUrl = `https://open.feishu.cn/open-apis/im/v1/messages/${messageId}/reply`;
-            const replyResp = await axios.post(replyUrl, {
+            const replyResp = await this._observe('POST', replyUrl, () => axios.post(replyUrl, {
                 msg_type: "file",
                 content: JSON.stringify({ file_key: fileKey }),
             }, {
@@ -592,69 +744,79 @@ export class FeishuAdapter {
                     "Content-Type": "application/json; charset=utf-8",
                 },
                 timeout: 60000,
-            });
+            }), { isSuccess: result => result.data?.code === 0 });
 
             if (replyResp.data.code !== 0) {
-                return { ok: false, raw: replyResp.data, error: replyResp.data.msg };
+                return this._resultFromApi(replyResp.data, 'chat_id', '');
             }
 
             return { ok: true, raw: replyResp.data, message_id: replyResp.data.data.message_id };
         } catch (e: any) {
-            if (axios.isAxiosError(e)) {
-                if (!e.response || e.response.status >= 500) {
-                    throw new Error(`Feishu API Error (Network/5xx): ${e.message}`);
-                }
-            }
-            const raw = e.response?.data || {};
-            return { ok: false, raw, error: raw.msg || raw.message || e.message || String(e) };
+            return this._sendFailure(e);
         }
     }
 
     async addReaction(messageId: string, emojiType: string = WORKING_REACTION_EMOJI_TYPE): Promise<string | null> {
         this.lastReactionError = null;
         if (this.dryRun || !messageId) return null;
+        if (this._quotaCircuitFailure()) {
+            this.lastReactionError = 'Feishu monthly API quota is exhausted';
+            return null;
+        }
 
         try {
             const token = await this._getTenantAccessToken();
             const url = `https://open.feishu.cn/open-apis/im/v1/messages/${messageId}/reactions`;
-            const resp = await axios.post(url, { reaction_type: { emoji_type: emojiType } }, {
+            const resp = await this._observe('POST', url, () => axios.post(url, { reaction_type: { emoji_type: emojiType } }, {
                 headers: { "Authorization": `Bearer ${token}` },
                 timeout: 5000
-            });
+            }), { isSuccess: result => result.data?.code === 0 });
             if (resp.data.code === 0) {
                 return resp.data.data?.reaction_id || null;
             }
-            this.lastReactionError = `API returned: ${JSON.stringify(resp.data)}`;
+            const failure = this._classifyFailure({ raw: resp.data });
+            this.lastReactionError = failure.message;
         } catch (e) {
-            this.lastReactionError = String(e);
+            this.lastReactionError = this._classifyFailure(e).message;
         }
         return null;
     }
 
     async removeReaction(messageId: string, reactionId: string): Promise<void> {
         if (this.dryRun || !messageId || !reactionId) return;
+        if (this._quotaCircuitFailure()) return;
         try {
             const token = await this._getTenantAccessToken();
             const url = `https://open.feishu.cn/open-apis/im/v1/messages/${messageId}/reactions/${reactionId}`;
-            await axios.delete(url, {
+            const response = await this._observe('DELETE', url, () => axios.delete(url, {
                 headers: { "Authorization": `Bearer ${token}` },
                 timeout: 5000
-            });
-        } catch (e) {}
+            }), { isSuccess: result => result.data?.code === 0 });
+            if (response.data?.code !== 0) {
+                this._classifyFailure({ raw: response.data });
+            }
+        } catch (e) {
+            this._classifyFailure(e);
+        }
     }
 
     async getMessageImageKeys(messageId: string): Promise<string[]> {
         if (this.dryRun || !messageId) return [];
+        if (this._quotaCircuitFailure()) return [];
         try {
             const token = await this._getTenantAccessToken();
             const url = `https://open.feishu.cn/open-apis/im/v1/messages/${messageId}`;
-            const response = await axios.get(url, {
+            const response = await this._observe('GET', url, () => axios.get(url, {
                 headers: { "Authorization": `Bearer ${token}` },
                 timeout: 30000
-            });
-            if (response.data?.code !== 0) return [];
+            }), { isSuccess: result => result.data?.code === 0 });
+            if (response.data?.code !== 0) {
+                this._classifyFailure({ raw: response.data });
+                return [];
+            }
             return extractFeishuImageKeys(response.data?.data?.items || response.data?.data);
         } catch (e) {
+            this._classifyFailure(e);
             console.error(`[FeishuAdapter] getMessageImageKeys error:`, e);
             return [];
         }
@@ -662,14 +824,15 @@ export class FeishuAdapter {
 
     async downloadResourceWithMetadata(messageId: string, fileKey: string, type: 'file' | 'image', destPath: string): Promise<DownloadResourceResult> {
         if (this.dryRun) return { ok: false, error: "dry_run" };
+        if (this._quotaCircuitFailure()) return { ok: false, error: 'Feishu monthly API quota is exhausted' };
         try {
             const token = await this._getTenantAccessToken();
             const url = `https://open.feishu.cn/open-apis/im/v1/messages/${messageId}/resources/${fileKey}?type=${type}`;
-            const response = await axios.get(url, {
+            const response = await this._observe('GET', url, () => axios.get(url, {
                 headers: { "Authorization": `Bearer ${token}` },
                 responseType: 'stream',
                 timeout: 30000
-            });
+            }), { isSuccess: () => true });
             const writer = fs.createWriteStream(destPath);
             response.data.pipe(writer);
             const ok = await new Promise<boolean>((resolve) => {
@@ -686,8 +849,9 @@ export class FeishuAdapter {
                 fileName: this._resourceFileName(typeof contentDisposition === "string" ? contentDisposition : undefined),
             };
         } catch (e) {
+            const failure = this._classifyFailure(e);
             console.error(`[FeishuAdapter] downloadResource error:`, e);
-            return { ok: false, error: String(e) };
+            return { ok: false, error: failure.message };
         }
     }
 
@@ -814,9 +978,10 @@ export class FeishuAdapter {
     async getDepartmentName(depId: string, token: string): Promise<string> {
         if (this._departmentNameCache[depId]) return this._departmentNameCache[depId];
         try {
-            const resp = await axios.get(`https://open.feishu.cn/open-apis/contact/v3/departments/${depId}?department_id_type=open_department_id`, {
+            const url = `https://open.feishu.cn/open-apis/contact/v3/departments/${depId}?department_id_type=open_department_id`;
+            const resp = await this._observe('GET', url, () => axios.get(url, {
                 headers: { Authorization: `Bearer ${token}` }
-            });
+            }), { metered: false, isSuccess: result => result.data?.code === 0 });
             if (resp.data.code === 0 && resp.data.data?.department?.name) {
                 this._departmentNameCache[depId] = resp.data.data.department.name;
                 return this._departmentNameCache[depId];
@@ -837,9 +1002,10 @@ export class FeishuAdapter {
             const batch = openIds.slice(i, i + BATCH_SIZE);
             const promises = batch.map(async (openId) => {
                 try {
-                    const resp = await axios.get(`https://open.feishu.cn/open-apis/contact/v3/users/${openId}?department_id_type=open_department_id&user_id_type=open_id`, {
+                    const url = `https://open.feishu.cn/open-apis/contact/v3/users/${openId}?department_id_type=open_department_id&user_id_type=open_id`;
+                    const resp = await this._observe('GET', url, () => axios.get(url, {
                         headers: { Authorization: `Bearer ${token}` }
-                    });
+                    }), { metered: false, isSuccess: result => result.data?.code === 0 });
                     if (resp.data.code === 0 && resp.data.data?.user) {
                         const user = resp.data.data.user;
                         let department = null;
@@ -872,22 +1038,60 @@ export class FeishuAdapter {
         const token = await this._getTenantAccessToken();
         const results: Array<{ open_id: string; name: string; department: string | null }> = [];
         const seenOpenIds = new Set<string>();
+        const deadlineAt = Date.now() + FEISHU_DIRECTORY_SYNC_TIMEOUT_MS;
+        let requestCount = 0;
+
+        const beforePageRequest = (scope: string, pageToken: string, pageCount: number, requestedTokens: Set<string>): number => {
+            if (requestedTokens.has(pageToken)) {
+                throw feishuGuardError('FEISHU_DIRECTORY_REPEATED_PAGE_TOKEN', `${scope} repeated page_token after ${pageCount} pages`);
+            }
+            if (pageCount >= FEISHU_LIST_MAX_PAGES) {
+                throw feishuGuardError('FEISHU_DIRECTORY_PAGE_LIMIT_EXCEEDED', `${scope} exceeded ${FEISHU_LIST_MAX_PAGES} pages`);
+            }
+            if (requestCount >= FEISHU_DIRECTORY_MAX_REQUESTS) {
+                throw feishuGuardError('FEISHU_DIRECTORY_REQUEST_LIMIT_EXCEEDED', `Feishu directory sync exceeded ${FEISHU_DIRECTORY_MAX_REQUESTS} requests`);
+            }
+            const remainingMs = deadlineAt - Date.now();
+            if (remainingMs <= 0) {
+                throw feishuGuardError('FEISHU_DIRECTORY_SYNC_TIMEOUT', `Feishu directory sync exceeded ${FEISHU_DIRECTORY_SYNC_TIMEOUT_MS}ms`);
+            }
+            requestedTokens.add(pageToken);
+            requestCount++;
+            return remainingMs;
+        };
+
+        const nextPageToken = (scope: string, data: any, pageCount: number, requestedTokens: Set<string>): string => {
+            if (!data?.has_more) return "";
+            const next = String(data.page_token || "");
+            if (!next) {
+                throw feishuGuardError('FEISHU_DIRECTORY_MISSING_PAGE_TOKEN', `${scope} returned has_more without page_token after ${pageCount} pages`);
+            }
+            if (requestedTokens.has(next)) {
+                throw feishuGuardError('FEISHU_DIRECTORY_REPEATED_PAGE_TOKEN', `${scope} repeated page_token after ${pageCount} pages`);
+            }
+            return next;
+        };
 
         try {
             // 1. Fetch all departments recursively (assuming root is '0')
             let allDepartments: any[] = [];
             let hasMore = true;
             let pageToken = "";
+            let departmentPageCount = 0;
+            const departmentPageTokens = new Set<string>();
             while (hasMore) {
-                const url = `https://open.feishu.cn/open-apis/contact/v3/departments/0/children?department_id_type=open_department_id&fetch_child=true${pageToken ? `&page_token=${pageToken}` : ''}`;
-                const resp = await axios.get(url, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const remainingMs = beforePageRequest('Feishu department pagination', pageToken, departmentPageCount, departmentPageTokens);
+                departmentPageCount++;
+                const url = `https://open.feishu.cn/open-apis/contact/v3/departments/0/children?department_id_type=open_department_id&fetch_child=true${pageToken ? `&page_token=${encodeURIComponent(pageToken)}` : ''}`;
+                const resp = await this._observe('GET', url, () => axios.get(url, {
+                    headers: { Authorization: `Bearer ${token}` },
+                    timeout: Math.max(1, Math.min(FEISHU_PAGE_REQUEST_TIMEOUT_MS, remainingMs)),
+                }), { metered: false, isSuccess: result => result.data?.code === 0 });
                 if (resp.data.code === 0 && Array.isArray(resp.data.data?.items)) {
                     allDepartments.push(...resp.data.data.items);
                     console.log(`Fetched ${resp.data.data.items.length} departments. has_more: ${resp.data.data.has_more}`);
-                    hasMore = resp.data.data.has_more;
-                    pageToken = resp.data.data.page_token || "";
+                    pageToken = nextPageToken('Feishu department pagination', resp.data.data, departmentPageCount, departmentPageTokens);
+                    hasMore = Boolean(pageToken);
                 } else {
                     throw new Error(`Fetch departments failed: ${resp.data?.msg || JSON.stringify(resp.data)}`);
                 }
@@ -927,12 +1131,18 @@ export class FeishuAdapter {
             for (const dep of allDepartments) {
                 let depHasMore = true;
                 let depPageToken = "";
+                let depPageCount = 0;
+                const depPageTokens = new Set<string>();
                 while (depHasMore) {
-                    const url = `https://open.feishu.cn/open-apis/contact/v3/users/find_by_department?department_id=${dep.open_department_id}&department_id_type=open_department_id&user_id_type=open_id${depPageToken ? `&page_token=${depPageToken}` : ''}`;
+                    const scope = `Feishu department ${dep.open_department_id} user pagination`;
+                    const remainingMs = beforePageRequest(scope, depPageToken, depPageCount, depPageTokens);
+                    depPageCount++;
+                    const url = `https://open.feishu.cn/open-apis/contact/v3/users/find_by_department?department_id=${encodeURIComponent(dep.open_department_id)}&department_id_type=open_department_id&user_id_type=open_id${depPageToken ? `&page_token=${encodeURIComponent(depPageToken)}` : ''}`;
                     try {
-                        const resp = await axios.get(url, {
-                            headers: { Authorization: `Bearer ${token}` }
-                        });
+                        const resp = await this._observe('GET', url, () => axios.get(url, {
+                            headers: { Authorization: `Bearer ${token}` },
+                            timeout: Math.max(1, Math.min(FEISHU_PAGE_REQUEST_TIMEOUT_MS, remainingMs)),
+                        }), { metered: false, isSuccess: result => result.data?.code === 0 });
                         if (resp.data.code === 0 && Array.isArray(resp.data.data?.items)) {
                             for (const user of resp.data.data.items) {
                                 if (seenOpenIds.has(user.open_id)) continue;
@@ -953,18 +1163,32 @@ export class FeishuAdapter {
                                     department
                                 });
                             }
-                            depHasMore = resp.data.data.has_more;
-                            depPageToken = resp.data.data.page_token || "";
+                            depPageToken = nextPageToken(scope, resp.data.data, depPageCount, depPageTokens);
+                            depHasMore = Boolean(depPageToken);
                         } else {
                             throw new Error(`Fetch users for department ${dep.open_department_id} failed: ${resp.data?.msg || JSON.stringify(resp.data)}`);
                         }
                     } catch (e: any) {
-                        throw new Error(`Fetch users for department ${dep.open_department_id} failed: ${e?.message || String(e)}`);
+                        if (axios.isAxiosError(e) && e.code === 'ECONNABORTED') {
+                            throw feishuGuardError('FEISHU_DIRECTORY_REQUEST_TIMEOUT', `Fetch users for department ${dep.open_department_id} timed out`);
+                        }
+                        throw Object.assign(new Error(`Fetch users for department ${dep.open_department_id} failed: ${e?.message || String(e)}`), {
+                            code: e?.code,
+                            retryable: e?.retryable,
+                            retryAfterMs: e?.retryAfterMs,
+                        });
                     }
                 }
             }
         } catch (e: any) {
-            throw new Error(`Feishu fetchAllCompanyMembers failed: ${e.message || String(e)}`);
+            if (axios.isAxiosError(e) && e.code === 'ECONNABORTED') {
+                throw feishuGuardError('FEISHU_DIRECTORY_REQUEST_TIMEOUT', 'Feishu department pagination timed out');
+            }
+            throw Object.assign(new Error(`Feishu fetchAllCompanyMembers failed: ${e.message || String(e)}`), {
+                code: e?.code,
+                retryable: e?.retryable,
+                retryAfterMs: e?.retryAfterMs,
+            });
         }
 
         return results;
@@ -972,6 +1196,7 @@ export class FeishuAdapter {
 
     async listGroups(): Promise<any[]> {
         if (this.dryRun) return [];
+        this._assertMeteredApiAvailable();
         const token = await this._getTenantAccessToken();
         const url = `https://open.feishu.cn/open-apis/im/v1/chats?page_size=100`;
         return this._getPagedItems(url, token, "Feishu list groups failed");
@@ -979,28 +1204,62 @@ export class FeishuAdapter {
 
     async fetchChatHistory(chatId: string, startTime: Date, endTime: Date): Promise<SourceMessage[]> {
         if (this.dryRun || !chatId) return [];
+        this._assertMeteredApiAvailable();
 
         const token = await this._getTenantAccessToken();
         const parser = new FeishuEventParser(this.config.bot_open_id || "", this.knownNames);
         const messages: SourceMessage[] = [];
+        const requestedPageTokens = new Set<string>();
+        const deadlineAt = Date.now() + FEISHU_HISTORY_SYNC_TIMEOUT_MS;
         let pageToken = "";
+        let pageCount = 0;
 
         do {
+            if (requestedPageTokens.has(pageToken)) {
+                throw feishuGuardError(
+                    'FEISHU_HISTORY_REPEATED_PAGE_TOKEN',
+                    `Feishu chat history pagination repeated page_token after ${pageCount} pages`,
+                );
+            }
+            if (pageCount >= FEISHU_HISTORY_MAX_PAGES) {
+                throw feishuGuardError(
+                    'FEISHU_HISTORY_PAGE_LIMIT_EXCEEDED',
+                    `Feishu chat history exceeded ${FEISHU_HISTORY_MAX_PAGES} pages`,
+                );
+            }
+            const remainingMs = deadlineAt - Date.now();
+            if (remainingMs <= 0) {
+                throw feishuGuardError(
+                    'FEISHU_HISTORY_SYNC_TIMEOUT',
+                    `Feishu chat history exceeded ${FEISHU_HISTORY_SYNC_TIMEOUT_MS}ms`,
+                );
+            }
+            requestedPageTokens.add(pageToken);
+            pageCount++;
+
             try {
-                const response = await axios.get("https://open.feishu.cn/open-apis/im/v1/messages", {
+                const url = "https://open.feishu.cn/open-apis/im/v1/messages";
+                const response = await this._observe('GET', url, () => axios.get(url, {
                     headers: { Authorization: `Bearer ${token}` },
+                    timeout: Math.max(1, Math.min(FEISHU_PAGE_REQUEST_TIMEOUT_MS, remainingMs)),
                     params: {
                         container_id_type: "chat",
                         container_id: chatId,
                         start_time: String(Math.floor(startTime.getTime() / 1000)),
                         end_time: String(Math.floor(endTime.getTime() / 1000)),
                         sort_type: "ByCreateTimeAsc",
-                        page_size: 50,
+                        page_size: FEISHU_HISTORY_PAGE_SIZE,
                         ...(pageToken ? { page_token: pageToken } : {}),
                     },
-                });
+                }), { isSuccess: result => result.data?.code === 0 });
                 if (response.data?.code !== 0) {
-                    throw new Error(`Feishu fetch chat history failed: ${JSON.stringify(response.data)}`);
+                    const failure = classifyFeishuFailure({ raw: response.data });
+                    if (failure.quotaExhausted) openExternalApiCircuit('feishu', failure.code, nextShanghaiMonthStart(), this.config.app_id || 'unconfigured');
+                    throw Object.assign(new Error(`Feishu fetch chat history failed: ${failure.message}`), {
+                        code: failure.code,
+                        retryable: failure.retryable,
+                        retryAfterMs: failure.retryAfterMs,
+                    });
                 }
 
                 const data = response.data?.data || {};
@@ -1045,10 +1304,29 @@ export class FeishuAdapter {
                     messages.push(source);
                 }
 
-                pageToken = data.has_more ? String(data.page_token || "") : "";
+                const nextPageToken = data.has_more ? String(data.page_token || "") : "";
+                if (data.has_more && !nextPageToken) {
+                    throw feishuGuardError(
+                        'FEISHU_HISTORY_MISSING_PAGE_TOKEN',
+                        `Feishu chat history returned has_more without page_token after ${pageCount} pages`,
+                    );
+                }
+                if (nextPageToken && requestedPageTokens.has(nextPageToken)) {
+                    throw feishuGuardError(
+                        'FEISHU_HISTORY_REPEATED_PAGE_TOKEN',
+                        `Feishu chat history pagination repeated page_token after ${pageCount} pages`,
+                    );
+                }
+                pageToken = nextPageToken;
             } catch (error: any) {
+                if (axios.isAxiosError(error) && error.code === 'ECONNABORTED') {
+                    throw feishuGuardError(
+                        'FEISHU_HISTORY_REQUEST_TIMEOUT',
+                        `Feishu chat history page ${pageCount} timed out`,
+                    );
+                }
                 if (axios.isAxiosError(error) && error.response?.data) {
-                    throw new Error(`Feishu fetch chat history failed: ${JSON.stringify(error.response.data)}`);
+                    throw this._apiError(error, 'Feishu fetch chat history failed');
                 }
                 throw error;
             }
@@ -1059,6 +1337,7 @@ export class FeishuAdapter {
 
     async listGroupMembers(chatId: string): Promise<any[]> {
         if (this.dryRun || !chatId) return [];
+        this._assertMeteredApiAvailable();
         const token = await this._getTenantAccessToken();
         const url = `https://open.feishu.cn/open-apis/im/v1/chats/${chatId}/members?member_id_type=open_id&page_size=100`;
         const items = await this._getPagedItems(url, token, "Feishu list group members failed");
@@ -1074,13 +1353,26 @@ export class FeishuAdapter {
             const batch = members.slice(index, index + 5);
             await Promise.all(batch.map(async (member: any) => {
                 if (!member.open_id) return;
+                const cached = this.memberJobTitleCache.get(member.open_id);
+                if (cached && cached.expiresAt > Date.now()) {
+                    member.job_title = cached.jobTitle;
+                    return;
+                }
                 try {
-                    const response = await axios.get(
-                        `https://open.feishu.cn/open-apis/contact/v3/users/${member.open_id}?user_id_type=open_id`,
+                    const userUrl = `https://open.feishu.cn/open-apis/contact/v3/users/${member.open_id}?user_id_type=open_id`;
+                    const response = await this._observe('GET', userUrl, () => axios.get(
+                        userUrl,
                         { headers: { Authorization: `Bearer ${token}` } },
-                    );
+                    ), { metered: false, isSuccess: result => result.data?.code === 0 });
                     if (response.data?.code === 0) {
-                        member.job_title = response.data?.data?.user?.job_title || undefined;
+                        const jobTitle = response.data?.data?.user?.job_title || undefined;
+                        member.job_title = jobTitle;
+                        this.memberJobTitleCache.set(member.open_id, { jobTitle, expiresAt: Date.now() + 24 * 60 * 60 * 1000 });
+                        while (this.memberJobTitleCache.size > 5_000) {
+                            const oldest = this.memberJobTitleCache.keys().next().value;
+                            if (!oldest) break;
+                            this.memberJobTitleCache.delete(oldest);
+                        }
                     }
                 } catch {
                     // 群成员同步仍可继续，职务暂时沿用本地已有值。
@@ -1092,24 +1384,56 @@ export class FeishuAdapter {
 
     private async _getPagedItems(url: string, token: string, errorPrefix: string): Promise<any[]> {
         const items: any[] = [];
+        const requestedPageTokens = new Set<string>();
+        const deadlineAt = Date.now() + FEISHU_LIST_SYNC_TIMEOUT_MS;
         let pageToken = "";
+        let pageCount = 0;
 
         do {
+            if (requestedPageTokens.has(pageToken)) {
+                throw feishuGuardError('FEISHU_LIST_REPEATED_PAGE_TOKEN', `${errorPrefix}: repeated page_token after ${pageCount} pages`);
+            }
+            if (pageCount >= FEISHU_LIST_MAX_PAGES) {
+                throw feishuGuardError('FEISHU_LIST_PAGE_LIMIT_EXCEEDED', `${errorPrefix}: exceeded ${FEISHU_LIST_MAX_PAGES} pages`);
+            }
+            const remainingMs = deadlineAt - Date.now();
+            if (remainingMs <= 0) {
+                throw feishuGuardError('FEISHU_LIST_SYNC_TIMEOUT', `${errorPrefix}: exceeded ${FEISHU_LIST_SYNC_TIMEOUT_MS}ms`);
+            }
+            requestedPageTokens.add(pageToken);
+            pageCount++;
             const pageUrl = pageToken ? `${url}&page_token=${encodeURIComponent(pageToken)}` : url;
             try {
-                const resp = await axios.get(pageUrl, {
-                    headers: { "Authorization": `Bearer ${token}` }
-                });
+                const resp = await this._observe('GET', pageUrl, () => axios.get(pageUrl, {
+                    headers: { "Authorization": `Bearer ${token}` },
+                    timeout: Math.max(1, Math.min(FEISHU_PAGE_REQUEST_TIMEOUT_MS, remainingMs)),
+                }), { isSuccess: result => result.data?.code === 0 });
                 if (resp.data?.code !== 0) {
-                    throw new Error(`${errorPrefix}: ${JSON.stringify(resp.data)}`);
+                    const failure = classifyFeishuFailure({ raw: resp.data });
+                    if (failure.quotaExhausted) openExternalApiCircuit('feishu', failure.code, nextShanghaiMonthStart(), this.config.app_id || 'unconfigured');
+                    throw Object.assign(new Error(`${errorPrefix}: ${failure.message}`), {
+                        code: failure.code,
+                        retryable: failure.retryable,
+                        retryAfterMs: failure.retryAfterMs,
+                    });
                 }
 
                 const data = resp.data?.data || {};
                 items.push(...(Array.isArray(data.items) ? data.items : []));
-                pageToken = data.has_more ? String(data.page_token || "") : "";
+                const nextPageToken = data.has_more ? String(data.page_token || "") : "";
+                if (data.has_more && !nextPageToken) {
+                    throw feishuGuardError('FEISHU_LIST_MISSING_PAGE_TOKEN', `${errorPrefix}: returned has_more without page_token after ${pageCount} pages`);
+                }
+                if (nextPageToken && requestedPageTokens.has(nextPageToken)) {
+                    throw feishuGuardError('FEISHU_LIST_REPEATED_PAGE_TOKEN', `${errorPrefix}: repeated page_token after ${pageCount} pages`);
+                }
+                pageToken = nextPageToken;
             } catch (e: any) {
+                if (axios.isAxiosError(e) && e.code === 'ECONNABORTED') {
+                    throw feishuGuardError('FEISHU_LIST_REQUEST_TIMEOUT', `${errorPrefix}: page ${pageCount} timed out`);
+                }
                 if (axios.isAxiosError(e) && e.response?.data) {
-                    throw new Error(`${errorPrefix}: ${JSON.stringify(e.response.data)}`);
+                    throw this._apiError(e, errorPrefix);
                 }
                 throw e;
             }

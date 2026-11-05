@@ -7,6 +7,7 @@ describe("PrismaStore", () => {
     const store = new PrismaStore();
 
     test("should save and read source message", async () => {
+        const sentAt = new Date().toISOString();
         const msg: SourceMessage = {
             id: "msg_123_test",
             chat_id: "chat_456",
@@ -15,7 +16,7 @@ describe("PrismaStore", () => {
             sender_name: "Test User",
             text: "Hello World",
             message_type: "text",
-            sent_at: new Date().toISOString(),
+            sent_at: sentAt,
             raw_payload: {}
         };
 
@@ -24,6 +25,11 @@ describe("PrismaStore", () => {
         expect(readMsg).not.toBeNull();
         expect(readMsg?.id).toBe("msg_123_test");
         expect(readMsg?.text).toBe("Hello World");
+        expect(await store.getLatestSourceMessageSentAt(
+            'chat_456',
+            new Date(Date.parse(sentAt) - 1_000),
+            new Date(Date.parse(sentAt) + 1_000),
+        )).toBe(sentAt);
     });
 
     test("should normalize dynamic config members before saving", () => {

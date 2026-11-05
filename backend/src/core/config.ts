@@ -1,10 +1,12 @@
 import * as path from 'path';
+import { normalizeScheduleCalendar } from './scheduleCalendar';
 import * as fs from 'fs';
 import { Member } from '@/models/types';
 
 export const DEFAULT_SCHEDULE: Record<string, any> = {
     standup_push: "09:00",
     standup_push_enabled: true,
+    task_standup_template: "09:00",
     standup_second_remind: "09:30",
     standup_second_remind_enabled: true,
     standup_summary: "09:45",
@@ -147,6 +149,11 @@ function envBool(envName: string, defaultValue: boolean): boolean {
     return ["1", "true", "yes", "on"].includes(raw.toLowerCase());
 }
 
+function boundedRetryCount(value: unknown, fallback: number = 1): number {
+    const parsed = Number(value);
+    return Number.isInteger(parsed) ? Math.max(0, Math.min(3, parsed)) : fallback;
+}
+
 function defaultProjectRoot(): string {
     if (process.env.PROJECT_ROOT) return process.env.PROJECT_ROOT;
     return path.basename(process.cwd()) === "backend" ? path.resolve(process.cwd(), "..") : process.cwd();
@@ -154,6 +161,7 @@ function defaultProjectRoot(): string {
 
 function normalizeSchedule(rawSchedule: Record<string, any> = {}): Record<string, any> {
     const schedule = { ...DEFAULT_SCHEDULE, ...rawSchedule };
+    schedule.calendar = normalizeScheduleCalendar(schedule.calendar);
     const overdueStart = normalizedClockTime(schedule.overdue_scan);
     const overdueEnd = normalizedClockTime(schedule.overdue_scan_end);
     const overdueInterval = Number(schedule.overdue_scan_interval_minutes);
@@ -173,6 +181,8 @@ function normalizeSchedule(rawSchedule: Record<string, any> = {}): Record<string
     schedule.weekly_report_timezone = validTimeZone(schedule.weekly_report_timezone)
         ? schedule.weekly_report_timezone
         : DEFAULT_SCHEDULE.weekly_report_timezone;
+    schedule.task_standup_template = normalizedClockTime(schedule.task_standup_template)
+        || DEFAULT_SCHEDULE.task_standup_template;
     if (!rawSchedule.standup_second_remind && rawSchedule.standup_remind) {
         schedule.standup_second_remind = rawSchedule.standup_remind;
     }
@@ -236,7 +246,7 @@ export function buildConfig(raw: any): AppConfig {
         bot_open_id: envStringIfSet("FEISHU_BOT_OPEN_ID", feishuRaw.bot_open_id || ""),
         bot_name: envStringIfSet("FEISHU_BOT_NAME", feishuRaw.bot_name || "AI 交付助理"),
 
-        send_retry_count: Math.max(0, Number(feishuRaw.send_retry_count ?? envNumber("FEISHU_SEND_RETRY_COUNT", 1))),
+        send_retry_count: boundedRetryCount(feishuRaw.send_retry_count ?? envNumber("FEISHU_SEND_RETRY_COUNT", 1)),
     };
 
     const tapdRaw = raw.tapd || {};
@@ -256,7 +266,7 @@ export function buildConfig(raw: any): AppConfig {
         model: aiRaw.model || envString("AI_MODEL"),
         max_tokens: Number(aiRaw.max_tokens ?? envNumber("AI_MAX_TOKENS", 4096)),
         temperature: Number(aiRaw.temperature ?? envNumber("AI_TEMPERATURE", 0.2)),
-        retry_count: Math.max(0, Number(aiRaw.retry_count ?? envNumber("AI_RETRY_COUNT", 1))),
+        retry_count: boundedRetryCount(aiRaw.retry_count ?? envNumber("AI_RETRY_COUNT", 1)),
         request_timeout_ms: Math.max(1000, Number(aiRaw.request_timeout_ms ?? envNumber("AI_REQUEST_TIMEOUT_MS", 15000))),
         use_proxy: envBool("LLM_USE_PROXY", false) || envBool("AI_USE_PROXY", false) || aiRaw.use_proxy || false,
         proxy_url: envString("HTTP_PROXY_URL") || envString("AI_PROXY_URL") || aiRaw.proxy_url || "",

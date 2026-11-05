@@ -88,6 +88,9 @@ export interface WeeklyNarrative {
     decisions_needed: string[];
     next_week_focus: string[];
     source: "llm" | "deterministic";
+    ai_degraded?: boolean;
+    ai_failure_category?: import("@/platform/aiDegradation").AiFailureCategory;
+    ai_error?: string;
 }
 
 export interface WeeklyReportRequest {

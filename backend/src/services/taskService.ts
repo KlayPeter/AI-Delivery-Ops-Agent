@@ -19,7 +19,96 @@ import {
 
 export type { ProjectTaskSyncResult } from '@/domains/task/projectSync';
 
+export interface ProjectRefreshOptions extends ProjectSyncOptions {
+    cacheTtlMs?: number;
+    force?: boolean;
+}
+
+interface ProjectSyncCacheEntry {
+    completedAt: number;
+    result?: ProjectTaskSyncResult;
+    inFlight?: Promise<ProjectTaskSyncResult>;
+}
+
+const projectSyncCache = new WeakMap<object, ProjectSyncCacheEntry>();
+
 export class TaskService {
+    static isStandupCommitment(task: Partial<Task> | null | undefined): boolean {
+        return Array.isArray(task?.tags) && task.tags.includes("standup_commitment");
+    }
+
+    static async createStandupCommitment(ctx: HandlerContext, message: SourceMessage, input: {
+        title: string;
+        ownerOpenId: string;
+        ownerName: string;
+        dueAt: string;
+    }): Promise<Task> {
+        const now = utcNowIso();
+        const task: Task = {
+            id: `standup-commitment-${message.id}`,
+            title: input.title,
+            creator_open_id: message.sender_open_id || "",
+            creator_name: message.sender_name || "",
+            primary_owner_open_id: input.ownerOpenId,
+            primary_owner_name: input.ownerName,
+            assignee_open_ids: [input.ownerOpenId],
+            assignee_names: [input.ownerName],
+            status: "in_progress",
+            priority: "P2",
+            source_message_id: message.id,
+            source_group_id: message.chat_id,
+            created_at: now,
+            updated_at: now,
+            source_sender_open_id: message.sender_open_id,
+            source_sender_name: message.sender_name,
+            source_sent_at: message.sent_at,
+            raw_text: message.text,
+            ai_result: { type: "standup_commitment", parser: "deterministic_rule", title: input.title, due_at: input.dueAt },
+            confidence: 1,
+            description: "任务型站会承诺，不同步 TAPD",
+            due_date: input.dueAt,
+            acceptance_criteria: [],
+            tags: ["standup_commitment"],
+            tapd_story_id: null,
+            tapd_url: null,
+            parent_id: null,
+            is_draft: false,
+        };
+        await ctx.store.saveTask(task);
+        await this.saveUpdate(ctx, task, message.sender_open_id || "", message.sender_name || "", "standup_committed", `承诺在 ${input.dueAt} 前交付：${input.title}`, "standup", message.id, {
+            standup_commitment: true,
+            due_at: input.dueAt,
+        });
+        return task;
+    }
+
+    static async reportStandupCommitment(ctx: HandlerContext, task: Task, message: SourceMessage, input: {
+        status: "completed" | "in_progress" | "blocked" | "delayed";
+        content: string;
+        nextDueAt?: string;
+    }): Promise<Task> {
+        const next = { ...task };
+        if (input.status === "completed") next.status = "owner_marked_done";
+        if (input.status === "in_progress") next.status = "in_progress";
+        if (input.status === "blocked") {
+            next.status = "blocked";
+            next.blocked_at = utcNowIso();
+            next.blocker_info = { content: input.content, source: "standup_commitment" };
+        }
+        if (input.status === "delayed") {
+            next.status = "in_progress";
+            if (input.nextDueAt) next.due_date = input.nextDueAt;
+        }
+        next.updated_at = utcNowIso();
+        await ctx.store.saveTask(next);
+        await this.saveUpdate(ctx, next, message.sender_open_id || "", message.sender_name || "", `standup_${input.status}`, input.content, "standup", message.id, {
+            standup_commitment: true,
+            report_status: input.status,
+            next_due_at: input.nextDueAt,
+        });
+        return next;
+    }
+
     static projectHierarchy(tasks: Task[]) {
         return projectTaskHierarchy(tasks);
     }
@@ -109,7 +198,32 @@ export class TaskService {
         return syncTaskFromTapd(ctxOrTapd, taskData, explicitStore);
     }
 
-    static async syncProjectScope(ctx: any, options: ProjectSyncOptions = {}): Promise<ProjectTaskSyncResult> {
-        return syncProjectTasks(ctx, options);
+    static projectSyncError(prefix: string, result: ProjectTaskSyncResult): Error {
+        return Object.assign(new Error(`${prefix}：${result.error || "未知错误"}`), {
+            code: result.code || 'TAPD_PROJECT_SYNC_FAILED',
+            retryable: result.retryable !== false,
+        });
+    }
+
+    static async syncProjectScope(ctx: any, options: ProjectRefreshOptions = {}): Promise<ProjectTaskSyncResult> {
+        const { cacheTtlMs = 30_000, force = false, ...syncOptions } = options;
+        const cacheKey = ctx?.store && typeof ctx.store === 'object' ? ctx.store as object : null;
+        const cached = cacheKey ? projectSyncCache.get(cacheKey) : undefined;
+        const now = Date.now();
+        if (cached?.inFlight) return cached.inFlight;
+        if (!force && cached?.result?.ok && now - cached.completedAt < Math.max(0, cacheTtlMs)) return cached.result;
+
+        const inFlight = syncProjectTasks(ctx, syncOptions).then(result => {
+            if (cacheKey) {
+                if (result.ok) projectSyncCache.set(cacheKey, { completedAt: Date.now(), result });
+                else projectSyncCache.delete(cacheKey);
+            }
+            return result;
+        }, error => {
+            if (cacheKey) projectSyncCache.delete(cacheKey);
+            throw error;
+        });
+        if (cacheKey) projectSyncCache.set(cacheKey, { completedAt: 0, inFlight });
+        return inFlight;
     }
 }

@@ -215,6 +215,8 @@ describe("weekly report facts and rendering", () => {
         };
         const narrative = await buildWeeklyNarrative(facts, { chat: async () => ({ ok: true, content: "not-json" }) });
         expect(narrative.source).toBe("deterministic");
+        expect(narrative.ai_degraded).toBe(true);
+        expect(narrative.ai_failure_category).toBe("invalid_response");
         const html = renderWeeklyReportHtml(facts, { ...narrative, executive_summary: "<script>alert(1)</script>" });
         expect(html).not.toContain("<script>alert(1)</script>");
         expect(html).toContain("&lt;登录模块&gt;");
@@ -259,6 +261,8 @@ describe("weekly report facts and rendering", () => {
         expect(html).not.toContain("最多展示");
         expect(html).not.toContain("按群成员聚合");
         expect(html).not.toContain("已收起");
+        expect(html).toContain("AI 服务本次不可用");
+        expect(html).toContain("确定性事实模板");
     });
 
     test("fails closed without writing a report when TAPD synchronization fails", async () => {
@@ -300,6 +304,7 @@ describe("weekly report facts and rendering", () => {
         spyOn(TaskService, "syncProjectScope").mockResolvedValue({ ok: true, fetched: 0 } as any);
         const dataPath = mkdtempSync(join(tmpdir(), "weekly-report-"));
         const saved: any[] = [];
+        const auditLogs: any[] = [];
         let listCalls = 0;
         let saveCalls = 0;
         const historyDates: string[] = [];
@@ -313,7 +318,7 @@ describe("weekly report facts and rendering", () => {
                     if (++saveCalls === 1) throw Object.assign(new Error("version conflict"), { code: "P2002" });
                     saved.push(structuredClone(report));
                 },
-                appendAuditLog: async () => {},
+                appendAuditLog: async (eventType: string, payload: any) => auditLogs.push({ eventType, payload }),
             };
             const report = await new WeeklyReportService(
                 { ...config, data_path: dataPath },
@@ -343,6 +348,15 @@ describe("weekly report facts and rendering", () => {
             expect(delivery).not.toContain("###");
             expect(delivery).toContain("查看完整可视化周报");
             expect(delivery).toContain("统计周期：2026-07-13 至 2026-07-17");
+            expect(delivery).toContain("内容未经过 AI 归纳");
+            expect(report.narrative.ai_degraded).toBe(true);
+            expect(auditLogs).toContainEqual(expect.objectContaining({
+                eventType: "ai_weekly_report_failed",
+                payload: expect.objectContaining({
+                    fallback: "deterministic_narrative",
+                    category: "invalid_response",
+                }),
+            }));
             expect(delivery).not.toContain("站会提交率");
             expect(delivery).not.toContain("完成 0");
             expect(delivery).not.toContain("新增 0");

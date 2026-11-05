@@ -3,7 +3,7 @@ feature_id: operations-observability
 name: 运行控制与可观测性
 status: active
 agent_mapping: []
-last_reviewed: 2026-07-27
+last_reviewed: 2026-08-04
 ---
 
 # 运行控制与可观测性
@@ -22,6 +22,7 @@ last_reviewed: 2026-07-27
 flowchart TD
     R["Host 启动"] --> S["收敛上次进程遗留的运行中记录"]
     R --> Q["/healthz 进程存活"]
+    R --> OAPI["/api/swagger API 文档"]
     S --> Z["/readyz 数据库 + Agent Host 就绪"]
     S --> A["消息 / Scheduler / API"]
     A --> B["Trigger / Job Execution"]
@@ -31,14 +32,20 @@ flowchart TD
     L -- 否 --> M["Guardrail Step / 明确失败"]
     C --> E["Artifact"]
     C --> F["Outbox Message"]
-    F --> G["Delivery Worker"]
+    F --> G["Delivery Worker 串行 drain"]
     G --> H{"投递成功?"}
     H -- 否 --> I["退避重试 / 失败状态"]
     H -- 是 --> J["Delivered"]
     D --> K["Logs / Contexts / Debug 页面"]
+    A --> X["消息处理失败分类审计"]
+    X --> K
     E --> K
     I --> K
     J --> K
+    G --> Y["飞书/TAPD 接口级计数、耗时与失败率"]
+    Y --> Z1{"应用额度熔断?"}
+    Z1 -- "是" --> I
+    Z1 -- "否" --> K
 ```
 
 ## 能力边界
@@ -58,11 +65,11 @@ flowchart TD
 1. **记录事实并执行有界保留。** Run、Step、Tool Call 采用追加式记录；Audit Event 默认保留 90 天，过期记录由每日维护任务分批删除，修复动作仍产生新事件而不覆盖原始证据。
 2. **不同状态机分别保存。** Job Execution 表示调度尝试，Agent Run 表示执行，Artifact 表示产物，Outbox 表示外部投递；它们用关联 ID 串联。
 3. **每条链路携带相关标识。** root Run、parent Run、trigger、group、bot 和 correlation ID 支持从用户消息追踪到最终投递。
-4. **Outbox 使用持久化领取和租约。** 同一条消息只允许一个 Worker 在租约期内处理；Worker 崩溃后其他实例可以重新领取。
+4. **Outbox 使用持久化领取、真实时间租约和进程内串行 drain。** 同一进程的后台轮询与主动 flush 共用一个进行中 Promise，不能并发领取；租约从实际领取时间计算，不能复用较早的业务触发时间。同一条消息只允许一个 Worker 在租约期内处理；Worker 崩溃后其他实例可以重新领取。
 5. **重试不重新执行业务。** 临时投递错误只重试 Outbox；永久错误进入失败或死信状态，不能重新运行 Agent 来碰运气。
 6. **查询严格按 Scope 过滤。** 日志、上下文和 Run Detail 不能因为是后台接口就跨 workspace、group 或 bot 暴露。
 7. **日志默认脱敏。** Token、Secret、邮箱凭据、完整附件和不必要的 Prompt 内容不得写入审计或错误信息。
-8. **Debug 是受控新执行。** 手动触发必须指定已注册的 Job/Agent 与参数，并产生新的执行记录；它不能运行任意命令或直接篡改历史状态。
+8. **Debug 是受控新执行。** 手动触发必须指定已注册的 Job/Agent 与参数，并产生新的执行记录；它不能运行任意命令或直接篡改历史状态。手动 Job 的 `sendToGroup` 默认关闭，只有明确打开时才创建群消息投递，关闭时仍保留业务生成/更新和审计事实。
 9. **监控失败需要显式暴露。** 非关键审计写入失败可避免阻塞主业务，但系统必须记录或告警；关键合规动作应使用事务或 Outbox 保证证据落盘。
 10. **飞书令牌按有效期复用。** Adapter 在提前量内缓存 tenant access token，并合并并发刷新请求；发送失败仍按消息投递结果处理，不能通过每次重新申请令牌规避权限或接收人错误。
 11. **部分完成不是成功别名。** Job 完成业务扫描但存在跳过、临时投递失败或永久拒绝时记录 `job_completed_with_warnings`，查询页面显示“任务部分完成”；同步等前置条件失败仍记录 `job_failed`。
@@ -76,6 +83,14 @@ flowchart TD
 19. **入站和投递幂等必须包含 BotInstance。** 飞书事件的进程内缓存键使用 `botInstanceId:messageId`，持久化 Trigger Claim 使用 workspace、bot、trigger type、message ID；两个应用即使产生相同 message ID 也不能互相吞消息。
 20. **私聊目标必须显式保存 channel。** `ReplyPolicy` 的配置目标可声明 `private` 或 `group`；新闻机器人使用发送者在该应用下的 OpenID 作为 private 目标，不能根据存在 `chatId` 就推断为群聊。
 21. **结构化文章产物由 Adapter 生成最终提示。** AI 新闻 Artifact 保存文章、来源与是否还有下一页等结构化事实；飞书 Delivery Adapter 统一渲染安全链接、多源信号和固定操作引导，外部 Provider 不能注入卡片尾部指令。
+22. **AI 异常必须留下可查询根因和降级结果。** 消息处理的兜底回复前写入 `message_processing_failed`，保留消息和群标识、脱敏后的错误摘要及分类；AI 429 不能混同为网络超时。任务命令、日报、站会自然语言解析、站会主/补充汇总和周报分别记录对应 AI 失败事件，统一使用 `rate_limited`、`timeout`、`invalid_response`、`unavailable` 分类和明确的 fallback 字段，形成“AI 失败—规则继续执行或拒绝保存”的证据链。
+23. **日志状态必须区分失败与成功降级。** AI 调用失败但 `fallback` 已生成日报、站会或周报时，日志页使用橙色“已降级”标签；只有规则也未完成、解析被拒绝或 Job 最终失败时使用红色失败标签，不能用底层事件名误导管理员。
+24. **外部 API 必须按接口和应用统计。** 飞书与 TAPD Adapter 统一记录调用次数、计费调用估算、成功/失败、平均/最大耗时和最近失败时间；动态资源 ID 在聚合前归一化。飞书按 App ID 分开统计并以 100 万次/月作为基础版风险参考，运行不足一小时不输出误导性的月度投影。
+25. **飞书限流和额度耗尽必须分流。** HTTP 429 保留 `Retry-After` 供 Outbox/调度退避；业务码 `99991403` 视为当前应用月额度耗尽，熔断至下一个上海时区月初并标记不可重试，不能让一个应用的熔断阻断其他 BotInstance。
+26. **投递超时必须取消底层请求。** Delivery Worker 的 AbortSignal 必须传到飞书文本、卡片、图片上传和图片发送请求；超时后不能保留后台请求并同时创建重试，从而造成幽灵双发。
+27. **入站事件使用跨实例原子去重。** 收到飞书 message ID 后，以 workspace、BotInstance 和 message ID 组成 `feishu:event:` 幂等键并由数据库原子领取；进程内有界缓存只作为同实例快速路径，不能作为生产集群唯一去重机制。
+28. **重复触发不等于再次完成。** Agent Trigger Store 返回 `duplicate` 时，Scheduler 只记录 `job_duplicate_skipped`，不能追加第二条 `job_completed`；日志页明确显示“重复触发已跳过”，避免把幂等命中误读成业务再次执行。
+29. **API 文档必须经过生产代理可达。** Swagger UI 使用 `/api/swagger`，OpenAPI JSON 使用 `/api/swagger/json`；两者统一放在生产环境已转发到后端的 `/api` 前缀下，不能使用会被前端 SPA 接管的根路径 `/swagger`。
 
 ## 用户能力
 
@@ -92,16 +107,19 @@ flowchart TD
 | 后台 API/页面 | 时间、类型、群、Run ID 筛选 | 日志、上下文和运行详情 |
 | Debug API | 明确 Job/Agent 与参数 | 新执行记录 |
 | Kubernetes 探针 | `/healthz`、`/readyz` | 进程存活、数据库与 Agent Host 就绪状态 |
+| 外部 API 健康接口 | `/api/health/external-api-usage` | 当前进程按供应商、应用、接口聚合的调用量、失败率、耗时、月度投影与熔断状态 |
+| API 文档 | `/api/swagger`、`/api/swagger/json` | 可交互 Swagger UI 与机器可读 OpenAPI 文档 |
 
 ## 运行逻辑
 
 1. 消息、Scheduler 或 API 建立 Trigger/Job Execution。
-2. Runtime 和业务服务追加结构化 Run、Step、Tool Call、Audit 与 Artifact。
-3. 外部消息先写 Outbox，Worker 领取、投递、失败退避并保存结果。
+2. Runtime 和业务服务追加结构化 Run、Step、Tool Call、Audit 与 Artifact；消息处理异常在回复用户前追加带分类的 `message_processing_failed` 审计。
+3. 外部消息先写 Outbox；后台轮询和主动 flush 通过同一个 Worker 串行 drain，以实际领取时刻建立租约，再执行投递、失败退避并保存结果。
 4. 后端只返回当前 Scope 有权查看的记录。
 5. Logs、Contexts 和 Debug 页面用于查询、关联和受控重放。
 6. Host 重启时先收敛遗留非终态记录并追加恢复审计，再对外接受新的 Agent 调度。
 7. Kubernetes 以 `/readyz` 控制启动和接流量，以 `/healthz` 判断是否需要重启进程。
+8. 飞书/TAPD Adapter 在每次外部请求边界记录统一指标；飞书额度码按 App ID 打开熔断，投递重试读取供应商建议等待时间。
 
 ## Agent、Tool 与服务边界
 
@@ -118,9 +136,9 @@ flowchart TD
 - Job Execution、Agent Run、Artifact 和 Outbox Message 具有独立状态机和关联 ID。
 - Agent Tool 预算以持久化 `kind=tool` Step 为已用事实；Skill 只能使用共享预算，不能建立独立额度绕开 Agent 限制。
 - 重启恢复只改变 Agent 平台运行记录，不修改任务、站会、消息、Checkpoint 或 Artifact；等待人工输入的 Run 保持 `waiting_human`。
-- Outbox 至少一次投递要求目标端或消息键具备幂等语义。
+- Outbox 至少一次投递要求目标端或消息键具备幂等语义；单进程内所有 drain 入口共用运行锁，租约时间不得早于实际领取时刻。
 - 日志应使用结构化事件、相关 ID 和统一时间；保留期与清理策略需可配置。
-- 默认保留最近 90 天审计日志；每批删除 500 条、每次最多 20 批，仅额外清理过期 `scheduled:` 与 `maintenance:` 幂等记录，业务消息和 Agent 历史不在本轮清理范围。
+- 默认保留最近 90 天审计日志；每批删除 500 条、每次最多 20 批，并清理过期 `scheduled:`、`maintenance:`、`feishu:event:` 与 `history-sync:` 临时幂等记录，业务消息和 Agent 历史不在本轮清理范围。
 - 生产 SQLite 在应用启动前执行完整性检查和一致性备份，再运行非破坏性的 Prisma Schema 同步；全新数据目录先初始化有效空 SQLite 文件，避免 Schema Engine 无法创建首库；升级失败时应用不得带着未知数据库状态启动。
 
 ## 失败、安全与降级
@@ -139,9 +157,12 @@ flowchart TD
 - `backend/src/platform/agents/persistentRunStore.ts`、`backend/src/platform/tools/callStore.ts`、`backend/src/platform/runtime/persistentTriggerStore.ts`、`interruption.ts`：进程重启后的原子状态收敛。
 - `backend/src/platform/bootstrap/agentHost.ts`：恢复完成后再初始化 Runtime 与 Trigger 接入。
 - `backend/src/platform/runtime/triggerRuntime.ts`、`persistentTriggerStore.ts`：触发记录。
-- `backend/src/platform/bots/feishuBotConnectionManager.ts`、`feishuBotMessageIngress.ts`：bot-scoped 飞书入站、短期去重和审计。
-- `backend/src/platform/delivery/outbox.ts`、`persistentOutbox.ts`、`worker.ts`：可靠投递。
-- `backend/src/adapters/feishu.ts`：飞书令牌缓存、消息发送和 API 结果解析。
+- `backend/src/platform/bots/feishuBotConnectionManager.ts`、`feishuBotMessageIngress.ts`：bot-scoped 飞书入站、数据库原子去重、进程内快速去重和审计。
+- `backend/src/platform/aiDegradation.ts`：AI 限流、超时、非法响应和不可用的统一分类与用户可见降级文案。
+- `backend/src/platform/delivery/outbox.ts`、`persistentOutbox.ts`、`worker.ts`：可靠投递、可取消超时和供应商退避时间。
+- `backend/src/platform/observability/externalApiHealth.ts`：飞书/TAPD 接口指标、应用维度月度投影与额度熔断状态。
+- `backend/src/platform/observability/apiDocumentation.ts`：生产代理可达的 Swagger UI 与 OpenAPI 文档配置。
+- `backend/src/adapters/feishu.ts`、`backend/src/adapters/tapd.ts`：统一外部 API 观测；飞书令牌缓存、限流/额度分类和可取消发送。
 - `backend/src/services/jobExecution.ts`：Job 执行记录。
 - `backend/src/core/logQuery.ts`：日志/上下文分页与北京时间日期范围规范化。
 - `backend/src/core/dataRetention.ts`、`auditPayload.ts`：日志保留、临时幂等记录清理和敏感字段遮盖。
@@ -149,11 +170,13 @@ flowchart TD
 - `backend/src/core/health.ts`、`backend/src/index.ts`：无敏感信息的存活/就绪探针，以及日志、上下文、运行与 Debug API。
 - `deploy/k8s/30-deployment-backend.yaml`：startup/readiness 使用就绪探针，liveness 使用存活探针。
 - `.github/workflows/ci.yml`：公共质量门禁与 Docker 构建验证；不推送镜像或部署集群。
-- `frontend/src/pages/LogsPage.tsx`、`ContextsPage.tsx`、`DebugPage.tsx`：后台入口。
+- `frontend/src/pages/LogsPage.tsx`、`components/logs/LogsTable.tsx`、`constants.ts`：后台日志入口、AI 异常/规则降级的中文事件与摘要。
+- `frontend/src/pages/ContextsPage.tsx`、`DebugPage.tsx`：后台入口。
 
 ### 主要测试
 
-- `backend/test/deliveryOutbox.test.ts`、`routedFeishuDelivery.test.ts`：投递和 Bot 路由。
+- `backend/test/deliveryOutbox.test.ts`、`routedFeishuDelivery.test.ts`：投递、供应商退避、底层取消和 Bot 路由。
+- `backend/test/externalApiHealth.test.ts`：接口归一化、应用隔离、指标和熔断分类。
 - `backend/test/persistentAgentKernel.test.ts`、`triggerRuntime.test.ts`：运行持久化。
 - `backend/test/modelLoopAgent.test.ts`、`toolSkillRuntime.test.ts`：跨恢复 Tool 预算、Skill 共享额度和幂等去重。
 - `backend/test/persistentAgentKernel.test.ts`、`agentHost.test.ts`：遗留状态恢复、终态保护、人工等待保护和 Host 启动顺序。
@@ -161,6 +184,7 @@ flowchart TD
 - `backend/test/dataRetention.test.ts`、`maintenanceScheduler.test.ts`：保留边界、批量上限、每日幂等和失败隔离。
 - `backend/test/sqliteDeployment.test.ts`：升级前备份、保留数量和损坏数据库拒绝。
 - `backend/test/health.test.ts`：存活、数据库异常和 Agent Host 未启动时的就绪判定。
+- `backend/test/apiDocumentation.test.ts`：Swagger UI、OpenAPI JSON 与已注册 API 路由生成。
 - `backend/test/multiBotIngress.test.ts`、`triggerRuntime.test.ts`：跨 Bot 幂等和显式 private 投递目标。
 
 ## 变更记录
@@ -168,6 +192,13 @@ flowchart TD
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
 | 2026-07-29 | 公司部署流水线替换为公共 GitHub Actions 质量门禁，不再自动推送镜像或修改集群 | Workflow YAML、Docker 构建验证 |
+| 2026-08-04 | 将 Swagger UI 和 OpenAPI JSON 从被前端 SPA 接管的 `/swagger` 移到生产代理可达的 `/api/swagger` 与 `/api/swagger/json` | `apiDocumentation.test.ts`、后端类型检查 |
+| 2026-08-04 | 修复定时报告生成超过 Outbox 租约后，后台 Worker 与主动 flush 并发重领造成的重复发送；所有 drain 串行化并以真实刷新时间领取，重复 Agent Trigger 改记“重复触发已跳过” | `deliveryOutbox.test.ts`、`scheduler.test.ts`、后端类型检查 |
+| 2026-08-03 | 数据保留任务纳入日报历史补齐完成键，避免持久化增量缓存无限增长 | `dataRetention.test.ts` |
+| 2026-08-03 | 增加飞书/TAPD 接口级健康统计；飞书按应用识别 429 与月额度耗尽并熔断，投递超时下传取消信号，入站事件改为数据库跨实例去重 | `externalApiHealth.test.ts`、`deliveryOutbox.test.ts`、`multiBotIngress.test.ts`、`scheduler.test.ts`、后端类型检查 |
+| 2026-07-31 | 日志页将已生成确定性结果的日报、站会主/补充汇总和周报改为橙色“已降级”，保留自然语言解析与最终 Job 失败为红色 | 前端 `typecheck` / `lint` / `build` |
+| 2026-07-31 | AI 降级分类扩展到日报、站会解析/汇总和周报；日志页增加对应中文事件与规则兜底摘要，业务消息同时公开降级状态 | `summaries.test.ts`、`jobs.test.ts`、`standupHandler.test.ts`、`weeklyReport.test.ts`、前端检查 |
+| 2026-07-31 | 消息入口在兜底回复前记录 `message_processing_failed`；AI 429 显式归类为 `ai_rate_limited`，日志页以中文展示 AI 失败、规则降级和真实根因 | `messageHandler.test.ts`、前端 `typecheck` / `lint` / `build` |
 | 2026-07-29 | `article_list` 投递增加多源信号展示和固定尾部操作提示，保留原 Outbox、同 Bot 路由和链接安全校验 | `routedFeishuDelivery.test.ts`、AI News Agent 回归 |
 | 2026-07-29 | 飞书入站去重加入 BotInstance，ReplyPolicy 支持显式 private 目标，AI 新闻产物经持久化 Outbox 使用同一机器人回传 | `multiBotIngress.test.ts`、`triggerRuntime.test.ts`、`routedFeishuDelivery.test.ts` |
 | 2026-07-29 | 将本地二开扩展纳入 Host 启动边界，扩展失败时不对 readiness 报告就绪 | `agentHost.test.ts`、`health.test.ts` |

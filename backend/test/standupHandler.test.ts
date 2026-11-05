@@ -22,6 +22,187 @@ describe("natural-language standup parsing", () => {
 });
 
 describe("StandupHandler", () => {
+    test("should register a group task standup commitment without creating TAPD work", async () => {
+        let savedTask: any = null;
+        const updates: any[] = [];
+        const replies: string[] = [];
+        const ctx: any = {
+            config: {
+                feishu: { bot_open_id: "ou_bot" },
+                groups: [{ chat_id: "oc_content", name: "内容组", members: [], schedule: { module_standup_enabled: true, task_standup_enabled: true } }],
+            },
+            store: {
+                saveSourceMessage: async () => {},
+                saveTask: async (task: any) => { savedTask = task; },
+                listTaskUpdates: async (): Promise<any[]> => [],
+                getSourceMessage: async (): Promise<any> => null,
+                saveTaskUpdate: async (update: any) => updates.push(update),
+                appendAuditLog: async () => 1,
+            },
+            feishu: {
+                sendReplyText: async (_messageId: string, text: string) => { replies.push(text); return { ok: true, message_id: "om_receipt" }; },
+            },
+        };
+
+        const result = await StandupHandler.maybeHandle(ctx, {
+            id: "om_commitment",
+            chat_id: "oc_content",
+            chat_type: "group",
+            sender_open_id: "ou_owner",
+            sender_name: "李康",
+            text: "@机器人 今天17点交付任务 公众号文章初稿",
+            sent_at: "2026-08-12T01:00:00Z",
+            mentions: [{ open_id: "ou_bot", name: "机器人", key: "@_user_1" }],
+        } as any, "group", null);
+
+        expect(result.action).toBe("standup_commitment_created");
+        expect(savedTask).toMatchObject({
+            title: "公众号文章初稿",
+            primary_owner_open_id: "ou_owner",
+            status: "in_progress",
+            tapd_story_id: null,
+            tags: ["standup_commitment"],
+        });
+        expect(updates[0]).toMatchObject({ update_type: "standup_committed", metadata: { standup_commitment: true } });
+        expect(replies[0]).toContain("到时间后我会在本群提醒负责人汇报");
+    });
+
+    test("should keep explicit TAPD creation outside task standup routing", async () => {
+        const ctx: any = {
+            config: {
+                feishu: { bot_open_id: "ou_bot" },
+                groups: [{ chat_id: "oc_content", schedule: { module_standup_enabled: true, task_standup_enabled: true } }],
+            },
+        };
+        const result = await StandupHandler.maybeHandle(ctx, {
+            id: "om_tapd",
+            chat_id: "oc_content",
+            sender_open_id: "ou_owner",
+            sender_name: "李康",
+            text: "@机器人 创建TAPD任务：今天17点完成公众号审核功能",
+            sent_at: "2026-08-12T01:00:00Z",
+            mentions: [{ open_id: "ou_bot", name: "机器人" }],
+        } as any, "group", null);
+
+        expect(result).toBe(null);
+    });
+
+    test("should update the quoted commitment from a natural-language owner report", async () => {
+        let savedTask: any = null;
+        const updates: any[] = [];
+        const task = {
+            id: "standup-commitment-1",
+            title: "公众号文章初稿",
+            primary_owner_open_id: "ou_owner",
+            primary_owner_name: "李康",
+            status: "in_progress",
+            tags: ["standup_commitment"],
+        };
+        const ctx: any = {
+            store: {
+                getTask: async () => task,
+                saveTask: async (value: any) => { savedTask = value; },
+                listTaskUpdates: async (): Promise<any[]> => [],
+                getSourceMessage: async (): Promise<any> => null,
+                saveTaskUpdate: async (update: any) => updates.push(update),
+                appendAuditLog: async () => 1,
+            },
+            feishu: { sendReplyText: async () => ({ ok: true }) },
+        };
+
+        const result = await StandupHandler.maybeHandle(ctx, {
+            id: "om_report",
+            chat_id: "oc_content",
+            sender_open_id: "ou_owner",
+            sender_name: "李康",
+            text: "已经完成了，发给设计排版了",
+            sent_at: "2026-08-12T09:05:00Z",
+        } as any, "group", { context_type: "standup_commitment_prompt", task_id: task.id });
+
+        expect(result).toMatchObject({ action: "standup_commitment_reported", status: "completed" });
+        expect(savedTask.status).toBe("owner_marked_done");
+        expect(updates[0]).toMatchObject({ update_type: "standup_completed", metadata: { standup_commitment: true, report_status: "completed" } });
+    });
+
+    test("should require mentioning the bot again when quoting the task standup template", async () => {
+        let savedTask: any = null;
+        const ctx: any = {
+            config: {
+                feishu: { bot_open_id: "ou_bot" },
+                groups: [{ chat_id: "oc_content", schedule: { module_standup_enabled: true, task_standup_enabled: true } }],
+            },
+            store: {
+                saveSourceMessage: async () => {},
+                saveTask: async (task: any) => { savedTask = task; },
+                listTaskUpdates: async (): Promise<any[]> => [],
+                getSourceMessage: async (): Promise<any> => null,
+                saveTaskUpdate: async () => {},
+                appendAuditLog: async () => 1,
+            },
+            feishu: {
+                sendReplyText: async () => ({ ok: true, message_id: "om_receipt" }),
+            },
+        };
+
+        const result = await StandupHandler.maybeHandle(ctx, {
+            id: "om_template_reply",
+            chat_id: "oc_content",
+            chat_type: "group",
+            sender_open_id: "ou_creator",
+            sender_name: "王五",
+            text: "@机器人 任务：公众号文章初稿\n负责人：@李康\n交付时间：今天17点",
+            sent_at: "2026-08-13T01:00:00Z",
+            mentions: [{ open_id: "ou_bot", name: "机器人" }, { open_id: "ou_owner", name: "李康" }],
+        } as any, "group", { context_type: "task_standup_template" });
+
+        expect(result).toMatchObject({ action: "standup_commitment_created" });
+        expect(savedTask).toMatchObject({
+            title: "公众号文章初稿",
+            primary_owner_open_id: "ou_owner",
+        });
+    });
+
+    test("should remind the mentioned owner when the quoted report sender is different", async () => {
+        const replies: string[] = [];
+        const updates: any[] = [];
+        const task = {
+            id: "standup-commitment-mention-mismatch",
+            title: "公众号文章初稿",
+            source_group_id: "oc_content",
+            primary_owner_open_id: "ou_owner",
+            primary_owner_name: "李康",
+            status: "in_progress",
+            tags: ["standup_commitment"],
+        };
+        const ctx: any = {
+            config: { feishu: { bot_open_id: "ou_bot" } },
+            store: {
+                getTask: async () => task,
+                saveTask: async () => { throw new Error("should not update task"); },
+                saveTaskUpdate: async (update: any) => updates.push(update),
+                appendAuditLog: async () => 1,
+            },
+            feishu: {
+                sendReplyText: async (_messageId: string, text: string) => { replies.push(text); return { ok: true }; },
+            },
+        };
+
+        const result = await StandupHandler.maybeHandle(ctx, {
+            id: "om_report_mismatch",
+            chat_id: "oc_content",
+            sender_open_id: "ou_other",
+            sender_name: "王五",
+            text: "@李康 已完成",
+            mentions: [{ open_id: "ou_owner", name: "李康" }],
+            sent_at: "2026-08-13T09:05:00Z",
+        } as any, "group", { context_type: "standup_commitment_prompt", task_id: task.id });
+
+        expect(result).toMatchObject({ action: "standup_commitment_report_rejected", reason: "mentioned_owner_mismatch" });
+        expect(replies[0]).toContain("李康");
+        expect(replies[0]).toContain("本人");
+        expect(updates).toHaveLength(0);
+    });
+
     test("should save standup with prompt group id for group-scoped statistics", async () => {
         let savedStandup: any = null;
         const auditLogs: any[] = [];
@@ -229,6 +410,54 @@ describe("StandupHandler", () => {
         expect(result.action).toBe("standup_empty_rejected");
         expect(savedStandup).toBe(null);
         expect(replies[0]).toContain("还没识别到站会内容");
+    });
+
+    test("should disclose and audit AI failure when natural-language standup parsing cannot fall back", async () => {
+        const replies: string[] = [];
+        const auditLogs: any[] = [];
+        const ctx: any = {
+            config: {
+                groups: [{ chat_id: "oc_devcraft", name: "Demo 研发组", members: [] }],
+            },
+            store: {
+                saveStandup: async () => { throw new Error("should not save"); },
+                listTasks: async (): Promise<any[]> => [],
+                appendAuditLog: async (eventType: string, payload: any): Promise<number> => auditLogs.push({ eventType, payload }),
+            },
+            feishu: {
+                sendPrivateText: async (_openId: string, text: string) => {
+                    replies.push(text);
+                    return { ok: true };
+                },
+            },
+            intentParser: {
+                llm: {
+                    chat: async () => { throw new Error("429 quota exceeded"); },
+                },
+            },
+        };
+
+        const result = await StandupHandler.maybeHandle(ctx, {
+            id: "om_ai_failed",
+            sender_open_id: "ou_user",
+            sender_name: "陈项目",
+            text: "我也提交了",
+            sent_at: "2026-07-09T01:40:00Z",
+        } as any, "private", {
+            context_type: "standup_prompt",
+            metadata: { date: "2026-07-09", group_id: "oc_devcraft" },
+        });
+
+        expect(result.action).toBe("standup_empty_rejected");
+        expect(replies[0]).toContain("AI 服务当前限流");
+        expect(replies[0]).toContain("固定格式规则也没识别到");
+        expect(auditLogs).toContainEqual(expect.objectContaining({
+            eventType: "ai_standup_parse_failed",
+            payload: expect.objectContaining({
+                category: "rate_limited",
+                fallback: "structured_rule",
+            }),
+        }));
     });
 
     test("should allow resubmitting full standup by replying to receipt", async () => {

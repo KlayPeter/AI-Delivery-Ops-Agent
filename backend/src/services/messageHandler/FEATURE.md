@@ -4,7 +4,7 @@ name: 消息路由与上下文理解
 status: active
 agent_mapping:
   - built-in.delivery-ops-agent
-last_reviewed: 2026-07-29
+last_reviewed: 2026-08-12
 ---
 
 # 消息路由与上下文理解
@@ -32,6 +32,9 @@ flowchart TD
     F -- 是 --> E
     F -- 否 --> G["Delivery Ops 主 Agent"]
     G --> H["Tool 调用或委派专业 Agent"]
+    E --> T{"任务命令需要 AI 前置解析?"}
+    T -- "成功" --> I["领域服务"]
+    T -- "429 / 超时 / 不可用，且规则已命中" --> I
     E --> I["领域服务"]
     H --> I
     I --> J["回复 / Outbox"]
@@ -54,13 +57,15 @@ flowchart TD
 1. **引用上下文优先。** 用户回复任务卡片、机器人追问或历史消息时，系统先恢复引用链，再判断当前文字；不能只看当前一句话。
 2. **一次消息只选择一条主链路。** `ContextRouter` 或某个 Handler 返回结果后，后续 Handler 不再执行，防止一条消息同时创建任务又触发日报。
 3. **优先级是显式契约。** `MESSAGE_ROUTE_POLICY` 为每条路由声明唯一数值优先级和适用来源，执行时按优先级排序，不能再依赖 Handler 数组的偶然位置。
-4. **确定性规则先于 Agent。** 群消息依次尝试上下文、站会、周报、日报、看板、会议纪要、状态更新和任务命令；私聊只开放上下文、站会、会议纪要、状态更新和任务命令。全部未命中后才进入主 Agent。
+4. **确定性规则先于 Agent。** 群消息依次尝试上下文、站会（含任务型站会）、周报、日报、看板、会议纪要、状态更新和任务命令；私聊只开放上下文、站会、会议纪要、状态更新和任务命令。全部未命中后才进入主 Agent。
 5. **显式对象优先于推断对象。** 用户给出任务 ID、引用对象或明确日期时，系统使用显式信息；只有信息缺失时才从上下文推断。
 6. **否定表达不触发副作用。** “不要生成日报”“不是要创建任务”等句子必须在 Handler 或意图策略中被拦截。
 7. **Router 不拥有业务状态。** Router 只选择处理者；任务、站会和其他数据写入必须交给对应领域服务。
-8. **AI 不可用时保留基本能力。** 确定性 Handler 继续工作；未识别请求返回能力提示，不把模型故障伪装成业务成功。
+8. **AI 不可用时保留基本能力。** 任务命令仍先交给 AI 补全或拆分；AI 返回 429、超时或调用异常时，已命中的确定性规则必须立刻继续执行，并向用户说明 AI 异常与规则降级。未识别请求返回能力提示，不把模型故障伪装成业务成功。
 9. **周报命令受群站会资格约束。** `WeeklyReportHandler` 命中命令后先复用 `StandupService.isGroupEnabled`；未开启日报站会的群只回复配置提示，不创建 Agent Run。
 10. **确定性新闻意图在业务 Router 之前分流。** 默认交付机器人仅在明确 AI 新闻私聊，或同会话 30 分钟内的“查看更多”、关键词、来源和分类追问时，直接调用 `knowledge.ai.news.fetch`；其他模糊追问、否定、配置咨询或开发任务继续 Context/Handler/主 Agent 链路。配置独立应用后，带 `entryCapability` 的新闻机器人也只接受私聊文本，不进入任务、站会、成员识别或 TAPD。
+11. **任务型站会先于普通任务创建但不吞明确 TAPD 指令。** 启用群中，带交付动作和具体时间的 @机器人消息由 `StandupHandler` 登记；出现“创建/新建/同步 TAPD 任务或需求”时返回未命中，让 `TaskCommandHandler` 继续处理。引用 `task_standup_template` 或 `standup_commitment_prompt` 时，即使当前回复没有再次 @机器人，也由上下文路由直接回到站会域。
+12. **任务型站会回复校验身份一致。** 到点提醒的引用回复必须由任务负责人发送；如果回复消息中的非机器人 @ 人与实际回复人不同，机器人只提醒被 @ 的负责人本人回复，不更新任务状态。
 
 ## 用户能力
 
@@ -80,7 +85,7 @@ flowchart TD
 
 1. 多 Bot 连接管理器接收事件并固定 BotInstance；默认 Bot 的明确 AI 新闻私聊和专用 Bot 的 `entryCapability` 在入口直接派发，其他默认 Bot 消息继续以下流程。
 2. `ContextResolver` 恢复引用消息和历史上下文，`ContextRouter` 判断上下文动作。
-3. `MessageRouter` 过滤当前消息来源可用的 `MESSAGE_ROUTE_POLICY`，按唯一优先级从高到低尝试 Handler。
+3. `MessageRouter` 过滤当前消息来源可用的 `MESSAGE_ROUTE_POLICY`，按唯一优先级从高到低尝试 Handler；任务命令先尝试 AI 意图解析，AI 不可用时记录 `ai_intent_failed` 并降级到已解析的规则命令。
 4. 未命中时，`AgentFallbackHandler` 调用 `built-in.delivery-ops-agent`。
 5. 主 Agent 通过 Tool 或委派调用专业 Agent，结果经统一回复或 Outbox 投递。
 
@@ -96,7 +101,7 @@ flowchart TD
 
 - 消息上下文以群、用户、引用消息标识隔离。
 - Agent Run、会话、Tool Call 与回复结果由平台持久化，业务状态仍由对应领域服务拥有。
-- 重复飞书事件应在入口或业务写入层保持幂等，不能靠模型判断重复。
+- 重复飞书事件在消息路由前以 workspace、BotInstance、message ID 组成数据库原子 Claim；进程内缓存只是快速路径，不能靠模型或单进程内存判断重复。
 
 ## 失败、安全与降级
 
@@ -130,6 +135,10 @@ flowchart TD
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
 | 2026-07-29 | 日报忽略规则移除公司品牌特判，改为识别公开机器人名称与通用“机器人”称呼 | `summaries.test.ts`、`messageHandler.test.ts` |
+| 2026-08-13 | 站会路由支持引用任务模板时不重复 @机器人，并在任务提醒回复中校验 @ 人与回复人一致 | `standupHandler.test.ts`、`messageHandler.test.ts` |
+| 2026-08-12 | 站会路由新增任务型站会登记及提醒引用上下文；显式 TAPD 创建语句保持原任务链路，能力提示同步更新 | `standupHandler.test.ts`、`messageHandler.test.ts` |
+| 2026-08-03 | 飞书消息进入 Router 前增加持久化跨实例 Claim，同一事件只允许一个副本进入业务处理 | `multiBotIngress.test.ts` |
+| 2026-07-31 | 任务命令保留 AI 前置解析；Gemini 429、超时或其他解析异常时降级到已命中的规则创建路径，避免模型限流阻断确定性业务 | `messageHandler.test.ts` |
 | 2026-07-29 | 默认 Bot 在最近 AI 新闻会话内识别“查看更多”、搜索、来源和分类追问，其他会话的模糊“查看更多”不被新闻路由截获 | `aiNewsRadar.test.ts`、`multiBotIngress.test.ts` |
 | 2026-07-29 | 默认 Bot 增加严格的 AI 新闻私聊前置分流，非新闻消息保持原 Context/Handler/主 Agent 链路 | `aiNewsRadar.test.ts`、`multiBotIngress.test.ts` |
 | 2026-07-29 | 增加专用 Bot `entryCapability` 前置分流；AI 新闻私聊不进入项目成员识别、任务、站会或主 Agent | `multiBotIngress.test.ts` |

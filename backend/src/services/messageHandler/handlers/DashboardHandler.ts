@@ -37,14 +37,13 @@ export class DashboardHandler {
             }
 
             const stateText = isCurrentDay ? "已刷新 TAPD 并生成新快照" : "历史快照";
-            const dashboardBaseUrl =
-              ctx.config.runtime?.public_base_url ||
-              "http://localhost:8080/";
+            let dashboardBaseUrl = ctx.config.runtime?.public_base_url || "http://localhost:8080/";
+            dashboardBaseUrl = dashboardBaseUrl.replace(/\/$/, "");
             const dashboardQuery = new URLSearchParams({
                 groupId: targetGroup.chat_id,
                 dashboardId: artifact.id,
             }).toString();
-            const dashboardUrl = artifact.public_url || `${dashboardBaseUrl}${dashboardBaseUrl.includes("?") ? "&" : "?"}${dashboardQuery}`;
+            const dashboardUrl = `${dashboardBaseUrl}/?${dashboardQuery}`;
             const replyText = `${stateText}。${artifact.image_path ? "\n完整看板图片已发送。" : ""}\n[打开在线看板](${dashboardUrl})`;
 
             if (artifact.image_path) {

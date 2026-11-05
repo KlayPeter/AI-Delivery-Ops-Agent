@@ -41,7 +41,7 @@ export class ProjectDashboardService {
                 requested_by_group_id: requestedByGroupId || null,
                 error: sync.error || "unknown sync error",
             });
-            throw new Error(`看板数据同步失败：${sync.error || "unknown sync error"}`);
+            throw TaskService.projectSyncError("看板数据同步失败", sync);
         }
 
         const subscribers = [group];

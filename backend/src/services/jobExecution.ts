@@ -3,6 +3,7 @@ import type { GeneratedDailySummary } from "./jobs";
 
 export const MANUAL_JOB_NAMES = new Set([
     "standup-push",
+    "task-standup-template",
     "standup-remind",
     "standup-second-remind",
     "standup-summary",
@@ -16,6 +17,7 @@ export class UnsupportedJobPreviewError extends Error {}
 
 export interface ManualJobRunner {
     standupPush(groupId: string, day: Date): Promise<any>;
+    taskStandupTemplate(groupId: string, day: Date): Promise<any>;
     standupRemind(groupId: string, day: Date): Promise<any>;
     standupSecondRemind(groupId: string, day: Date): Promise<any>;
     standupSummary(groupId: string, day: Date): Promise<any>;
@@ -65,6 +67,7 @@ export async function executeManualJob(
 
     switch (jobName) {
         case "standup-push": return jobs.standupPush(groupId, day);
+        case "task-standup-template": return jobs.taskStandupTemplate(groupId, day);
         case "standup-remind": return jobs.standupRemind(groupId, day);
         case "standup-second-remind": return jobs.standupSecondRemind(groupId, day);
         case "standup-summary": return jobs.standupSummary(groupId, day);

@@ -1,6 +1,42 @@
 import { LLMAdapter } from '@/adapters/llm';
 import { StandupService } from '@/services/standupService';
 
+export async function buildTeamFocusWithLLM(
+    llm: LLMAdapter,
+    standups: any[],
+): Promise<{ ok: boolean; focus?: string[]; error?: string }> {
+    const summary = StandupService.buildSummaryView(standups);
+    const payload = JSON.stringify(summary.people.map((person: any) => ({
+        name: person.name,
+        yesterday_done: person.yesterday_done,
+        today_plan: person.today_plan,
+    })));
+    const prompt = (
+        `你是研发团队助理，请根据以下 JSON 汇总团队工作重点。\n` +
+        `只输出严格 JSON，格式为 {"focus":["主题：结论","主题：结论"]}，focus 最多 3 条。\n` +
+        `每条聚合多个成员的相关工作，优先提炼共同主题、当前阶段和下一步，不要罗列人名，不要编造 JSON 未提供的事实。\n` +
+        `每条控制在 80 个汉字以内；没有足够信息时返回 {"focus":[]}。`
+    );
+    try {
+        const result = await llm.chat(prompt, payload);
+        if (!result.ok || !result.content?.trim()) return { ok: false, error: result.error || "empty_response" };
+        let content = result.content.trim();
+        if (content.startsWith("```")) {
+            content = content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+        }
+        const parsed = JSON.parse(content);
+        const focus = Array.isArray(parsed) ? parsed : parsed?.focus;
+        if (!Array.isArray(focus)) return { ok: false, error: "invalid_focus_shape" };
+        const cleaned = focus
+            .map((item: unknown) => String(item || "").replace(/[\r\n]+/g, "；").trim())
+            .filter(Boolean)
+            .slice(0, 3);
+        return { ok: true, focus: cleaned };
+    } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+}
+
 export async function buildStandupSummaryWithLLM(
     llm: LLMAdapter,
     standups: any[],
@@ -43,17 +79,24 @@ export async function buildStandupSummaryWithLLM(
         `请保持格式完全一致，不要输出多余的Markdown代码块符号（如\`\`\`）。`
     );
 
-    const res = await llm.chat(prompt, payload);
-    if (res.ok && res.content.trim()) {
-        let text = res.content.trim();
-        if (text.startsWith("```")) {
-            const lines = text.split("\n");
-            if (lines.length > 2) text = lines.slice(1, -1).join("\n").trim();
+    try {
+        const res = await llm.chat(prompt, payload);
+        if (res.ok && res.content.trim()) {
+            let text = res.content.trim();
+            if (text.startsWith("```")) {
+                const lines = text.split("\n");
+                if (lines.length > 2) text = lines.slice(1, -1).join("\n").trim();
+            }
+            text += `\n\n**👻 七、未提交情况**\n${missingText}`;
+            return { ok: true, text };
         }
-        text += `\n\n**👻 七、未提交情况**\n${missingText}`;
-        return { ok: true, text };
+        return { ok: false, error: res.error || "empty_response" };
+    } catch (error) {
+        return {
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+        };
     }
-    return { ok: false, error: res.error || "empty_response" };
 }
 
 export function buildFallbackStandupSummary(standups: any[], dateText: string, missingText: string): string {

@@ -117,6 +117,54 @@ describe('Feishu multi-bot connections', () => {
         expect(received).toBe(1002);
         await manager.stop();
     });
+
+    test('deduplicates the same event across two running instances through the persistent store', async () => {
+        const claimed = new Set<string>();
+        const handlers: Array<(data: any) => Promise<void>> = [];
+        let received = 0;
+        const store = {
+            appendAuditLog: async () => {},
+            claimIdempotencyKey: async (key: string) => {
+                if (claimed.has(key)) return false;
+                claimed.add(key);
+                return true;
+            },
+        };
+        const createManager = () => new FeishuBotConnectionManager(
+            new BotRegistry([defaultBot]),
+            'bot-default',
+            () => ({
+                app_id: defaultBot.appId,
+                app_secret: 'default-secret',
+                bot_open_id: '',
+                bot_name: defaultBot.name,
+                send_retry_count: 1,
+            }),
+            { resolve: async () => '' },
+            store,
+            async () => { received++; },
+            {
+                createClient: () => ({
+                    start: async ({ eventDispatcher }) => { handlers.push(eventDispatcher.handler); },
+                    close: () => {},
+                }),
+                createDispatcher: eventHandler => ({ handler: eventHandler }),
+                createAdapter: () => ({ setAuditCallback: () => {} } as any),
+            },
+        );
+        const first = createManager();
+        const second = createManager();
+        await first.start();
+        await second.start();
+
+        await Promise.all(handlers.map(handler => handler({ message: { message_id: 'om_cross_instance' } })));
+        await Bun.sleep(0);
+
+        expect(received).toBe(1);
+        expect([...claimed]).toEqual(['feishu:event:workspace-default:bot-default:om_cross_instance']);
+        await first.stop();
+        await second.stop();
+    });
 });
 
 describe('AI news bot ingress', () => {

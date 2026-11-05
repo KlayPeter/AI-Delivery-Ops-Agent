@@ -4,7 +4,7 @@ name: 项目周报
 status: active
 agent_mapping:
   - native.weekly-report
-last_reviewed: 2026-07-28
+last_reviewed: 2026-07-31
 ---
 
 # 项目周报
@@ -20,21 +20,24 @@ last_reviewed: 2026-07-28
 ```mermaid
 flowchart TD
     U["@机器人生成本周/上周周报"] --> H["WeeklyReportHandler"]
-    S["周五配置时间"] --> G{"群已开启日报站会?"}
+    S["周五配置时间"] --> HC{"群日期策略与指定日期允许?"}
+    HC -- "是" --> G{"群已开启日报站会?"}
     H --> G
     G -- 否 --> X0["提示未开启 / 跳过调度"]
     G -- 是 --> D["ScheduledAgentDispatcher"]
     D --> A["native.weekly-report"]
     A --> W["WeeklyReportService"]
     W --> T["TaskService.syncProjectScope"]
-    T --> P{"TAPD 全分页同步成功?"}
+    T --> P{"TAPD 50页/30秒内同步成功?"}
     P -- 否 --> X["失败关闭，不生成旧数据周报"]
     P -- 是 --> TH["TapdAdapter /story_changes\n按统计日读取 status 历史"]
     TH --> F["事实快照"]
     ST["StandupService"] --> F
     TU["Task / TaskUpdate"] --> F
-    F --> N["LLM 归纳或确定性降级"]
-    N --> R["安全 HTML 渲染"]
+    F --> N{"LLM 归纳成功?"}
+    N -- 是 --> R["安全 HTML 渲染"]
+    N -- 否 --> NF["记录 AI 失败分类<br/>确定性事实模板 + 降级说明"]
+    NF --> R
     R --> DB["WeeklyReport 持久化"]
     DB --> O["Markdown Artifact / Outbox"]
     DB --> API["周报列表与 HTML 查看 API"]
@@ -57,8 +60,10 @@ flowchart TD
 
 ## 核心规则
 
+自动调度统一通过 `backend/src/core/scheduleCalendar.ts` 判断群级 `schedule.calendar`。指定日期的触发/暂停优先于基础策略；`workdays` 使用中国工作日（含调休），`every_day` 不限制节假日，`selected_dates` 仅执行指定触发日。日期放行不绕过模块开关、任务开关或原定时刻，手动触发不受该日历限制。未配置或 `legacy` 保留原有 `workdays_only` 规则及周报、承诺到期提醒的例外；无效日期与非布尔覆盖值在读取配置时丢弃。
+
 1. **站会开关是前置资格。** 只有 `StandupService.isGroupEnabled` 判定已开启站会模块且每日站会推送未关闭的群才能生成；群命令、Scheduler 和 Service 三层一致拦截。
-2. **先同步再生成。** 每次生成都执行 TAPD 全分页同步；任一页失败则本次失败，不使用不明新鲜度的任务数据。
+2. **先在硬预算内同步再生成。** 每次生成都执行 TAPD 全分页同步，单次最多 50 页、30 秒；任一页失败则本次失败，不使用不明新鲜度的任务数据。页数或时间预算耗尽属于不可重试错误，Native Agent 和 Scheduler 不得重新执行整份周报。
 3. **周范围按配置时区计算。** 默认 `Asia/Shanghai`；本周从周一统计到生成日或周五，上周固定为上一个周一至周五。
 4. **事实与叙事分离。** `facts_json` 保存确定性指标和证据，`narrative_json` 保存 LLM 或规则摘要；HTML 中所有数字只读事实快照。当前紧凑 HTML 不展示管理叙事。
 5. **状态历史直接查询 TAPD。** 每次生成按统计周期的每个自然日分页调用 `/story_changes`，指定 `change_field=status` 和 `need_parse_changes=1`；只展示与当前群成员任务匹配的原始 `field_changes`，优先使用 TAPD 解析后的中文前后值。非状态字段流转仍使用幂等 `TaskUpdate(source=tapd)`；本地 `status`（如超期派生状态）永不展示为 TAPD 流转。历史接口失败时不把“未知”写成“无流转”，而是保留已留存字段变更并明确标记状态历史不可用。
@@ -68,12 +73,12 @@ flowchart TD
 9. **状态统一中文并使用语义色。** 任务和 TAPD 状态由渲染器映射为中文；任务概览不显示完成百分比，只显示状态。TAPD 流转沿用看板的深墨绿、蓝、青、琥珀、紫与红色语义，分别区分通用字段、状态、进度、优先级、负责人和截止日；旧值低对比，新值带浅色底与边框。
 10. **任务时间按明确范围展示。** 开始时间读取 TAPD `begin_date`，结束时间读取任务 `due_date`，任一侧缺失显示 `-`，不把创建时间冒充计划开始时间。
 11. **任务标题只链接可信 TAPD 地址。** 有 `http/https` `tapd_url` 时标题支持 hover、键盘 focus 和新标签页打开；缺少链接或协议不安全时只展示纯文本。
-12. **LLM 可选。** 模型失败、空响应或非法 JSON 时自动使用确定性摘要，事实和报告仍可生成。
+12. **LLM 可选但降级必须透明。** 模型失败、空响应或非法 JSON 时自动使用确定性摘要，事实和报告仍可生成；`narrative_json` 保存降级标记、失败分类和脱敏错误，HTML 与群投递消息都明确说明内容未经过 AI 归纳。
 13. **HTML 默认不信任输入。** 群名、成员名、任务标题和站会内容全部转义；产物只写入 `data_path/weekly-reports`。
 14. **访问按记录解析。** API 先按不可猜测的报告 ID 读取数据库记录，再校验文件位于周报目录且扩展名为 `.html`，不接受任意文件名。
 15. **重复生成保留版本。** 同一群和周期每次成功生成递增版本，不覆盖旧文件；并发版本冲突最多重算并重试三次，失败尝试产生的 HTML 会被清理；消息和调度级重复由 Agent Trigger 幂等。
-16. **投递与生成分离。** Agent 只返回加粗群名、统计周期和直达 HTML 周报的 Markdown Artifact，不在群消息中重复提交率或任务指标；链接固定指向 `/api/weekly-reports/{reportId}`，优先使用 `runtime.public_base_url` 作为服务地址前缀，未配置时使用 `http://localhost:8090`；中台「周报」菜单仍可单独查看历史，但不是群消息跳转目标；Delivery Worker 发送到触发群，报告生成成功不等于飞书已经送达。
-17. **定时任务固定周五。** 群配置控制模块、开关、时间和时区；周报是周级任务，不受 `workdays_only` 节假日跳过规则影响。
+16. **投递与生成分离。** Agent 返回加粗群名、统计周期和直达 HTML 周报的 Markdown Artifact，不在群消息中重复提交率或任务指标；若 AI 降级则额外加入一条明确说明。链接固定指向 `/api/weekly-reports/{reportId}`，优先使用 `runtime.public_base_url` 作为服务地址前缀，未配置时使用 `http://localhost:8090`；中台「周报」菜单仍可单独查看历史，但不是群消息跳转目标；Delivery Worker 发送到触发群，报告生成成功不等于飞书已经送达。
+17. **定时任务固定周五。** 群配置控制模块、开关、时间和时区；沿用原规则时不受 `workdays_only` 影响；选择新日历策略后遵守周报时区日期的触发/暂停规则，指定非周五不会额外生成周报。
 
 ## 用户能力
 
@@ -104,7 +109,7 @@ flowchart TD
 ## 失败、安全与降级
 
 - TAPD 不可用：记录 `weekly_report_failed` 并终止，不写周报记录。
-- LLM 不可用：使用规则摘要，不影响事实和 HTML。
+- LLM 不可用、限流、超时或返回非法内容：记录 `ai_weekly_report_failed`，使用确定性事实模板，不影响事实与 HTML 生成；HTML 和群消息都展示降级说明。
 - DB 保存失败：删除刚写出的孤立 HTML 后向上抛错。
 - 文件丢失、越界或记录无效：查看 API 返回 404。
 - 周报 API 当前依赖部署网络边界；如开放公网，应在路由前增加用户鉴权和群权限校验。
@@ -135,6 +140,9 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-10-05 | 自动调度增加群级节假日策略与日历日期覆盖，保留旧配置兼容 | `scheduleCalendar.test.ts`、`scheduler.test.ts`、`config.test.ts`、前后端类型检查 |
+| 2026-08-03 | 周报前置 TAPD 同步增加 50 页/30 秒预算，预算错误穿透 Agent 调度且不再整轮重试 | `dashboardData.test.ts`、`weeklyReport.test.ts`、`scheduler.test.ts` |
+| 2026-07-31 | 周报 LLM 限流、超时、空响应或非法 JSON 时保存降级元数据，记录 `ai_weekly_report_failed`，并在 HTML 与群投递中公开确定性模板降级 | `weeklyReport.test.ts`、后端类型检查 |
 | 2026-07-29 | 将周报页面加载状态的条件表达式改为等价的显式分支，消除会阻断前端 lint 门禁的问题，加载与刷新行为保持不变 | 前端 lint、类型检查、测试、生产构建 |
 | 2026-07-28 | 周报状态流转改为直接分页读取 TAPD `/story_changes` 的 `status` 历史；接口不可用时明确标记不可确认，不再误报“暂无流转”；区块更名为「本周任务变更」并标示数据来源 | `weeklyReport.test.ts`、后端类型检查 |
 | 2026-07-27 | 周报状态流转只展示 TAPD 原始状态，过滤超期等本地派生状态，避免伪造状态倒退 | `weeklyReport.test.ts`、类型检查 |

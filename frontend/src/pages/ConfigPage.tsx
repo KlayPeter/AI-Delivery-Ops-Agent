@@ -7,7 +7,7 @@ import { GroupConfigList } from '@/components/config/GroupConfigList';
 import { CompanyDirectoryTree } from '../components/config/CompanyDirectoryTree';
 
 const JOBS = [
-  { id: 'standup_push', name: '站会首次提醒' },
+  { id: 'standup_push', name: '普通站会首次提醒' },
   { id: 'standup_second_remind', name: '站会再次提醒' },
   { id: 'standup_mark_missing', name: '记录未交站会' },
   { id: 'standup_summary', name: '生成站会汇总' },
@@ -90,6 +90,13 @@ const ConfigPage = () => {
               gSchedule[mod] = fallback[mod] !== undefined ? fallback[mod] : false;
             }
           });
+          if (gSchedule.task_standup_enabled === undefined) {
+            gSchedule.task_standup_enabled = fallback.task_standup_enabled ?? false;
+          }
+          const taskTemplateTime = gSchedule.task_standup_template || fallback.task_standup_template || '09:00';
+          gSchedule.task_standup_template = typeof taskTemplateTime === 'string'
+            ? dayjs(taskTemplateTime, 'HH:mm')
+            : taskTemplateTime;
 
           JOBS.forEach(job => {
             let timeVal = gSchedule[job.id] || fallback[job.id];
@@ -152,6 +159,8 @@ const ConfigPage = () => {
       module_daily_summary_enabled: fallback.module_daily_summary_enabled !== undefined ? fallback.module_daily_summary_enabled : false,
       module_weekly_report_enabled: fallback.module_weekly_report_enabled !== undefined ? fallback.module_weekly_report_enabled : false,
       module_dashboard_enabled: fallback.module_dashboard_enabled !== undefined ? fallback.module_dashboard_enabled : false,
+      task_standup_enabled: fallback.task_standup_enabled !== undefined ? fallback.task_standup_enabled : false,
+      task_standup_template: dayjs(fallback.task_standup_template || '09:00', 'HH:mm'),
     };
     JOBS.forEach((job: any) => {
       s[`${job.id}_enabled`] = fallback[`${job.id}_enabled`] !== undefined ? fallback[`${job.id}_enabled`] : false;
@@ -213,6 +222,9 @@ const ConfigPage = () => {
               gSchedule[job.id] = gSchedule[job.id].format('HH:mm');
             }
           });
+          if (gSchedule.task_standup_template && dayjs.isDayjs(gSchedule.task_standup_template)) {
+            gSchedule.task_standup_template = gSchedule.task_standup_template.format('HH:mm');
+          }
           if (gSchedule.overdue_scan_end && dayjs.isDayjs(gSchedule.overdue_scan_end)) {
             gSchedule.overdue_scan_end = gSchedule.overdue_scan_end.format('HH:mm');
           }
@@ -238,10 +250,11 @@ const ConfigPage = () => {
         return Boolean(group.schedule?.module_daily_summary_enabled) !== Boolean(persisted.schedule?.module_daily_summary_enabled)
           || Boolean(group.schedule?.daily_summary_enabled) !== Boolean(persisted.schedule?.daily_summary_enabled)
           || Boolean(group.schedule?.module_weekly_report_enabled) !== Boolean(persisted.schedule?.module_weekly_report_enabled)
-          || Boolean(group.schedule?.weekly_report_enabled) !== Boolean(persisted.schedule?.weekly_report_enabled);
+          || Boolean(group.schedule?.weekly_report_enabled) !== Boolean(persisted.schedule?.weekly_report_enabled)
+          || Boolean(group.schedule?.task_standup_enabled) !== Boolean(persisted.schedule?.task_standup_enabled);
       });
       if (moduleMismatches.length > 0) {
-        message.error(`配置已提交，但后端确认的日报/周报开关与页面不一致：${moduleMismatches.map((group: any) => group.name || group.chat_id).join('、')}。请刷新页面后重试。`);
+        message.error(`配置已提交，但后端确认的站会/日报/周报开关与页面不一致：${moduleMismatches.map((group: any) => group.name || group.chat_id).join('、')}。请刷新页面后重试。`);
         return;
       }
       message.success('配置保存成功，定时器会在 30 秒内读取新配置');

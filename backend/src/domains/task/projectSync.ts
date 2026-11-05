@@ -16,11 +16,39 @@ export interface ProjectTaskSyncResult {
     unchanged: number;
     local_only: number;
     error?: string;
+    code?: string;
+    retryable?: boolean;
 }
 
 export interface ProjectSyncOptions {
     pageSize?: number;
     maxPages?: number;
+    timeoutMs?: number;
+}
+
+export const TAPD_SYNC_MAX_PAGES = 50;
+export const TAPD_SYNC_TIMEOUT_MS = 30_000;
+
+function projectSyncGuardError(code: string, message: string): Error {
+    return Object.assign(new Error(message), { code, retryable: false });
+}
+
+async function withinProjectSyncBudget<T>(request: () => Promise<T>, deadlineAt: number): Promise<T> {
+    const remainingMs = deadlineAt - Date.now();
+    if (remainingMs <= 0) {
+        throw projectSyncGuardError('TAPD_SYNC_TIMEOUT', `TAPD project sync exceeded its time budget`);
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+        return await Promise.race([
+            request(),
+            new Promise<never>((_, reject) => {
+                timer = setTimeout(() => reject(projectSyncGuardError('TAPD_SYNC_TIMEOUT', `TAPD project sync exceeded its time budget`)), remainingMs);
+            }),
+        ]);
+    } finally {
+        if (timer) clearTimeout(timer);
+    }
 }
 
 function tapdStory(entry: any): any {
@@ -134,7 +162,15 @@ async function saveTapdSyncUpdate(store: any, previous: Task, next: Task): Promi
 
 export async function syncProjectTasks(ctx: any, options: ProjectSyncOptions = {}): Promise<ProjectTaskSyncResult> {
     const pageSize = Math.max(1, Math.min(200, options.pageSize || 200));
-    const maxPages = Math.max(1, options.maxPages || 1000);
+    const requestedMaxPages = Number(options.maxPages ?? TAPD_SYNC_MAX_PAGES);
+    const maxPages = Number.isInteger(requestedMaxPages)
+        ? Math.max(1, Math.min(TAPD_SYNC_MAX_PAGES, requestedMaxPages))
+        : TAPD_SYNC_MAX_PAGES;
+    const requestedTimeoutMs = Number(options.timeoutMs ?? TAPD_SYNC_TIMEOUT_MS);
+    const timeoutMs = Number.isFinite(requestedTimeoutMs)
+        ? Math.max(1, Math.min(120_000, requestedTimeoutMs))
+        : TAPD_SYNC_TIMEOUT_MS;
+    const deadlineAt = Date.now() + timeoutMs;
     const emptyResult = { fetched: 0, created: 0, updated: 0, deleted: 0, unchanged: 0, local_only: 0 };
 
     if (!ctx?.tapd || typeof ctx.tapd.listStories !== "function") {
@@ -149,7 +185,7 @@ export async function syncProjectTasks(ctx: any, options: ProjectSyncOptions = {
     try {
         if (typeof ctx.tapd.listWorkitemTypes === "function") {
             try {
-                const typeResult = await ctx.tapd.listWorkitemTypes(1, 200);
+                const typeResult = await withinProjectSyncBudget<any>(() => ctx.tapd.listWorkitemTypes(1, 200), deadlineAt);
                 if (typeResult?.ok && Array.isArray(typeResult?.raw?.data)) {
                     for (const entry of typeResult.raw.data) {
                         const workitemType = tapdWorkitemType(entry);
@@ -163,7 +199,7 @@ export async function syncProjectTasks(ctx: any, options: ProjectSyncOptions = {
         }
         let completed = false;
         for (let page = 1; page <= maxPages; page++) {
-            const result = await ctx.tapd.listStories(page, pageSize);
+            const result = await withinProjectSyncBudget<any>(() => ctx.tapd.listStories(page, pageSize), deadlineAt);
             if (!result?.ok) {
                 return { ok: false, ...emptyResult, error: result?.error || `TAPD page ${page} failed` };
             }
@@ -188,10 +224,22 @@ export async function syncProjectTasks(ctx: any, options: ProjectSyncOptions = {
             }
         }
         if (!completed) {
-            return { ok: false, ...emptyResult, error: `TAPD pagination exceeded ${maxPages} pages` };
+            return {
+                ok: false,
+                ...emptyResult,
+                error: `TAPD pagination exceeded ${maxPages} pages`,
+                code: 'TAPD_SYNC_PAGE_LIMIT_EXCEEDED',
+                retryable: false,
+            };
         }
     } catch (error: any) {
-        return { ok: false, ...emptyResult, error: error?.message || String(error) };
+        return {
+            ok: false,
+            ...emptyResult,
+            error: error?.message || String(error),
+            code: error?.code,
+            retryable: error?.retryable,
+        };
     }
 
     const existingTasks: Task[] = await ctx.store.listTasks(true);

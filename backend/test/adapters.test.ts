@@ -5,7 +5,14 @@ import * as path from 'path';
 import axios from 'axios';
 import { LLMAdapter } from '@/adapters/llm';
 import { TapdAdapter } from '@/adapters/tapd';
-import { FeishuAdapter, FeishuEventParser, extractFeishuImageKeys } from '@/adapters/feishu';
+import {
+    FEISHU_DIRECTORY_MAX_REQUESTS,
+    FEISHU_HISTORY_MAX_PAGES,
+    FEISHU_LIST_MAX_PAGES,
+    FeishuAdapter,
+    FeishuEventParser,
+    extractFeishuImageKeys,
+} from '@/adapters/feishu';
 import { AIConfig, TapdConfig, FeishuConfig } from '@/core/config';
 import { TAPD_STATUS_REQUIREMENT } from '@/services/messageHandler/types';
 
@@ -482,6 +489,127 @@ describe("Adapters Loading", () => {
         }
     });
 
+    test("should stop group history pagination when Feishu repeats a page token", async () => {
+        const feishuConfig: FeishuConfig = { app_id: "", app_secret: "", bot_open_id: "", bot_name: "", send_retry_count: 1 };
+        const feishu = new FeishuAdapter(feishuConfig, false);
+        (feishu as any)._getTenantAccessToken = async () => "tenant-token";
+
+        const originalGet = axios.get;
+        let requests = 0;
+        (axios.get as any) = async () => {
+            requests++;
+            return { data: { code: 0, data: { items: [] as any[], has_more: true, page_token: "stuck-page" } } };
+        };
+
+        try {
+            const request = feishu.fetchChatHistory("oc_group", new Date("2026-07-16T00:00:00+08:00"), new Date("2026-07-16T23:59:59+08:00"));
+            await expect(request).rejects.toMatchObject({ code: "FEISHU_HISTORY_REPEATED_PAGE_TOKEN", retryable: false });
+            expect(requests).toBe(2);
+        } finally {
+            axios.get = originalGet;
+        }
+    });
+
+    test("should cap group history pagination at the configured request budget", async () => {
+        const feishuConfig: FeishuConfig = { app_id: "", app_secret: "", bot_open_id: "", bot_name: "", send_retry_count: 1 };
+        const feishu = new FeishuAdapter(feishuConfig, false);
+        (feishu as any)._getTenantAccessToken = async () => "tenant-token";
+
+        const originalGet = axios.get;
+        let requests = 0;
+        (axios.get as any) = async () => {
+            requests++;
+            return { data: { code: 0, data: { items: [] as any[], has_more: true, page_token: `page-${requests}` } } };
+        };
+
+        try {
+            const request = feishu.fetchChatHistory("oc_group", new Date("2026-07-16T00:00:00+08:00"), new Date("2026-07-16T23:59:59+08:00"));
+            await expect(request).rejects.toMatchObject({ code: "FEISHU_HISTORY_PAGE_LIMIT_EXCEEDED", retryable: false });
+            expect(requests).toBe(FEISHU_HISTORY_MAX_PAGES);
+        } finally {
+            axios.get = originalGet;
+        }
+    });
+
+    test("should stop shared Feishu list pagination when a page token repeats", async () => {
+        const feishu = new FeishuAdapter({ app_id: "", app_secret: "", bot_open_id: "", bot_name: "", send_retry_count: 1 }, false);
+        (feishu as any)._getTenantAccessToken = async () => "tenant-token";
+
+        const originalGet = axios.get;
+        let requests = 0;
+        (axios.get as any) = async () => {
+            requests++;
+            return { data: { code: 0, data: { items: [] as any[], has_more: true, page_token: "stuck-list-page" } } };
+        };
+
+        try {
+            await expect(feishu.listGroups()).rejects.toMatchObject({
+                code: "FEISHU_LIST_REPEATED_PAGE_TOKEN",
+                retryable: false,
+            });
+            expect(requests).toBe(2);
+            expect(requests).toBeLessThan(FEISHU_LIST_MAX_PAGES);
+        } finally {
+            axios.get = originalGet;
+        }
+    });
+
+    test("should stop company directory pagination when department tokens repeat", async () => {
+        const feishu = new FeishuAdapter({ app_id: "", app_secret: "", bot_open_id: "", bot_name: "", send_retry_count: 1 }, false);
+        (feishu as any)._getTenantAccessToken = async () => "tenant-token";
+
+        const originalGet = axios.get;
+        let requests = 0;
+        (axios.get as any) = async () => {
+            requests++;
+            return { data: { code: 0, data: { items: [] as any[], has_more: true, page_token: "stuck-directory-page" } } };
+        };
+
+        try {
+            await expect(feishu.fetchAllCompanyMembers()).rejects.toMatchObject({
+                code: "FEISHU_DIRECTORY_REPEATED_PAGE_TOKEN",
+                retryable: false,
+            });
+            expect(requests).toBe(2);
+        } finally {
+            axios.get = originalGet;
+        }
+    });
+
+    test("should cap the total request budget across nested company directory pagination", async () => {
+        const feishu = new FeishuAdapter({ app_id: "", app_secret: "", bot_open_id: "", bot_name: "", send_retry_count: 1 }, false);
+        (feishu as any)._getTenantAccessToken = async () => "tenant-token";
+
+        const originalGet = axios.get;
+        let requests = 0;
+        const userPages = new Map<string, number>();
+        (axios.get as any) = async (url: string) => {
+            requests++;
+            if (url.includes("/departments/0/children")) {
+                return { data: { code: 0, data: { items: [
+                    { open_department_id: "od_one", name: "研发一部" },
+                    { open_department_id: "od_two", name: "研发二部" },
+                    { open_department_id: "od_three", name: "研发三部" },
+                ], has_more: false } } };
+            }
+            const department = ["od_one", "od_two", "od_three"].find(id => url.includes(`department_id=${id}`)) || "root";
+            const page = (userPages.get(department) || 0) + 1;
+            userPages.set(department, page);
+            const hasMore = department === "od_three" || page < 67;
+            return { data: { code: 0, data: { items: [] as any[], has_more: hasMore, page_token: hasMore ? `${department}-page-${page}` : undefined } } };
+        };
+
+        try {
+            await expect(feishu.fetchAllCompanyMembers()).rejects.toMatchObject({
+                code: "FEISHU_DIRECTORY_REQUEST_LIMIT_EXCEEDED",
+                retryable: false,
+            });
+            expect(requests).toBe(FEISHU_DIRECTORY_MAX_REQUESTS);
+        } finally {
+            axios.get = originalGet;
+        }
+    });
+
 
     test("should request group members as open_id and enrich their job titles", async () => {
         const feishuConfig: FeishuConfig = { app_id: "", app_secret: "", bot_open_id: "", bot_name: "", send_retry_count: 1 };
@@ -529,6 +657,11 @@ describe("Adapters Loading", () => {
                 { member_id: "ou_123", name: "张三", open_id: "ou_123", job_title: "前端工程师" },
                 { open_id: "ou_456", user_name: "李四", name: "李四", job_title: "产品经理" },
             ]);
+
+            const cachedMembers = await feishu.listGroupMembers("oc_123");
+            expect(cachedMembers).toEqual(members);
+            expect(urls).toHaveLength(6);
+            expect(urls.filter(url => url.includes('/contact/v3/users/'))).toHaveLength(2);
         } finally {
             axios.get = originalGet;
         }

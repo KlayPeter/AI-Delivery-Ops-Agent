@@ -3,6 +3,13 @@ import { SourceMessage, utcNowIso } from '@/models/types';
 import { looksLikeStandup, parseStandup } from '@/services/standup';
 import { HandlerContext } from './messageHandler/types';
 import { TaskService } from './taskService';
+import { aiFailureLabel, classifyAiFailure, type AiFailure } from '@/platform/aiDegradation';
+import { zonedClock } from '@/core/scheduleTime';
+
+interface StandupAiParseResult {
+    parsed: any | null;
+    failure?: AiFailure;
+}
 
 export class StandupService {
     static isGroupEnabled(group: any): boolean {
@@ -46,7 +53,104 @@ export class StandupService {
         };
     }
 
+    static isTaskStandupEnabled(group: any): boolean {
+        const schedule = group?.schedule || {};
+        return schedule.module_standup_enabled !== false
+            && schedule.task_standup_enabled === true;
+    }
+
+    static async handleTaskStandupMessage(ctx: HandlerContext, message: SourceMessage, source: "group" | "private", replyContext: any): Promise<any> {
+        if (replyContext?.context_type === "standup_commitment_prompt") {
+            return this.handleCommitmentReport(ctx, message, source, replyContext);
+        }
+        if (source !== "group") return null;
+
+        const group = ctx.config?.groups?.find((item: any) => item.chat_id === message.chat_id);
+        if (!this.isTaskStandupEnabled(group)) return null;
+        const parsed = parseCommitment(
+            message,
+            ctx.config?.feishu?.bot_open_id || "",
+            replyContext?.context_type === "task_standup_template",
+        );
+        if (!parsed) return null;
+
+        message.ai_result = { type: "standup_commitment", parser: "deterministic_rule", title: parsed.title, due_at: parsed.dueAt };
+        message.confidence = 1;
+        await ctx.store.saveSourceMessage(message);
+        const task = await TaskService.createStandupCommitment(ctx, message, parsed);
+        const result = await ctx.feishu.sendReplyText(message.id, `已记录任务型站会事项：\n\n任务：${task.title}\n负责人：${task.primary_owner_name}\n交付时间：${formatCommitmentTime(task.due_date)}\n\n到时间后我会在本群提醒负责人汇报。`);
+        await ctx.store.appendAuditLog("standup_commitment_created", {
+            task_id: task.id,
+            group_id: task.source_group_id,
+            owner_open_id: task.primary_owner_open_id,
+            due_at: task.due_date,
+            receipt_message_id: result?.message_id,
+        });
+        return { handled: true, action: "standup_commitment_created", task_id: task.id };
+    }
+
+    static async handleCommitmentReport(ctx: HandlerContext, message: SourceMessage, source: "group" | "private", replyContext: any): Promise<any> {
+        const task = await ctx.store.getTask(replyContext.task_id || "");
+        if (!task || !TaskService.isStandupCommitment(task)) return null;
+
+        const botOpenId = ctx.config?.feishu?.bot_open_id || "";
+        const mismatchedMention = (message.mentions || [])
+            .filter(item => item.open_id && item.open_id !== botOpenId)
+            .find(item => item.open_id !== message.sender_open_id);
+        if (mismatchedMention) {
+            const text = `请由被@的负责人 ${mismatchedMention.name || task.primary_owner_name} 本人引用机器人提醒回复，当前回复人是 ${message.sender_name || "其他成员"}，本次未更新任务。`;
+            if (source === "group") await ctx.feishu.sendReplyText(message.id, text);
+            else await ctx.feishu.sendPrivateText(message.sender_open_id || "", text);
+            await ctx.store.appendAuditLog("standup_commitment_report_rejected", {
+                task_id: task.id,
+                group_id: task.source_group_id,
+                reason: "mentioned_owner_mismatch",
+                mentioned_open_id: mismatchedMention.open_id,
+                reply_sender_open_id: message.sender_open_id,
+            });
+            return { handled: true, action: "standup_commitment_report_rejected", reason: "mentioned_owner_mismatch" };
+        }
+
+        if (message.sender_open_id !== task.primary_owner_open_id) {
+            const text = `这项任务需要由负责人 ${task.primary_owner_name} 本人引用机器人提醒回复，本次未更新任务。`;
+            if (source === "group") await ctx.feishu.sendReplyText(message.id, text);
+            else await ctx.feishu.sendPrivateText(message.sender_open_id || "", text);
+            await ctx.store.appendAuditLog("standup_commitment_report_rejected", {
+                task_id: task.id,
+                group_id: task.source_group_id,
+                reason: "sender_owner_mismatch",
+                task_owner_open_id: task.primary_owner_open_id,
+                reply_sender_open_id: message.sender_open_id,
+            });
+            return { handled: true, action: "standup_commitment_report_rejected", reason: "sender_owner_mismatch" };
+        }
+
+        const report = parseCommitmentReport(message.text || "", message.sent_at);
+        if (report.status === "delayed" && !report.nextDueAt) {
+            const prompt = `已识别到“${task.title}”需要延期，请补充新的交付时间，例如：延期到明天上午10点。`;
+            if (source === "group") await ctx.feishu.sendReplyText(message.id, prompt);
+            else await ctx.feishu.sendPrivateText(message.sender_open_id || "", prompt);
+            return { handled: true, action: "standup_commitment_due_time_required", task_id: task.id };
+        }
+        const updated = await TaskService.reportStandupCommitment(ctx, task, message, report);
+        const statusText = commitmentStatusLabel(report.status);
+        const nextText = report.nextDueAt ? `，新的交付时间为 ${formatCommitmentTime(report.nextDueAt)}` : "";
+        const receipt = `已记录“${task.title}”的进展：${statusText}${nextText}。`;
+        if (source === "group") await ctx.feishu.sendReplyText(message.id, receipt);
+        else await ctx.feishu.sendPrivateText(message.sender_open_id || "", receipt);
+        await ctx.store.appendAuditLog("standup_commitment_reported", {
+            task_id: updated.id,
+            group_id: updated.source_group_id,
+            owner_open_id: message.sender_open_id,
+            status: report.status,
+            next_due_at: report.nextDueAt,
+        });
+        return { handled: true, action: "standup_commitment_reported", task_id: updated.id, status: report.status };
+    }
+
     static async handlePrivateMessage(ctx: HandlerContext, message: SourceMessage, source: "group" | "private", replyContext: any): Promise<any> {
+        const commitment = await this.handleTaskStandupMessage(ctx, message, source, replyContext);
+        if (commitment) return commitment;
         if (source !== "private") {
             if (!looksLikeStandup(message.text || "")) return null;
             await ctx.feishu.sendReplyText(message.id || "", "已识别为站会内容。请在机器人私聊中回复今天对应的【站会提醒】后重新发送，本条不会作为任务状态更新或站会提交处理。");
@@ -69,9 +173,22 @@ export class StandupService {
         const isStandupPromptReply = replyContext && replyContext.context_type === "standup_prompt";
         let isStandup = looksLikeStandup(message.text || "") || isStandupPromptReply;
         let standup = parseStandup(message.sender_open_id || "", message.sender_name || "", message.text || "", message.id || "", standupDateFromContext(standupContext));
+        let aiParseFailure: AiFailure | undefined;
 
         if (!hasStandupContent(standup) && standupContext && ctx.intentParser?.llm) {
-            const llmParsed = await this.parseStandupWithLLM(ctx.intentParser.llm, message.text || "");
+            const llmResult = await this.parseStandupWithLLM(ctx.intentParser.llm, message.text || "");
+            const llmParsed = llmResult.parsed;
+            aiParseFailure = llmResult.failure;
+            if (aiParseFailure) {
+                await Promise.resolve(ctx.store.appendAuditLog("ai_standup_parse_failed", {
+                    message_id: message.id,
+                    open_id: message.sender_open_id,
+                    group_id: standupContext?.metadata?.group_id || "",
+                    category: aiParseFailure.category,
+                    error: aiParseFailure.error,
+                    fallback: "structured_rule",
+                })).catch(() => {});
+            }
             if (llmParsed && (llmParsed.yesterday_done?.length > 0 || llmParsed.today_plan?.length > 0 || llmParsed.blockers?.length > 0 || llmParsed.risks?.length > 0)) {
                 isStandup = true;
                 standup.yesterday_done = llmParsed.yesterday_done || [];
@@ -85,7 +202,10 @@ export class StandupService {
         if (isStandup) {
             if (!hasStandupContent(standup)) {
                 if (isStandupPromptReply) {
-                    await ctx.feishu.sendPrivateText(message.sender_open_id || "", "我还没识别到站会内容，请按【昨日完成】【今日计划】【阻塞/需要帮助】【风险/可能延期】【需要决策】补充后再发送。");
+                    const failurePrefix = aiParseFailure
+                        ? `${aiFailureLabel(aiParseFailure.category)}，本次未能完成自然语言解析；固定格式规则也`
+                        : "我还";
+                    await ctx.feishu.sendPrivateText(message.sender_open_id || "", `${failurePrefix}没识别到站会内容，请按【昨日完成】【今日计划】【阻塞/需要帮助】【风险/可能延期】【需要决策】补充后再发送。`);
                     await ctx.store.appendAuditLog("standup_empty_rejected", { open_id: message.sender_open_id, message_id: message.id, text: message.text });
                     return { handled: true, action: "standup_empty_rejected" };
                 }
@@ -189,7 +309,7 @@ export class StandupService {
             : { context_type: "standup_group_unresolved" };
     }
 
-    static async parseStandupWithLLM(llm: any, text: string): Promise<any> {
+    static async parseStandupWithLLM(llm: any, text: string): Promise<StandupAiParseResult> {
         const prompt = `你是一个站会内容解析助手。用户发来了一段话，请首先判断这段话是否真的是每日工作站会汇报。
 如果只是普通的问句、闲聊、或者对系统的疑问（例如"我提交了，咋没有我的名字"、"为什么没收到"等），请将 is_standup 设为 false，其他字段为空数组。
 
@@ -212,13 +332,13 @@ export class StandupService {
                     content = content.replace(/^\`\`\`/, "").replace(/\`\`\`$/, "").trim();
                 }
                 const parsed = JSON.parse(content);
-                if (parsed.is_standup === false || String(parsed.is_standup).toLowerCase() === "false") return null;
-                return parsed;
+                if (parsed.is_standup === false || String(parsed.is_standup).toLowerCase() === "false") return { parsed: null };
+                return { parsed };
             }
+            return { parsed: null, failure: classifyAiFailure(res.error || "empty_response") };
         } catch (e) {
-            console.error("LLM parse standup error", e);
+            return { parsed: null, failure: classifyAiFailure(e) };
         }
-        return null;
     }
 
     static async linkToTasks(ctx: HandlerContext, standup: any, message: SourceMessage): Promise<string[]> {
@@ -314,6 +434,57 @@ export class StandupService {
         });
     }
 
+    static async listTaskCommitments(store: any, dateText: string, group: any): Promise<any[]> {
+        const groupMemberIds = new Set((group.members || []).map((member: any) => member.open_id));
+        const timeZone = group.schedule?.overdue_scan_timezone || "Asia/Shanghai";
+        const businessDateOf = (value: unknown): string => zonedClock(String(value || ""), timeZone)?.date || "";
+        const tasks = (await store.listTasks()).filter((task: any) => {
+            return TaskService.isStandupCommitment(task)
+                && task.source_group_id === group.chat_id
+                && businessDateOf(task.source_sent_at || task.created_at) === dateText;
+        });
+        const updates = typeof store.listTaskUpdates === "function" ? await store.listTaskUpdates() : [];
+        const updatesByTask = new Map<string, any[]>();
+        for (const update of updates) {
+            if (!update.metadata?.standup_commitment) continue;
+            const current = updatesByTask.get(update.task_id) || [];
+            current.push(update);
+            updatesByTask.set(update.task_id, current);
+        }
+
+        return tasks
+            .filter((task: any) => groupMemberIds.size === 0 || groupMemberIds.has(task.primary_owner_open_id))
+            .map((task: any) => {
+                const latestUpdate = (updatesByTask.get(task.id) || [])
+                    .filter((update: any) => businessDateOf(update.created_at) === dateText)
+                    .sort((left: any, right: any) => String(right.created_at || "").localeCompare(String(left.created_at || "")))[0];
+                const reportStatus = latestUpdate?.metadata?.report_status;
+                const status = latestUpdate?.update_type === "standup_unreported"
+                    ? "unreported"
+                    : reportStatus || (latestUpdate?.update_type === "standup_committed" ? "pending" : "in_progress");
+                return {
+                    id: task.id,
+                    title: task.title,
+                    owner_open_id: task.primary_owner_open_id,
+                    owner_name: task.primary_owner_name,
+                    due_at: task.due_date || null,
+                    status,
+                    status_label: ({
+                        pending: "待交付",
+                        unreported: "未完成（未汇报）",
+                        completed: "已完成",
+                        in_progress: "进行中",
+                        blocked: "有阻塞",
+                        delayed: "已延期",
+                    } as Record<string, string>)[status] || "进行中",
+                    reported: ["completed", "in_progress", "blocked", "delayed"].includes(status),
+                    content: latestUpdate?.content || "",
+                    created_at: task.source_sent_at || task.created_at,
+                };
+            })
+            .sort((left: any, right: any) => String(left.due_at || "").localeCompare(String(right.due_at || "")));
+    }
+
     static async matchTask(ctx: HandlerContext, item: string, openId: string): Promise<any> {
         let bestTask = null;
         let bestScore = 0.0;
@@ -353,6 +524,82 @@ export class StandupService {
         for (const token of tokens) text = text.split(token).join("");
         return text;
     }
+}
+
+function parseCommitment(message: SourceMessage, botOpenId: string, allowQuotedTemplate: boolean = false): { title: string; ownerOpenId: string; ownerName: string; dueAt: string } | null {
+    const text = String(message.text || "").trim();
+    const mentions = message.mentions || [];
+    if (!mentions.some(item => item.open_id === botOpenId)) return null;
+    if (/(?:创建|新建|同步).{0,8}(?:TAPD|任务|需求)|(?:TAPD).{0,8}(?:任务|需求)/i.test(text)) return null;
+    if (!/(?:交付|完成|提交|汇报|产出|给到)/.test(text)) return null;
+    const dueAt = parseCommitmentDueAt(text, message.sent_at);
+    if (!dueAt) return null;
+
+    const owner = mentions.find(item => item.open_id !== botOpenId) || {
+        open_id: message.sender_open_id,
+        name: message.sender_name,
+    };
+    let title = text;
+    for (const mention of mentions) {
+        title = title.replace(new RegExp(`@?${escapeRegExp(mention.name)}`, "g"), " ");
+        if (mention.key) title = title.replace(new RegExp(escapeRegExp(mention.key), "g"), " ");
+    }
+    if (allowQuotedTemplate) {
+        title = title.replace(/(?:任务|事项|负责人|执行人|责任人|交付时间|截止时间|完成时间)\s*[:：]?/g, " ");
+    }
+    title = title
+        .replace(/(?:今天|今日|明天|明日|明早|明晚|后天)?\s*(?:上午|早上|中午|下午|晚上|今晚)?\s*\d{1,2}(?::\d{2}|点(?:半|\d{1,2}分?)?)\s*(?:前|之前|左右)?/g, " ")
+        .replace(/^(?:请|麻烦|辛苦)?\s*/, "")
+        .replace(/(?:交付|完成|提交|汇报|产出|给到)(?:任务)?\s*[:：]?/g, " ")
+        .replace(/\b(?:任务)\b/gi, " ")
+        .replace(/[，,。；;]+$/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    if (!title) return null;
+    return { title, ownerOpenId: owner.open_id, ownerName: owner.name || message.sender_name, dueAt };
+}
+
+function parseCommitmentDueAt(text: string, reference?: string): string | null {
+    const match = /(?:(今天|今日|明天|明日|明早|明晚|后天)\s*)?(上午|早上|中午|下午|晚上|今晚)?\s*(\d{1,2})(?::(\d{2})|点(半|\d{1,2}分?)?)/.exec(text);
+    if (!match) return null;
+    const base = dayjs(reference || new Date());
+    const dayToken = match[1] || "今天";
+    const period = match[2] || (dayToken === "明早" ? "早上" : dayToken === "明晚" ? "晚上" : "");
+    let hour = Number(match[3]);
+    let minute = Number(match[4] || 0);
+    if (match[5] === "半") minute = 30;
+    else if (match[5]) minute = Number(match[5].replace("分", ""));
+    if (["下午", "晚上", "今晚"].includes(period) && hour < 12) hour += 12;
+    if (period === "中午" && hour < 11) hour += 12;
+    if (hour > 23 || minute > 59) return null;
+    const offset = ["明天", "明日", "明早", "明晚"].includes(dayToken) ? 1 : dayToken === "后天" ? 2 : 0;
+    let due = base.add(offset, "day").hour(hour).minute(minute).second(0).millisecond(0);
+    if (!match[1] && !due.isAfter(base)) due = due.add(1, "day");
+    return due.isValid() ? due.toISOString() : null;
+}
+
+function parseCommitmentReport(text: string, reference?: string): { status: "completed" | "in_progress" | "blocked" | "delayed"; content: string; nextDueAt?: string } {
+    const content = text.trim();
+    if (/(?:延期|延后|推迟|改到|改为|做不完)/.test(content)) {
+        return { status: "delayed", content, nextDueAt: parseCommitmentDueAt(content, reference) || undefined };
+    }
+    if (/(?:阻塞|卡住|卡在|缺少|还没给|等待.+(?:提供|确认|回复))/.test(content)) return { status: "blocked", content };
+    if (/(?:未完成|没完成|进行中|还在|预计|尚未)/.test(content)) return { status: "in_progress", content };
+    if (/(?:已完成|完成了|完成|已交付|提交了|已提交|搞定|发给|交给)/.test(content)) return { status: "completed", content };
+    return { status: "in_progress", content };
+}
+
+function formatCommitmentTime(value?: string | null): string {
+    const parsed = dayjs(value || "");
+    return parsed.isValid() ? parsed.format("YYYY-MM-DD HH:mm") : "未设置";
+}
+
+function commitmentStatusLabel(status: string): string {
+    return ({ completed: "已完成", in_progress: "进行中", blocked: "有阻塞", delayed: "已延期" } as Record<string, string>)[status] || "进行中";
+}
+
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function hasStandupContent(standup: any): boolean {

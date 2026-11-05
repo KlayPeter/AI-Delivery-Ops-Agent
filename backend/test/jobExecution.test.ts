@@ -17,6 +17,7 @@ function createRunner() {
         },
         dailySummary: async () => { calls.push("dailySummary"); return { sent: true }; },
         standupPush: async () => { calls.push("standupPush"); return {}; },
+        taskStandupTemplate: async () => { calls.push("taskStandupTemplate"); return {}; },
         standupRemind: async () => { calls.push("standupRemind"); return {}; },
         standupSecondRemind: async () => { calls.push("standupSecondRemind"); return {}; },
         standupSummary: async () => { calls.push("standupSummary"); return {}; },
@@ -47,6 +48,14 @@ describe("manual job API execution", () => {
         await executeManualJob(runner, "daily-summary", "oc_target", parseManualJobDay("2026-07-16"), false);
 
         expect(calls).toEqual(["dailySummary"]);
+    });
+
+    test("manual task standup template uses its independent job", async () => {
+        const { runner, calls } = createRunner();
+
+        await executeManualJob(runner, "task-standup-template", "oc_target", parseManualJobDay("2026-07-16"), false);
+
+        expect(calls).toEqual(["taskStandupTemplate"]);
     });
 
     test("rejects unsafe preview jobs instead of pretending success", async () => {

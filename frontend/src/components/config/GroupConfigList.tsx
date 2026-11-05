@@ -2,9 +2,10 @@ import { Form, Button, Card, Row, Col, Select, Space, TimePicker, Input, InputNu
 import { PlusOutlined } from '@ant-design/icons';
 import { useState } from 'react';
 import { api } from '@/api';
+import { ScheduleCalendarEditor } from './ScheduleCalendarEditor';
 
 const JOBS = [
-  { id: 'standup_push', name: '站会首次提醒' },
+  { id: 'standup_push', name: '普通站会首次提醒' },
   { id: 'standup_second_remind', name: '站会再次提醒' },
   { id: 'standup_mark_missing', name: '记录未交站会' },
   { id: 'standup_summary', name: '生成站会汇总' },
@@ -280,6 +281,10 @@ export const GroupConfigList = ({ form, groups, groupsLoading, originalConfig, g
                     <span style={{ color: '#888', fontSize: 13 }}>注：后端服务常驻时会按这里的时间自动触发；模块开关可整体开启/关闭功能。</span>
                   </div>
 
+                  <Form.Item name={[groupName, 'schedule', 'calendar']} label="自动任务日期与节假日" style={{ marginBottom: 24 }}>
+                    <ScheduleCalendarEditor workdaysOnly={form.getFieldValue(['groups', groupName, 'schedule', 'workdays_only']) !== false} />
+                  </Form.Item>
+
                   {/* 站会收集模块 */}
                   <div style={{ border: '1px solid #91caff', borderRadius: 8, marginBottom: 24, overflow: 'hidden' }}>
                     <Form.Item noStyle dependencies={[['groups', groupName, 'schedule', 'module_standup_enabled']]}>
@@ -297,6 +302,7 @@ export const GroupConfigList = ({ form, groups, groupsLoading, originalConfig, g
                                       { name: ['groups', groupName, 'schedule', 'standup_second_remind_enabled'], value: false },
                                       { name: ['groups', groupName, 'schedule', 'standup_summary_enabled'], value: false },
                                       { name: ['groups', groupName, 'schedule', 'public_missing_standups'], value: false },
+                                      { name: ['groups', groupName, 'schedule', 'task_standup_enabled'], value: false },
                                     ]);
                                   }
                                 }} />
@@ -304,9 +310,33 @@ export const GroupConfigList = ({ form, groups, groupsLoading, originalConfig, g
                             </div>
                             {isExpanded && (
                               <div style={{ padding: '16px', background: '#fff' }}>
+                                <Alert
+                                  type="info"
+                                  showIcon
+                                  message="固定模板站会与任务型站会可以单独开启，也可以同时使用"
+                                  description="普通站会和任务型站会分别使用自己的开关与时间；任务型站会在群里发送登记模板，成员引用模板并再次 @机器人回复事项，机器人到具体交付时间在原群 @负责人。负责人需在下班前引用提醒回复，否则日报会标记为未完成（未汇报）。明确要求创建 TAPD 时仍走原任务流程。"
+                                  style={{ marginBottom: 16 }}
+                                />
                                 <Row gutter={[16, 16]}>
+                                  <Col span={24}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: '#f0f5ff', borderRadius: 6, border: '1px solid #adc6ff' }}>
+                                      <div>
+                                        <div style={{ fontWeight: 600 }}>任务型站会</div>
+                                        <Typography.Text type="secondary">开启后按左侧时间独立发送群模板；负责人未引用回复会在日报中记为未完成。</Typography.Text>
+                                      </div>
+                                      <Space size="middle">
+                                        <span style={{ color: '#666', fontSize: 13 }}>模板发送时间</span>
+                                        <Form.Item {...restGroupField} name={[groupName, 'schedule', 'task_standup_template']} style={{ margin: 0 }} rules={[{ required: true, message: '请选择时间' }]}>
+                                          <TimePicker format="HH:mm" style={{ width: 100 }} allowClear={false} />
+                                        </Form.Item>
+                                        <Form.Item {...restGroupField} name={[groupName, 'schedule', 'task_standup_enabled']} valuePropName="checked" style={{ margin: 0 }}>
+                                          <Switch />
+                                        </Form.Item>
+                                      </Space>
+                                    </div>
+                                  </Col>
                                   {[
-                                    { id: 'standup_push', name: '站会首次提醒' },
+                                    { id: 'standup_push', name: '站会首次提醒（含任务模板）' },
                                     { id: 'standup_second_remind', name: '站会再次提醒' },
                                     { id: 'standup_summary', name: '生成站会汇总' }
                                   ].map(job => (

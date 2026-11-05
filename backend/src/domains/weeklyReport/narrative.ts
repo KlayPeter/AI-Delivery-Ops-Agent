@@ -1,4 +1,5 @@
 import type { WeeklyNarrative, WeeklyReportFacts } from "./types";
+import { classifyAiFailure } from "@/platform/aiDegradation";
 
 function textList(value: unknown, limit = 8): string[] {
     if (!Array.isArray(value)) return [];
@@ -43,6 +44,15 @@ function parseJsonContent(content: string): any {
 export async function buildWeeklyNarrative(facts: WeeklyReportFacts, llm?: any): Promise<WeeklyNarrative> {
     const fallback = fallbackNarrative(facts);
     if (!llm || typeof llm.chat !== "function") return fallback;
+    const degradedFallback = (error: unknown): WeeklyNarrative => {
+        const failure = classifyAiFailure(error);
+        return {
+            ...fallback,
+            ai_degraded: true,
+            ai_failure_category: failure.category,
+            ai_error: failure.error,
+        };
+    };
 
     const compactFacts = {
         group: facts.group,
@@ -68,10 +78,10 @@ export async function buildWeeklyNarrative(facts: WeeklyReportFacts, llm?: any):
 
     try {
         const result = await llm.chat(system, JSON.stringify(compactFacts));
-        if (!result?.ok || !result.content) return fallback;
+        if (!result?.ok || !result.content) return degradedFallback(result?.error || "empty_response");
         const parsed = parseJsonContent(result.content);
         const executiveSummary = String(parsed?.executive_summary || "").trim().slice(0, 400);
-        if (!executiveSummary) return fallback;
+        if (!executiveSummary) return degradedFallback("invalid_response: missing executive_summary");
         return {
             executive_summary: executiveSummary,
             highlights: textList(parsed.highlights),
@@ -80,7 +90,7 @@ export async function buildWeeklyNarrative(facts: WeeklyReportFacts, llm?: any):
             next_week_focus: textList(parsed.next_week_focus),
             source: "llm",
         };
-    } catch {
-        return fallback;
+    } catch (error) {
+        return degradedFallback(error);
     }
 }

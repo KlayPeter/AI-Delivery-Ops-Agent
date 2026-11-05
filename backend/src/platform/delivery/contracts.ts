@@ -11,7 +11,7 @@ export interface DeliveryTarget {
     targetId: string;
 }
 
-export interface DeliveryError { code: string; message: string; retryable: boolean }
+export interface DeliveryError { code: string; message: string; retryable: boolean; retryAfterMs?: number }
 
 export interface DeliveryRecord {
     id: string;

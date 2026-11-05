@@ -79,7 +79,7 @@ export class ScheduledAgentDispatcher {
             replyPolicy: { mode: 'configured_target', targetId: groupId },
         });
         const result = await this.host.resume(trigger, runId, input);
-        await this.flushDeliveries(now);
+        await this.flushDeliveries();
         if (result.status === 'failed') throw new Error(result.claim.error?.message || 'Agent resume failed');
         return result.status === 'duplicate'
             ? { status: 'duplicate', run_id: result.claim.runId }
@@ -178,8 +178,14 @@ export class ScheduledAgentDispatcher {
             replyPolicy: { mode: 'configured_target', targetId: groupId },
         });
         const result = await this.host.dispatch(trigger, capability, input);
-        await this.flushDeliveries(day);
-        if (result.status === 'failed') throw new Error(result.claim.error?.message || `${triggerName} Agent failed`);
+        await this.flushDeliveries();
+        if (result.status === 'failed') {
+            const failure = result.claim.error;
+            throw Object.assign(new Error(failure?.message || `${triggerName} Agent failed`), {
+                code: failure?.code || 'SCHEDULED_AGENT_FAILED',
+                retryable: failure?.retryable === true,
+            });
+        }
         return result.status === 'duplicate'
             ? { status: 'duplicate', run_id: result.claim.runId }
             : { status: 'completed', run_id: result.execution?.run.id, result: result.execution?.result.data };

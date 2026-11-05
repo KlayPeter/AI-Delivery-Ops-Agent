@@ -31,6 +31,8 @@ function App() {
             <Route path="contexts" element={<ContextsPage />} />
             <Route path="meeting-summaries" element={<MeetingSummariesPage />} />
             <Route path="config" element={<ConfigPage />} />
+            {/* 兼容已被推送到群里的包含具体 .html 文件名的旧版本长链接 */}
+            <Route path="*" element={<DashboardPage />} />
           </Route>
           </Routes>
         </BrowserRouter>

@@ -6,6 +6,7 @@ import { DashboardHandler } from "@/services/messageHandler/handlers/DashboardHa
 import { MeetingSummaryHandler } from "@/services/messageHandler/handlers/MeetingSummaryHandler";
 import { SummaryHandler } from "@/services/messageHandler/handlers/SummaryHandler";
 import { TaskCommandHandler } from "@/services/messageHandler/handlers/TaskCommandHandler";
+import { TaskService } from "@/services/taskService";
 import { createSingleTask, taskDescription } from "@/services/messageHandler/taskCommands";
 
 function makeHandler() {
@@ -70,6 +71,81 @@ describe("MessageHandler bot mention detection", () => {
             mentions: [],
         })).toBe(false);
     });
+
+    test("should audit an AI rate-limit failure with its real category", async () => {
+        const auditLogs: any[] = [];
+        const replies: string[] = [];
+        const message = {
+            id: "om_ai_limit",
+            chat_id: "oc_group",
+            chat_type: "group",
+            sender_open_id: "ou_sender",
+            sender_name: "发送人",
+            text: "@AI 交付助理 测试",
+            mentions: [{ open_id: "ou_bot", name: "AI 交付助理" }],
+        };
+        const handler = new MessageHandler({
+            config: { feishu: { bot_open_id: "ou_bot", bot_name: "AI 交付助理" }, email: { enabled: false } },
+            store: {
+                saveSourceMessage: async () => {},
+                appendAuditLog: async (eventType: string, payload: any) => auditLogs.push({ eventType, payload }),
+            },
+            feishu: {
+                dryRun: true,
+                parseEvent: () => message,
+                addReaction: async (): Promise<undefined> => undefined,
+                sendReplyText: async (_messageId: string, text: string) => replies.push(text),
+            },
+        } as any) as any;
+        handler.resolver = { resolveReplyContext: async (): Promise<null> => null };
+        handler.handleGroupMessage = async (): Promise<never> => {
+            throw new Error("LLM API Error (Gemini): Retryable HTTP Error: Too Many Requests");
+        };
+
+        const result = await handler.handleEvent({});
+
+        expect(result).toMatchObject({ handled: true, action: "error_fallback" });
+        expect(auditLogs).toContainEqual({
+            eventType: "message_processing_failed",
+            payload: expect.objectContaining({ message_id: "om_ai_limit", category: "ai_rate_limited" }),
+        });
+        expect(replies[0]).toContain("AI 服务当前限流");
+    });
+
+    test("should allow a quoted task standup reply without mentioning the bot again", async () => {
+        const message = {
+            id: "om_task_template_reply",
+            chat_id: "oc_group",
+            chat_type: "group",
+            sender_open_id: "ou_owner",
+            sender_name: "负责人",
+            text: "任务：接口联调\n负责人：@负责人\n交付时间：今天17点",
+            mentions: [{ open_id: "ou_owner", name: "负责人" }],
+            parent_id: "om_task_template",
+            root_id: "om_task_template",
+        };
+        const handler = new MessageHandler({
+            config: { feishu: { bot_open_id: "ou_bot", bot_name: "机器人" }, email: { enabled: false } },
+            store: {
+                saveSourceMessage: async () => {},
+                appendAuditLog: async () => 1,
+            },
+            feishu: {
+                dryRun: true,
+                parseEvent: () => message,
+                addReaction: async (): Promise<undefined> => undefined,
+                removeReaction: async () => {},
+            },
+        } as any) as any;
+        handler.resolver = {
+            resolveReplyContext: async () => ({ context_type: "task_standup_template" }),
+        };
+        handler.handleGroupMessage = async () => ({ handled: true, action: "task_template_reply_allowed" });
+
+        const result = await handler.handleEvent({});
+
+        expect(result).toEqual({ handled: true, action: "task_template_reply_allowed" });
+    });
 });
 
 describe("TaskCommandHandler", () => {
@@ -87,6 +163,76 @@ describe("TaskCommandHandler", () => {
         } as any, "group", null);
 
         expect(result).toBeNull();
+    });
+
+    test("should fall back to the parsed task command when AI is rate limited", async () => {
+        const auditLogs: any[] = [];
+        const created: any[] = [];
+        const replies: string[] = [];
+        const originalCreateFromCommand = TaskService.createFromCommand;
+        (TaskService as any).createFromCommand = async (...args: any[]) => {
+            created.push(args);
+            return { handled: true, action: "task_created", task_id: "task-rule-fallback" };
+        };
+
+        try {
+            const result = await TaskCommandHandler.maybeHandle({
+                config: {
+                    feishu: { bot_open_id: "ou_bot" },
+                    groups: [{ members: [{ open_id: "ou_owner", name: "张三" }] }],
+                },
+                intentParser: {
+                    parse: async () => {
+                        throw new Error("LLM API Error (Gemini): Retryable HTTP Error: Too Many Requests");
+                    },
+                },
+                store: {
+                    hasIdempotencyKey: async () => false,
+                    appendAuditLog: async (eventType: string, payload: any) => auditLogs.push({ eventType, payload }),
+                    saveSourceMessage: async () => {},
+                    setIdempotencyKey: async () => {},
+                },
+                feishu: {
+                    sendReplyText: async (_messageId: string, text: string) => {
+                        replies.push(text);
+                        return { ok: true, message_id: "om_rule_fallback_reply" };
+                    },
+                },
+            } as any, {
+                shouldConsiderAi: () => true,
+                taskFromReplyContext: async (): Promise<null> => null,
+                contextualTask: async (): Promise<null> => null,
+            } as any, {
+                id: "om_rate_limited",
+                chat_id: "oc_group",
+                chat_type: "group",
+                sender_name: "创建人",
+                text: "@AI 交付助理 @张三 创建任务：验证限流降级",
+                mentions: [
+                    { open_id: "ou_bot", name: "AI 交付助理" },
+                    { open_id: "ou_owner", name: "张三" },
+                ],
+            } as any, "group", null);
+
+            expect(result).toMatchObject({ handled: true, action: "task_created", task_id: "task-rule-fallback" });
+            expect(created).toHaveLength(1);
+            expect(auditLogs).toContainEqual({
+                eventType: "ai_intent_failed",
+                payload: expect.objectContaining({
+                    message_id: "om_rate_limited",
+                    category: "rate_limited",
+                    fallback: "deterministic_rule",
+                }),
+            });
+            expect(auditLogs).toContainEqual({
+                eventType: "task_command_rule_fallback",
+                payload: expect.objectContaining({ message_id: "om_rate_limited", category: "rate_limited" }),
+            });
+            expect(replies[0]).toContain("AI 服务当前限流");
+            expect(replies[0]).toContain("已按任务规则继续处理");
+        } finally {
+            (TaskService as any).createFromCommand = originalCreateFromCommand;
+        }
     });
 });
 
@@ -437,7 +583,7 @@ describe("DashboardHandler", () => {
         expect(generatedDays).toHaveLength(0);
         expect(historicalDays).toEqual(["2026-07-07"]);
         expect(replies[0]).toContain("历史快照。");
-        expect(replies[0]).toContain("[打开在线看板](https://example.test/dashboard-2026-07-07.html)");
+        expect(replies[0]).toContain("[打开在线看板](https://example.test/dashboard/?groupId=oc_group&dashboardId=dashboard-2026-07-07)");
     });
 
     test("should refresh TAPD and create a new snapshot for a current dashboard request", async () => {
@@ -454,7 +600,7 @@ describe("DashboardHandler", () => {
         expect(imageReplies).toEqual(["img_dashboard"]);
         expect(replies[0]).toContain("已刷新 TAPD 并生成新快照。");
         expect(replies[0]).toContain("完整看板图片已发送。");
-        expect(replies[0]).toContain(`[打开在线看板](https://example.test/dashboard-${generatedDays[0]}.html)`);
+        expect(replies[0]).toContain(`[打开在线看板](https://example.test/dashboard/?groupId=oc_group&dashboardId=dashboard-${generatedDays[0]})`);
     });
 
     test("should hide the fallback dashboard URL behind a concise link label", async () => {

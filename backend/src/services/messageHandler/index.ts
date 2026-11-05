@@ -5,6 +5,11 @@ import { MessageRouter } from './MessageRouter';
 import { isSystemNoise } from './utils';
 import { EmailAdapter } from '@/adapters/email';
 
+const TASK_STANDUP_REPLY_CONTEXT_TYPES = new Set([
+    "task_standup_template",
+    "standup_commitment_prompt",
+]);
+
 export class MessageHandler {
     private ctx: HandlerContext;
     private resolver: ContextResolver;
@@ -22,12 +27,11 @@ export class MessageHandler {
 
         const isGroup = message.chat_type === "group";
         const botMentioned = this.isBotMentioned(message);
+        const replyContext = await this.resolver.resolveReplyContext(message);
 
-        if (isGroup && !botMentioned) {
+        if (isGroup && !botMentioned && !TASK_STANDUP_REPLY_CONTEXT_TYPES.has(replyContext?.context_type)) {
             return { handled: false, reason: "not_directed_at_bot" };
         }
-
-        let replyContext = await this.resolver.resolveReplyContext(message);
 
         const startedAt = Date.now();
         let reactionId: string | undefined = undefined;
@@ -58,8 +62,22 @@ export class MessageHandler {
         } catch (error: any) {
             console.error("Error processing message (possible deployment/restart):", error);
             const errStr = String(error.message || error);
+            const errorCategory = classifyMessageError(errStr);
+            try {
+                await this.ctx.store.appendAuditLog("message_processing_failed", {
+                    message_id: message.id,
+                    chat_id: message.chat_id,
+                    chat_type: message.chat_type,
+                    category: errorCategory,
+                    error: errStr.slice(0, 500),
+                });
+            } catch (auditError) {
+                console.error("Failed to audit message processing failure:", auditError);
+            }
             let fallbackMsg = "⚠️ 机器人系统可能正在发布升级中，或者遇到了内部异常，操作已被终止。\n请稍后再试（建议等 5 分钟后重试）。";
-            if (errStr.includes("LLM API") || errStr.includes("TAPD API") || errStr.includes("timeout") || errStr.includes("Network") || errStr.includes("ECONNRESET")) {
+            if (errorCategory === "ai_rate_limited") {
+                fallbackMsg = "⚠️ AI 服务当前限流，暂时无法处理需要 AI 理解的请求，请稍后再试。";
+            } else if (errStr.includes("LLM API") || errStr.includes("TAPD API") || errStr.includes("timeout") || errStr.includes("Network") || errStr.includes("ECONNRESET")) {
                 fallbackMsg = "⚠️ 请求超时或网络异常，当前操作未成功，请稍后再试。";
             }
             try {
@@ -142,4 +160,14 @@ export class MessageHandler {
         if (botName && mentions.some(m => m.name === botName || m.name?.includes(botName))) return true;
         return !!botName && (message.text || "").includes(`@${botName}`);
     }
+}
+
+function classifyMessageError(errorText: string): string {
+    if (/LLM API/i.test(errorText) && /too many requests|rate limit|quota|\b429\b/i.test(errorText)) {
+        return "ai_rate_limited";
+    }
+    if (/LLM API/i.test(errorText)) return "ai_unavailable";
+    if (/TAPD API/i.test(errorText)) return "tapd_unavailable";
+    if (/timeout|ECONNRESET|Network/i.test(errorText)) return "network_or_timeout";
+    return "internal_error";
 }

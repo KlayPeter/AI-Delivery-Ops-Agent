@@ -8,6 +8,7 @@ import { buildWeeklyNarrative } from "./narrative";
 import { resolveWeeklyPeriod } from "./period";
 import { renderWeeklyReportHtml, writeWeeklyReportHtml } from "./renderer";
 import type { WeeklyPeriod, WeeklyReportRequest, WeeklyTapdStatusChange } from "./types";
+import { aiDegradationNotice } from "@/platform/aiDegradation";
 
 export const DEFAULT_WEEKLY_REPORT_TIME_ZONE = "Asia/Shanghai";
 export const DEFAULT_WEEKLY_REPORT_PUBLIC_BASE_URL = "http://localhost:8090";
@@ -48,7 +49,7 @@ export class WeeklyReportService {
                 reason: "tapd_sync_failed",
                 error: sync.error,
             })).catch(() => {});
-            throw new Error(`TAPD 数据同步失败，周报未生成：${sync.error || "未知错误"}`);
+            throw TaskService.projectSyncError("TAPD 数据同步失败，周报未生成", sync);
         }
 
         const tapdSyncedAt = new Date().toISOString();
@@ -63,6 +64,16 @@ export class WeeklyReportService {
             tapdStatusHistoryAvailable: tapdStatusHistory.available,
         });
         const narrative = await buildWeeklyNarrative(facts, this.llm);
+        if (narrative.ai_degraded) {
+            await Promise.resolve(this.store.appendAuditLog("ai_weekly_report_failed", {
+                group_id: group.chat_id,
+                period_start: period.start,
+                period_end: period.end,
+                category: narrative.ai_failure_category,
+                error: narrative.ai_error,
+                fallback: "deterministic_narrative",
+            })).catch(() => {});
+        }
         const previous = await this.store.listWeeklyReports(group.chat_id, period.start, period.end);
         let version = Math.max(0, ...previous.map((report: WeeklyReport) => report.version || 0)) + 1;
         const id = randomUUID();
@@ -160,11 +171,15 @@ export class WeeklyReportService {
     static deliveryMarkdown(report: WeeklyReport): string {
         const periodLabel = report.facts?.period?.is_partial ? "本周（截至当前）" : `${report.period_start} 至 ${report.period_end}`;
         const reportUrl = report.public_url || `${DEFAULT_WEEKLY_REPORT_PUBLIC_BASE_URL}/api/weekly-reports/${encodeURIComponent(report.id)}`;
-        return [
+        const lines = [
             `**${report.facts?.group?.name || "项目"}周报**`,
             `统计周期：${periodLabel}`,
-            `[查看完整可视化周报](${reportUrl})`,
-        ].join("\n\n");
+        ];
+        if (report.narrative?.ai_degraded) {
+            lines.push(aiDegradationNotice(report.narrative.ai_failure_category || "unavailable", "确定性事实模板"));
+        }
+        lines.push(`[查看完整可视化周报](${reportUrl})`);
+        return lines.join("\n\n");
     }
 }
 

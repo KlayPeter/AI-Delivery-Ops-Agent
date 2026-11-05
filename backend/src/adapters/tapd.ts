@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { TapdConfig } from '@/core/config';
+import { normalizeExternalApiOperation, observeExternalApiCall } from '@/platform/observability/externalApiHealth';
 
 export interface TapdResult {
     ok: boolean;
@@ -194,14 +195,20 @@ export class TapdAdapter {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 60000);
         try {
-            const response = await fetch(url, {
-                method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${this.config.api_token}`,
-                    "Via": "mcp",
-                },
-                body: payload,
-                signal: controller.signal,
+            const response = await observeExternalApiCall({
+                provider: 'tapd',
+                scope: `workspace:${this.config.workspace_id}`,
+                operation: normalizeExternalApiOperation('POST', url),
+                request: () => fetch(url, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${this.config.api_token}`,
+                        "Via": "mcp",
+                    },
+                    body: payload,
+                    signal: controller.signal,
+                }),
+                isSuccess: result => result.ok,
             });
             const body: any = await response.json();
             const ok = response.ok && (body?.status === 1 || body?.status === "1");
@@ -274,13 +281,19 @@ export class TapdAdapter {
     private async _get(path: string): Promise<TapdResult> {
         const url = `${this.config.api_base.replace(/\/$/, '')}${path}`;
         try {
-            const resp = await axios.get(url, {
-                headers: {
-                    "Authorization": `Bearer ${this.config.api_token}`,
-                    "Content-Type": "application/json",
-                    "Via": "mcp"
-                },
-                timeout: 60000
+            const resp = await observeExternalApiCall({
+                provider: 'tapd',
+                scope: `workspace:${this.config.workspace_id}`,
+                operation: normalizeExternalApiOperation('GET', url),
+                request: () => axios.get(url, {
+                    headers: {
+                        "Authorization": `Bearer ${this.config.api_token}`,
+                        "Content-Type": "application/json",
+                        "Via": "mcp"
+                    },
+                    timeout: 60000
+                }),
+                isSuccess: result => result.data?.status === 1 || result.data?.status === "1",
             });
             return { ok: true, raw: resp.data };
         } catch (error: any) {
@@ -298,13 +311,19 @@ export class TapdAdapter {
     private async _post(path: string, payload: any): Promise<TapdResult> {
         const url = `${this.config.api_base.replace(/\/$/, '')}${path}`;
         try {
-            const resp = await axios.post(url, payload, {
-                headers: {
-                    "Authorization": `Bearer ${this.config.api_token}`,
-                    "Content-Type": "application/json",
-                    "Via": "mcp"
-                },
-                timeout: 60000
+            const resp = await observeExternalApiCall({
+                provider: 'tapd',
+                scope: `workspace:${this.config.workspace_id}`,
+                operation: normalizeExternalApiOperation('POST', url),
+                request: () => axios.post(url, payload, {
+                    headers: {
+                        "Authorization": `Bearer ${this.config.api_token}`,
+                        "Content-Type": "application/json",
+                        "Via": "mcp"
+                    },
+                    timeout: 60000
+                }),
+                isSuccess: result => result.data?.status === 1 || result.data?.status === "1",
             });
             return { ok: true, raw: resp.data };
         } catch (error: any) {

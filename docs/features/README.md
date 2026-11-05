@@ -36,7 +36,7 @@ flowchart LR
 | --- | --- | --- | --- | --- |
 | `message-routing` | 飞书消息、引用上下文与 AI 兜底 | active | `built-in.delivery-ops-agent` | [查看](../../backend/src/services/messageHandler/FEATURE.md) |
 | `task-management` | 任务创建、跟踪、状态流转与 TAPD 同步 | active | `built-in.task-agent` | [查看](../../backend/src/domains/task/FEATURE.md) |
-| `standup-management` | 站会提醒、提交、重交、缺交与汇总 | active | `built-in.standup-agent` | [查看](../../backend/src/domains/standup/FEATURE.md) |
+| `standup-management` | 普通/任务型站会、到期提醒、独立统计与汇总 | active | `built-in.standup-agent` | [查看](../../backend/src/domains/standup/FEATURE.md) |
 | `daily-summary` | 群聊日报生成、历史补全与投递 | active | `native.daily-summary` | [查看](../../backend/src/agents/native/daily-summary/FEATURE.md) |
 | `weekly-report` | 站会、TAPD 与任务变更聚合的可视化周报 | active | `native.weekly-report` | [查看](../../backend/src/domains/weeklyReport/FEATURE.md) |
 | `project-visibility` | 项目看板、历史快照与人力甘特图 | active | `native.project-dashboard`；人力甘特图不是 Agent | [查看](../../backend/src/agents/native/project-dashboard/FEATURE.md) |

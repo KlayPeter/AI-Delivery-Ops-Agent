@@ -199,7 +199,84 @@ describe("DashboardService group snapshot scope", () => {
             { title: "已完成工作项", assignment_eligible: false, workload_eligible: false, primary_owner_open_id: "ou_dev", primary_owner_name: "陈项目", assignee_open_ids: ["ou_dev"], assignee_names: ["陈项目"], effort_days: 2 },
         ], members);
 
-        expect(workload).toEqual([{ open_id: "ou_dev", name: "陈项目", task_count: 3, estimated_days: 1.5, unestimated_tasks: 2 }]);
+        expect(workload).toEqual([{
+            open_id: "ou_dev",
+            name: "陈项目",
+            task_count: 3,
+            requirement_tasks: 1,
+            development_tasks: 2,
+            testing_tasks: 0,
+            estimated_days: 1.5,
+            unestimated_tasks: 2,
+        }]);
+    });
+
+    test("moves self-assigned work from development to testing after transfer", () => {
+        const dashboard = new DashboardService({} as any, ".", "Demo Project");
+        const members = new Map([
+            ["ou_product", { open_id: "ou_product", name: "产品" }],
+            ["ou_dev", { open_id: "ou_dev", name: "开发" }],
+        ]);
+        const workload = (dashboard as any).buildWorkload([
+            {
+                title: "需求方案",
+                status: "requirement",
+                assignment_eligible: true,
+                trace: { workflow: { phase: "requirement", roles: { product: { open_id: "ou_product", name: "产品" } } } },
+                effort_days: null,
+            },
+            {
+                title: "开发实现",
+                status: "in_progress",
+                assignment_eligible: true,
+                trace: { workflow: { phase: "development", roles: { developer: { open_id: "ou_dev", name: "开发" } } } },
+                effort_days: 2,
+            },
+            {
+                title: "自己转给自己测试",
+                status: "owner_marked_done",
+                assignment_eligible: true,
+                trace: { workflow: { phase: "transfer_test", roles: {
+                    developer: { open_id: "ou_dev", name: "开发" },
+                    tester: { open_id: "ou_dev", name: "开发" },
+                } } },
+                effort_days: 1,
+            },
+            {
+                title: "TAPD 已进入测试但本地流程滞后",
+                status: "testing",
+                assignment_eligible: true,
+                primary_owner_open_id: "ou_dev",
+                primary_owner_name: "开发",
+                assignee_open_ids: ["ou_dev"],
+                assignee_names: ["开发"],
+                trace: { workflow: { phase: "development", roles: { developer: { open_id: "ou_dev", name: "开发" } } } },
+                effort_days: null,
+            },
+        ], members);
+
+        expect(workload).toEqual([
+            {
+                open_id: "ou_dev",
+                name: "开发",
+                task_count: 3,
+                requirement_tasks: 0,
+                development_tasks: 1,
+                testing_tasks: 2,
+                estimated_days: 3,
+                unestimated_tasks: 1,
+            },
+            {
+                open_id: "ou_product",
+                name: "产品",
+                task_count: 1,
+                requirement_tasks: 1,
+                development_tasks: 0,
+                testing_tasks: 0,
+                estimated_days: 0,
+                unestimated_tasks: 1,
+            },
+        ]);
     });
 
     test("includes active tasks when creator or developer belongs to the requested group", async () => {
@@ -250,7 +327,16 @@ describe("DashboardService group snapshot scope", () => {
         expect(data.burndown).toMatchObject({ start: "2026-07-04", end: "2026-07-10" });
         expect(data.burndown.points.every((point: any) => point.remaining !== null)).toBe(true);
         expect(data.burndown.points.every((point: any) => point.ideal === undefined)).toBe(true);
-        expect(data.workload).toEqual([{ open_id: "ou_dev", name: "开发", task_count: 2, estimated_days: 2.5, unestimated_tasks: 1 }]);
+        expect(data.workload).toEqual([{
+            open_id: "ou_dev",
+            name: "开发",
+            task_count: 2,
+            requirement_tasks: 1,
+            development_tasks: 1,
+            testing_tasks: 0,
+            estimated_days: 2.5,
+            unestimated_tasks: 1,
+        }]);
         expect(data.month_calendar).toMatchObject({ anchor_month: "2026-07", undated_count: 0 });
         expect(data.month_calendar.tasks).toHaveLength(3);
         expect(data.standup_summary).toMatchObject({
@@ -267,6 +353,8 @@ describe("DashboardService group snapshot scope", () => {
         expect(html).toContain("近 7 天未完成任务趋势");
         expect(html).not.toContain("理想燃尽线");
         expect(html).toContain("群成员任务负载");
+        expect(html).toContain("需求 1 · 开发 1 · 测试 0");
+        expect(html).toContain("按当前责任阶段 · 需求 / 开发 / 测试");
         expect(html).toContain("任务筛选");
         expect(html).toContain('class="subtitle"><strong>2026-07-10</strong>');
         expect(html).toContain('font-size:18px');
@@ -339,12 +427,53 @@ describe("DashboardService group snapshot scope", () => {
         });
         expect(data.month_calendar.tasks.map((task: any) => task.id)).toEqual(["active-parent", "done-parent"]);
         expect(data.month_calendar.tasks.some((task: any) => task.id === "active-child")).toBe(false);
-        expect(data.workload).toEqual([{ open_id: "ou_dev", name: "开发", task_count: 2, estimated_days: 0, unestimated_tasks: 2 }]);
+        expect(data.workload).toEqual([{
+            open_id: "ou_dev",
+            name: "开发",
+            task_count: 2,
+            requirement_tasks: 0,
+            development_tasks: 2,
+            testing_tasks: 0,
+            estimated_days: 0,
+            unestimated_tasks: 2,
+        }]);
         expect(data.risks.map((risk: any) => risk.title)).toEqual(["活跃执行子项"]);
         const html = readFileSync(artifact.html_path, "utf8");
         expect(html).toContain("task-completed task-parent-row");
         expect(html).toContain("父项自身截止");
         expect(html).toContain("month-weekdays");
         expect(html).not.toContain("task-kind");
+    });
+
+    test("projects parent transfer-to-test state onto child rows while retaining overdue risk", async () => {
+        const dir = mkdtempSync(join(tmpdir(), "project-dashboard-transfer-test-"));
+        tempDirs.push(dir);
+        const tasks = [
+            { id: "transfer-parent", tapd_story_id: "300", title: "转测试父项", status: "owner_marked_done", priority: "P2", primary_owner_open_id: "ou_dev", primary_owner_name: "开发", assignee_open_ids: ["ou_dev"], assignee_names: ["开发"], due_date: "2026-07-05", created_at: "2026-07-01T01:00:00Z", updated_at: "2026-07-09T01:00:00Z" },
+            { id: "transfer-child", tapd_story_id: "301", parent_id: "300", title: "仍是 TAPD 开发状态的子项", status: "in_progress", priority: "P2", primary_owner_open_id: "ou_dev", primary_owner_name: "开发", assignee_open_ids: ["ou_dev"], assignee_names: ["开发"], due_date: "2026-07-05", created_at: "2026-07-01T01:00:00Z", updated_at: "2026-07-08T01:00:00Z" },
+        ];
+        const dashboard = new DashboardService({
+            listTasks: async () => tasks,
+            listStandups: async (): Promise<any[]> => [],
+            listTaskUpdates: async (): Promise<any[]> => [],
+            saveDashboardArtifact: async () => {},
+        } as any, dir, "Demo Project");
+
+        const artifact = await dashboard.generateForGroup(projectConfig().groups[0], new Date("2026-07-10T10:00:00+08:00"));
+        const data = JSON.parse(readFileSync(artifact.stats_path, "utf8"));
+        const child = data.tasks.find((task: any) => task.id === "transfer-child");
+
+        expect(child).toMatchObject({
+            status: "in_progress",
+            dashboard_status: "owner_marked_done",
+            inherited_phase: "transfer_test",
+            inherited_phase_source_id: "transfer-parent",
+            is_overdue: true,
+        });
+        expect(child.overdue_label).toBe("超期 5 天以上");
+        expect(data.stats).toMatchObject({ active_leaf_tasks: 1, overdue: 1 });
+        expect(data.status_distribution.find((item: any) => item.status === "owner_marked_done").count).toBe(2);
+        expect(data.workload[0]).toMatchObject({ task_count: 2, development_tasks: 0, testing_tasks: 2 });
+        expect(data.risks.map((risk: any) => risk.title)).toEqual(["仍是 TAPD 开发状态的子项"]);
     });
 });

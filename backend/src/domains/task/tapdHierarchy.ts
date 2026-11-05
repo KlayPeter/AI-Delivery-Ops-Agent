@@ -1,4 +1,5 @@
 import { canonicalTapdStatus } from '@/domains/task/tapdPolicy';
+import { TASK_STATUS_OWNER_MARKED_DONE, TASK_STATUS_TESTING } from '@/models/types';
 import type { Task } from '@/models/types';
 
 const INACTIVE_STATUSES = new Set(['deleted', 'cancelled', 'status_20']);
@@ -12,6 +13,9 @@ const COMPLETED_STATUSES = new Set([
     'completed',
     'implemented',
 ]);
+const TRANSFER_TEST_PHASE = 'transfer_test' as const;
+const TESTING_PHASE = 'testing' as const;
+type InheritedWorkflowPhase = typeof TRANSFER_TEST_PHASE | typeof TESTING_PHASE;
 
 export interface TaskHierarchyState {
     is_active: boolean;
@@ -19,6 +23,8 @@ export interface TaskHierarchyState {
     is_completed: boolean;
     completed_by_ancestor: boolean;
     completion_source_id: string | null;
+    inherited_phase: InheritedWorkflowPhase | null;
+    inherited_phase_source_id: string | null;
 }
 
 export interface TaskHierarchyProjection {
@@ -75,15 +81,58 @@ export function projectTaskHierarchy(tasks: Task[]): TaskHierarchyProjection {
         return source;
     };
 
+    const directWorkflowPhase = (task: Task): InheritedWorkflowPhase | null => {
+        const status = String(task.status || '').trim().toLowerCase();
+        if (status === TASK_STATUS_TESTING) return TESTING_PHASE;
+        if (status === TASK_STATUS_OWNER_MARKED_DONE || status === TRANSFER_TEST_PHASE) return TRANSFER_TEST_PHASE;
+
+        const tapdStatus = String(task.trace?.tapd?.status || '').trim();
+        const canonicalStatus = tapdStatus ? canonicalTapdStatus(tapdStatus) : '';
+        if (canonicalStatus === TASK_STATUS_TESTING) return TESTING_PHASE;
+        if (canonicalStatus === TASK_STATUS_OWNER_MARKED_DONE) return TRANSFER_TEST_PHASE;
+        return null;
+    };
+
+    const workflowPhaseRank = (phase: InheritedWorkflowPhase): number => phase === TESTING_PHASE ? 2 : 1;
+
+    const inheritedPhaseById = new Map<string, { phase: InheritedWorkflowPhase; source: Task } | null>();
+    const resolvingPhase = new Set<string>();
+    const inheritedPhase = (task: Task): { phase: InheritedWorkflowPhase; source: Task } | null => {
+        if (inheritedPhaseById.has(task.id)) return inheritedPhaseById.get(task.id) || null;
+
+        if (!task.parent_id || resolvingPhase.has(task.id)) {
+            inheritedPhaseById.set(task.id, null);
+            return null;
+        }
+
+        resolvingPhase.add(task.id);
+        const parent = taskByExternalId.get(String(task.parent_id));
+        let result: { phase: InheritedWorkflowPhase; source: Task } | null = null;
+        if (parent && activeById.get(parent.id)) {
+            const parentPhase = directWorkflowPhase(parent);
+            const ancestorPhase = parentPhase ? { phase: parentPhase, source: parent } : inheritedPhase(parent);
+            const ownPhase = directWorkflowPhase(task);
+            if (ancestorPhase && (!ownPhase || workflowPhaseRank(ancestorPhase.phase) > workflowPhaseRank(ownPhase))) {
+                result = ancestorPhase;
+            }
+        }
+        resolvingPhase.delete(task.id);
+        inheritedPhaseById.set(task.id, result);
+        return result;
+    };
+
     const stateById = new Map<string, TaskHierarchyState>();
     for (const task of tasks) {
         const source = completionSource(task);
+        const inherited = inheritedPhase(task);
         stateById.set(task.id, {
             is_active: Boolean(activeById.get(task.id)),
             is_leaf: !activeChildren.get(task.id)?.length,
             is_completed: Boolean(source),
             completed_by_ancestor: Boolean(source && source.id !== task.id),
             completion_source_id: source?.id || null,
+            inherited_phase: inherited?.phase || null,
+            inherited_phase_source_id: inherited?.source.id || null,
         });
     }
 
@@ -93,6 +142,8 @@ export function projectTaskHierarchy(tasks: Task[]): TaskHierarchyProjection {
         is_completed: false,
         completed_by_ancestor: false,
         completion_source_id: null,
+        inherited_phase: null,
+        inherited_phase_source_id: null,
     };
     const resolve = (taskOrId: Task | string) => stateById.get(typeof taskOrId === 'string' ? taskOrId : taskOrId.id) || emptyState;
 

@@ -1,5 +1,4 @@
 import { Elysia } from 'elysia';
-import { swagger } from '@elysiajs/swagger';
 import { cors } from '@elysiajs/cors';
 import { AppConfig, loadConfig } from './core/config';
 import { PrismaStore } from './core/storage';
@@ -20,6 +19,7 @@ import { executeManualJob, MANUAL_JOB_NAMES, parseManualJobDay, UnsupportedJobPr
 import { GroupMemberSyncService } from './services/groupMembers';
 import { CompanyMemberService } from './services/companyMembers';
 import { TaskService } from './services/taskService';
+import { StandupService } from './services/standupService';
 import dayjs from 'dayjs';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -27,6 +27,8 @@ import { isWorkday } from 'chinese-days';
 import { isWeeklyReportPathAllowed } from './domains/weeklyReport/renderer';
 import { normalizeLogQuery } from './core/logQuery';
 import { livenessReport, readinessReport } from './core/health';
+import { externalApiHealthSnapshot } from './platform/observability/externalApiHealth';
+import { createApiDocumentation } from './platform/observability/apiDocumentation';
 import { FeishuBotConnectionManager } from './platform/bots/feishuBotConnectionManager';
 import { FeishuBotMessageIngress } from './platform/bots/feishuBotMessageIngress';
 import { EnvironmentSecretResolver } from './platform/secrets/resolver';
@@ -128,19 +130,12 @@ botConnections = new FeishuBotConnectionManager(
 await botConnections.start();
 
 scheduledAgents = new ScheduledAgentDispatcher(agentHost);
-const scheduler = new InProcessScheduler(() => handler, 30, 1800, scheduledAgents);
+const groupMemberSyncIntervalSeconds = 6 * 60 * 60;
+const scheduler = new InProcessScheduler(() => handler, 30, groupMemberSyncIntervalSeconds, scheduledAgents);
 scheduler.start();
 
 const app = new Elysia()
-    .use(swagger({
-        path: '/swagger',
-        documentation: {
-            info: {
-                title: 'AI Delivery Ops Agent API',
-                version: '1.0.0'
-            }
-        }
-    }))
+    .use(createApiDocumentation())
     .use(cors())
     .get('/healthz', () => livenessReport())
     .get('/readyz', async ({ set }) => {
@@ -161,6 +156,10 @@ const app = new Elysia()
         ok: true,
         host: agentHost!.health(),
         botConnections: botConnections?.health() || [],
+    }))
+    .get('/api/health/external-api-usage', () => ({
+        ok: true,
+        ...externalApiHealthSnapshot(),
     }))
     .get('/api/agents', async () => ({ ok: true, agents: await scheduledAgents!.listAgents() }))
     .get('/api/bots', async () => ({ ok: true, bots: await scheduledAgents!.listBots() }))
@@ -490,6 +489,24 @@ const app = new Elysia()
         const targetDate = query.date as string || dayjs().format('YYYY-MM-DD');
         const groupId = query.groupId as string || '';
 
+        if (String(query.type || 'normal') === 'task') {
+            const taskGroups = config.groups.filter((group: any) => !groupId || group.chat_id === groupId);
+            const tasks = (await Promise.all(taskGroups.map((group: any) => StandupService.listTaskCommitments(store, targetDate, group)))).flat();
+            const reported = tasks.filter((task: any) => task.reported).length;
+            const completed = tasks.filter((task: any) => task.status === 'completed').length;
+            return {
+                type: 'task',
+                date: targetDate,
+                stats: {
+                    total: tasks.length,
+                    reported,
+                    unreported: tasks.length - reported,
+                    completed,
+                },
+                tasks,
+            };
+        }
+
         const allMembersDict: Record<string, any> = {};
         const memberGroupCount: Record<string, number> = {};
         for (const g of config.groups) {
@@ -536,6 +553,7 @@ const app = new Elysia()
         }
 
         return {
+            type: 'normal',
             date: targetDate,
             stats: {
                 total: activeMembersCount,
@@ -669,6 +687,7 @@ const app = new Elysia()
             return { error: '无效的群聊 ID' };
         }
         const dryRun = payload.dryRun === true;
+        const sendToGroup = payload.sendToGroup === true;
         let day: Date;
         try {
             day = parseManualJobDay(payload.day ?? payload.date);
@@ -684,12 +703,18 @@ const app = new Elysia()
             return { ok: true, skipped: true, reason: 'holiday_or_weekend' };
         }
 
-        const jobs = new ScheduledJobs(config, store, feishu, dashboard, tapd, llm);
+        const jobs = new ScheduledJobs(config, store, feishu, dashboard, tapd, llm, { sendToGroup });
         try {
             const result = await executeManualJob(jobs, jobName, groupId, day, dryRun);
             const eventType = dryRun ? "job_preview_completed" : "job_completed";
-            store.appendAuditLog(eventType, { job_name: jobName, trigger: "manual", date: dayjs(day).format('YYYY-MM-DD'), result }).catch(console.error);
-            return { ok: true, dryRun, result };
+            store.appendAuditLog(eventType, {
+                job_name: jobName,
+                trigger: "manual",
+                date: dayjs(day).format('YYYY-MM-DD'),
+                send_to_group: sendToGroup,
+                result,
+            }).catch(console.error);
+            return { ok: true, dryRun, sendToGroup, result };
         } catch (e: any) {
             set.status = e instanceof UnsupportedJobPreviewError ? 400 : 500;
             return { error: `任务 ${jobName} 执行失败`, stderr: e.message || String(e) };

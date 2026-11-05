@@ -47,12 +47,13 @@ describe('Feishu Delivery Adapter', () => {
     test('delivers a host-controlled markdown Artifact and returns a receipt', async () => {
         const calls: any[] = [];
         const adapter = new FeishuDeliveryAdapter({ sendGroupMarkdown: async (...args: any[]) => { calls.push(args); return { ok: true, raw: {}, message_id: 'om_1', chat_id: 'oc_daily' }; } } as any);
+        const controller = new AbortController();
         const receipt = await adapter.deliver({
             id: 'delivery-1', deliveryKey: 'key', status: 'sending', attempts: 1, maxAttempts: 3, createdAt: '', updatedAt: '',
             artifact: { id: 'artifact-1', runId: 'run-1', type: 'markdown', mediaType: 'text/markdown', schemaVersion: '1.0', content: 'summary', metadata: { title: '日报' }, createdAt: '' },
             target: { workspaceId: 'workspace-default', botInstanceId: 'bot-default', channel: 'group', targetId: 'oc_daily' },
-        }, new AbortController().signal);
-        expect(calls[0]).toEqual(['summary', 'oc_daily', '日报']); expect(receipt).toEqual({ messageId: 'om_1', chatId: 'oc_daily' });
+        }, controller.signal);
+        expect(calls[0]).toEqual(['summary', 'oc_daily', '日报', controller.signal]); expect(receipt).toEqual({ messageId: 'om_1', chatId: 'oc_daily' });
     });
 
     test('rejects unsupported artifacts permanently', async () => {

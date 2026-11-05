@@ -55,17 +55,23 @@ describe('DataRetentionService', () => {
         ];
         store.records.set('scheduled:old', JSON.stringify({ status: 'completed', completed_at: '2026-04-01T00:00:00.000Z' }));
         store.records.set('scheduled:recent', JSON.stringify({ status: 'completed', completed_at: '2026-07-28T00:00:00.000Z' }));
+        store.records.set('feishu:event:old', JSON.stringify({ received_at: '2026-04-01T00:00:00.000Z' }));
+        store.records.set('feishu:event:recent', JSON.stringify({ received_at: '2026-07-28T00:00:00.000Z' }));
+        store.records.set('history-sync:old', JSON.stringify({ completed_at: '2026-04-01T00:00:00.000Z' }));
+        store.records.set('history-sync:recent', JSON.stringify({ completed_at: '2026-07-28T00:00:00.000Z' }));
         store.records.set('agent:run:preserved', JSON.stringify({ status: 'succeeded', completedAt: '2026-01-01T00:00:00.000Z' }));
 
         const result = await new DataRetentionService(store, config).run(new Date('2026-07-28T03:30:00.000Z'));
 
         expect(result.auditLogsDeleted).toBe(1);
-        expect(result.idempotencyDeleted).toBe(1);
+        expect(result.idempotencyDeleted).toBe(3);
         expect(store.auditTimestamps).toEqual([
             '2026-04-29T03:30:00.000Z',
             '2026-07-28T03:30:00.000Z',
         ]);
         expect(store.records.has('scheduled:recent')).toBeTrue();
+        expect(store.records.has('feishu:event:recent')).toBeTrue();
+        expect(store.records.has('history-sync:recent')).toBeTrue();
         expect(store.records.has('agent:run:preserved')).toBeTrue();
     });
 

@@ -324,16 +324,9 @@ export class HumanGanttService {
         const tasks: Task[] = await store.listTasks();
         const rows: HumanGanttRow[] = [];
 
-        const threeMonthsAgo = dayjs(now).subtract(3, 'month').format('YYYY-MM-DD');
         for (const task of tasks) {
             if (["deleted", "cancelled", "status_20", "已删除", "已取消"].includes(task.status)) continue;
             if (!task.tapd_story_id) continue;
-
-            const d1 = dayjs(task.due_date || '1970-01-01').format('YYYY-MM-DD');
-            const d2 = dayjs(task.trace?.tapd?.modified || task.trace?.tapd?.completed_at || '1970-01-01').format('YYYY-MM-DD');
-            const d3 = dayjs(task.created_at || '1970-01-01').format('YYYY-MM-DD');
-            const latestTime = [d1, d2, d3].sort().reverse()[0];
-            if (latestTime !== '1970-01-01' && latestTime < threeMonthsAgo) continue;
 
             const workflow = ensureWorkflow(task, config);
             if (!options.includeImplemented && workflow.phase === 'implemented') continue;

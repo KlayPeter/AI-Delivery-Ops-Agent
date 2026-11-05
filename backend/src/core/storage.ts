@@ -237,6 +237,18 @@ export class PrismaStore {
         return records.map((r: any) => this._parseSourceMessage(r));
     }
 
+    async getLatestSourceMessageSentAt(chatId: string, startTime: Date, endTime: Date): Promise<string | null> {
+        const record = await this.prisma.sourceMessage.findFirst({
+            where: {
+                chat_id: chatId,
+                sent_at: { gte: startTime.toISOString(), lte: endTime.toISOString() },
+            },
+            orderBy: { sent_at: 'desc' },
+            select: { sent_at: true },
+        });
+        return record?.sent_at || null;
+    }
+
     private _parseSourceMessage(record: any): any {
         return {
             ...record,

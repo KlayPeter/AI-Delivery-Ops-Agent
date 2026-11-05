@@ -3,7 +3,7 @@ import type { DeliveryAdapter, DeliveryError, DeliveryOutbox } from './contracts
 
 export class DeliveryWorker {
     private timer?: ReturnType<typeof setInterval>;
-    private pollInFlight?: Promise<void>;
+    private runInFlight?: Promise<{ delivered: number; retried: number; deadLettered: number }>;
 
     constructor(
         private readonly outbox: DeliveryOutbox,
@@ -16,11 +16,8 @@ export class DeliveryWorker {
     start(intervalMs: number = 1000, onError: (error: unknown) => void = console.error): void {
         if (this.timer) return;
         const poll = (): void => {
-            if (this.pollInFlight) return;
-            this.pollInFlight = this.runOnce()
-                .then((): void => undefined)
-                .catch((error): void => { onError(error); })
-                .finally(() => { this.pollInFlight = undefined; });
+            if (this.runInFlight) return;
+            void this.runOnce().catch((error): void => { onError(error); });
         };
         poll();
         this.timer = setInterval(poll, Math.max(10, intervalMs));
@@ -32,10 +29,23 @@ export class DeliveryWorker {
             clearInterval(this.timer);
             this.timer = undefined;
         }
-        await this.pollInFlight;
+        try {
+            await this.runInFlight;
+        } catch {}
     }
 
     async runOnce(now: Date = new Date()): Promise<{ delivered: number; retried: number; deadLettered: number }> {
+        if (this.runInFlight) return this.runInFlight;
+        const run = this.drain(now);
+        this.runInFlight = run;
+        try {
+            return await run;
+        } finally {
+            if (this.runInFlight === run) this.runInFlight = undefined;
+        }
+    }
+
+    private async drain(now: Date): Promise<{ delivered: number; retried: number; deadLettered: number }> {
         const counts = { delivered: 0, retried: 0, deadLettered: 0 };
         for (const record of await this.outbox.claimDue(now)) {
             const controller = new AbortController();
@@ -56,8 +66,9 @@ export class DeliveryWorker {
                     code: cause?.code || (controller.signal.aborted ? 'TIMEOUT' : 'DELIVERY_ERROR'),
                     message: cause?.message || String(cause),
                     retryable: cause?.retryable !== false,
+                    retryAfterMs: Number.isFinite(cause?.retryAfterMs) ? Math.max(0, cause.retryAfterMs) : undefined,
                 };
-                const delay = this.retryBaseMs * Math.pow(2, Math.max(0, record.attempts - 1));
+                const delay = error.retryAfterMs ?? this.retryBaseMs * Math.pow(2, Math.max(0, record.attempts - 1));
                 const failed = await this.outbox.markFailed(record.id, error, new Date(now.getTime() + delay), now);
                 if (failed.status === 'retry_wait') counts.retried++; else counts.deadLettered++;
             } finally { if (timer) clearTimeout(timer); }

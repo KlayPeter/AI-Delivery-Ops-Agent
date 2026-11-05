@@ -5,6 +5,7 @@ import { LLMAdapter } from '@/adapters/llm';
 import { DashboardService } from './dashboard';
 import { buildDailySummary, renderDailySummary } from './summaries';
 import { StandupService } from './standupService';
+import { aiDegradationNotice, classifyAiFailure, type AiFailure } from '@/platform/aiDegradation';
 import { TaskService } from './taskService';
 import { Task, utcNowIso } from '@/models/types';
 import dayjs from 'dayjs';
@@ -17,6 +18,7 @@ import { taskReminderGroupId } from '@/services/taskScope';
 import { WeeklyReportService } from '@/domains/weeklyReport/service';
 import type { WeeklyPeriodKind } from '@/domains/weeklyReport/types';
 import { randomUUID } from 'node:crypto';
+import { buildStandupCard } from '@/domains/standup/cardRenderer';
 
 export interface GeneratedDailySummary {
     summaryIds: string[];
@@ -44,6 +46,10 @@ interface OverdueDeliverySummary {
     rejected: number;
 }
 
+interface ScheduledJobOptions {
+    sendToGroup?: boolean;
+}
+
 export class ScheduledJobs {
     config: AppConfig;
     store: PrismaStore;
@@ -53,48 +59,49 @@ export class ScheduledJobs {
     private llm?: LLMAdapter;
     private tapd: any;
     private projectTaskSync?: ReturnType<typeof TaskService.syncProjectScope>;
+    private readonly sendToGroup: boolean;
 
-    constructor(config: AppConfig, store: PrismaStore, feishu: FeishuAdapter, dashboard: DashboardService, tapd: any, llm?: LLMAdapter) {
+    constructor(
+        config: AppConfig,
+        store: PrismaStore,
+        feishu: FeishuAdapter,
+        dashboard: DashboardService,
+        tapd: any,
+        llm?: LLMAdapter,
+        options: ScheduledJobOptions = {},
+    ) {
         this.config = config;
         this.store = store;
         this.feishu = feishu;
         this.dashboard = dashboard;
         this.tapd = tapd;
         this.llm = llm;
+        this.sendToGroup = options.sendToGroup !== false;
         this.projectDashboard = new ProjectDashboardService({ config, store, tapd, dashboard, renderer: new DashboardImageService() });
     }
 
-    async standupPush(groupId: string, day: Date = new Date()): Promise<{ sent: number, failed: number }> {
+    async standupPush(groupId: string, day: Date = new Date()): Promise<{ sent: number, failed: number, status?: "completed_with_warnings" }> {
         const dateText = dayjs(day).format('YYYY-MM-DD');
         let count = 0;
         const failures: any[] = [];
 
         for (const group of this.config.groups.filter(g => g.chat_id === groupId)) {
+            if (group.schedule?.standup_push_enabled === false) continue;
             for (const member of group.members) {
                 if (!member.is_active) continue;
 
                 const prompt = `【${group.name || group.chat_id}】每日站会（${dateText}）\n\n${member.name}，请回复以下内容：\n\n【昨日完成】\n1.\n\n【今日计划】\n1.\n\n【阻塞/需要帮助】\n无\n\n【风险/可能延期】\n无\n\n【需要决策】\n无`;
-                const delivery = await this.sendStandupPromptWithRetry(member.open_id, prompt);
+                const delivery = await this.sendStandupPromptOnce(group.chat_id, dateText, member.open_id, prompt);
+                if (delivery.status === "duplicate") continue;
                 const result = delivery.result;
-                if (!result.ok) {
+                if (delivery.status === "failed" || delivery.status === "rejected") {
                     failures.push({
                         open_id: member.open_id,
                         name: member.name,
-                        attempts: delivery.attempts,
-                        first_error: delivery.firstError,
                         error: result.error || result.raw,
+                        retryable: delivery.status === "failed",
                     });
                     continue;
-                }
-
-                if (delivery.attempts > 1) {
-                    await this.store.appendAuditLog("standup_push_retry_succeeded", {
-                        group_id: group.chat_id,
-                        date: dateText,
-                        open_id: member.open_id,
-                        name: member.name,
-                        first_error: delivery.firstError,
-                    });
                 }
 
                 if (result.chat_id) await this.store.updateChatId(member.open_id, result.chat_id);
@@ -112,31 +119,179 @@ export class ScheduledJobs {
                 count++;
             }
         }
+
         if (failures.length) {
             await this.store.appendAuditLog("standup_push_failed", { group_id: groupId, date: dateText, sent: count, failed: failures.length, failures });
-            throw new Error(`站会模板发送失败 ${failures.length} 人，已发送 ${count} 人`);
+            if (failures.some(failure => failure.retryable)) {
+                throw Object.assign(new Error(`站会模板发送临时失败 ${failures.length} 人，已发送 ${count} 人`), {
+                    code: 'STANDUP_PUSH_DELIVERY_FAILED',
+                    retryable: true,
+                });
+            }
+            return { sent: count, failed: failures.length, status: "completed_with_warnings" };
         }
         return { sent: count, failed: 0 };
     }
 
-    private async sendStandupPromptWithRetry(openId: string, prompt: string): Promise<{ result: any, attempts: number, firstError?: any }> {
-        const send = async () => {
-            try {
-                return await this.feishu.sendPrivateText(openId, prompt);
-            } catch (error: any) {
-                return { ok: false, error: error?.message || String(error) };
+    async taskStandupTemplate(groupId: string, day: Date = new Date()): Promise<{ sent: number, failed: number, status?: "completed_with_warnings" }> {
+        if (!this.sendToGroup) return { sent: 0, failed: 0 };
+
+        const dateText = dayjs(day).format('YYYY-MM-DD');
+        const failures: any[] = [];
+        let sent = 0;
+        for (const group of this.config.groups.filter(groupItem => groupItem.chat_id === groupId)) {
+            if (!StandupService.isTaskStandupEnabled(group)) continue;
+
+            const prompt = `【任务型站会登记模板｜${dateText}】\n\n请直接引用本消息并再次 @机器人，按以下格式登记任务；每条消息登记一项：\n\n任务：填写任务内容\n负责人：@负责人\n交付时间：今天 17:00\n\n登记后，机器人会在具体交付时间到点时在本群 @负责人 收集完成情况。负责人需要在下班前再次引用机器人的提醒消息回复进展，否则日报会将该事项记为未完成（未汇报）。`;
+            const delivery = await this.sendTaskStandupTemplateOnce(group.chat_id, dateText, prompt);
+            if (delivery.status === "duplicate") continue;
+            const result = delivery.result;
+            if (delivery.status === "failed" || delivery.status === "rejected") {
+                failures.push({
+                    group_id: group.chat_id,
+                    error: result.error || result.raw,
+                    retryable: delivery.status === "failed",
+                });
+                continue;
             }
-        };
+            sent++;
+        }
 
-        const first = await send();
-        if (first.ok) return { result: first, attempts: 1 };
+        if (failures.length) {
+            await this.store.appendAuditLog("task_standup_template_failed", { group_id: groupId, date: dateText, sent, failed: failures.length, failures });
+            if (failures.some(failure => failure.retryable)) {
+                throw Object.assign(new Error(`任务型站会模板发送临时失败 ${failures.length} 个群，已发送 ${sent} 个群`), {
+                    code: 'TASK_STANDUP_TEMPLATE_DELIVERY_FAILED',
+                    retryable: true,
+                });
+            }
+            return { sent, failed: failures.length, status: "completed_with_warnings" };
+        }
+        return { sent, failed: 0 };
+    }
 
-        const retry = await send();
-        return {
-            result: retry,
-            attempts: 2,
-            firstError: first.error || ("raw" in first ? first.raw : undefined),
-        };
+    async taskStandupRemindDue(groupId: string, now: Date = new Date()): Promise<{ sent: number; failed: number }> {
+        const group = this.config.groups.find(groupItem => groupItem.chat_id === groupId);
+        if (!StandupService.isTaskStandupEnabled(group)) return { sent: 0, failed: 0 };
+
+        let sent = 0;
+        let failed = 0;
+        const tasks = (await this.store.listTasks()).filter((task: any) =>
+            TaskService.isStandupCommitment(task)
+            && task.source_group_id === groupId
+            && !["owner_marked_done", "accepted", "cancelled", "deleted"].includes(task.status)
+            && dayjs(task.due_date).isValid()
+            && !dayjs(task.due_date).isAfter(now)
+        );
+
+        for (const task of tasks) {
+            const slot = dayjs(task.due_date).toISOString();
+            const reminders = { ...(task.overdue_reminders || {}) };
+            if (reminders.task_standup_slot === slot) continue;
+            const owner = String(task.primary_owner_open_id || "").trim();
+            if (!owner) {
+                failed++;
+                continue;
+            }
+            const claim = await this.claimReminderDelivery(task.id, "task_standup", slot, owner);
+            if (claim === null) continue;
+            try {
+                const result = await this.feishu.sendGroupMarkdown(
+                    `<at user_id="${owner}">${task.primary_owner_name || "负责人"}</at> 你登记的任务“${task.title}”已到交付时间。\n\n请直接引用本消息回复目前的完成情况。`,
+                    groupId,
+                    "【任务型站会｜到点汇报】",
+                );
+                if (!result.ok) {
+                    failed++;
+                    await this.finishDeliveryClaim(claim, "retryable", { error: result.error || result.raw || "unknown Feishu error" });
+                    continue;
+                }
+                await this.finishDeliveryClaim(claim, "completed", { message_id: result.message_id });
+                if (result.message_id) {
+                    await this.store.saveBotMessageContext({
+                        message_id: result.message_id,
+                        context_type: "standup_commitment_prompt",
+                        created_at: utcNowIso(),
+                        chat_id: groupId,
+                        chat_type: "group",
+                        target_open_id: owner,
+                        task_id: task.id,
+                        task_title: task.title,
+                        metadata: { group_id: groupId, due_at: task.due_date },
+                    });
+                }
+                await TaskService.saveUpdate({ config: this.config, store: this.store, feishu: this.feishu, tapd: this.tapd } as any, task, "system", "机器人", "standup_unreported", `任务“${task.title}”已到交付时间，等待 ${task.primary_owner_name} 汇报`, "standup", undefined, {
+                    standup_commitment: true,
+                    due_at: task.due_date,
+                });
+                reminders.task_standup_slot = slot;
+                reminders.task_standup = utcNowIso();
+                task.overdue_reminders = reminders;
+                await this.store.saveTask(task);
+                await this.store.appendAuditLog("standup_commitment_reminder_sent", { task_id: task.id, group_id: groupId, owner_open_id: owner, due_at: task.due_date });
+                sent++;
+            } catch (error: any) {
+                failed++;
+                await this.finishDeliveryClaim(claim, "retryable", { error: error?.message || String(error) });
+            }
+        }
+        return { sent, failed };
+    }
+
+    private async sendStandupPromptOnce(groupId: string, dateText: string, openId: string, prompt: string): Promise<{ status: "sent" | "duplicate" | "failed" | "rejected", result: any }> {
+        const claim = await this.claimStandupPromptDelivery(groupId, dateText, openId);
+        if (claim === null) return { status: "duplicate", result: { ok: true } };
+
+        let result: any;
+        try {
+            result = await this.feishu.sendPrivateText(openId, prompt);
+        } catch (error: any) {
+            result = { ok: false, error: error?.message || String(error), retryable: error?.retryable !== false };
+        }
+
+        if (!result.ok) {
+            const permanent = isPermanentFeishuSendFailure(result);
+            await this.finishDeliveryClaim(claim, permanent ? "rejected" : "retryable", {
+                error: result.error || result.raw || "unknown Feishu error",
+            });
+            return { status: permanent ? "rejected" : "failed", result };
+        }
+
+        await this.finishDeliveryClaim(claim, "completed", { message_id: result.message_id });
+        return { status: "sent", result };
+    }
+
+    private async sendTaskStandupTemplateOnce(groupId: string, dateText: string, prompt: string): Promise<{ status: "sent" | "duplicate" | "failed" | "rejected", result: any }> {
+        const claim = await this.claimTaskStandupTemplateDelivery(groupId, dateText);
+        if (claim === null) return { status: "duplicate", result: { ok: true } };
+
+        let result: any;
+        try {
+            result = await this.feishu.sendGroupMarkdown(prompt, groupId, `【任务型站会｜${dateText}】`);
+        } catch (error: any) {
+            result = { ok: false, error: error?.message || String(error), retryable: error?.retryable !== false };
+        }
+
+        if (!result?.ok) {
+            const permanent = isPermanentFeishuSendFailure(result);
+            await this.finishDeliveryClaim(claim, permanent ? "rejected" : "retryable", {
+                error: result?.error || result?.raw || "unknown Feishu error",
+            });
+            return { status: permanent ? "rejected" : "failed", result };
+        }
+
+        await this.finishDeliveryClaim(claim, "completed", { message_id: result.message_id });
+        if (result.message_id) {
+            await this.store.saveBotMessageContext({
+                message_id: result.message_id,
+                context_type: "task_standup_template",
+                created_at: utcNowIso(),
+                chat_id: groupId,
+                chat_type: "group",
+                metadata: { group_id: groupId, date: dateText },
+            });
+        }
+        return { status: "sent", result };
     }
 
     async standupRemind(groupId: string, day: Date = new Date()): Promise<any> {
@@ -186,10 +341,30 @@ export class ScheduledJobs {
         return { reminded: count, stage };
     }
     async standupSummary(groupId: string, day: Date = new Date()): Promise<any> {
-        const { buildStandupSummaryWithLLM, buildFallbackStandupSummary } = require('./standupLLM');
+        const { buildStandupSummaryWithLLM, buildFallbackStandupSummary, buildTeamFocusWithLLM } = require('./standupLLM');
         const dateText = dayjs(day).format('YYYY-MM-DD');
         let totalSubmitted = 0;
         let totalMissing = 0;
+        const cardDeliveryEnabled = this.sendToGroup && typeof (this.feishu as any).sendGroupCard === "function";
+        let cardTasks: any[] = [];
+
+        if (cardDeliveryEnabled && typeof (this.store as any).listTasks === "function") {
+            try {
+                if (typeof this.tapd?.listStories === "function") {
+                    // Let TaskService own the short-lived TAPD cache. Keeping a
+                    // Promise on ScheduledJobs would make a long-lived/manual
+                    // jobs instance reuse one snapshot indefinitely.
+                    const sync = await TaskService.syncProjectScope({ config: this.config, tapd: this.tapd, store: this.store });
+                    if (!sync.ok) {
+                        await this.store.appendAuditLog("standup_summary_task_sync_failed", { group_id: groupId, error: sync.error });
+                    }
+                }
+                cardTasks = await this.store.listTasks();
+            } catch (error: any) {
+                await this.store.appendAuditLog("standup_summary_task_sync_failed", { group_id: groupId, error: error?.message || String(error) });
+                cardTasks = await this.store.listTasks().catch((): any[] => []);
+            }
+        }
 
         for (const group of this.config.groups.filter(g => g.chat_id === groupId)) {
             const standups = await this.listStandupsForGroup(dateText, group);
@@ -210,7 +385,7 @@ export class ScheduledJobs {
                         missingText += `\n${missingMentions.join(' ')}`;
                     }
                 }
-                await this.feishu.sendGroupMarkdown(`暂无站会提交。\n\n${missingText}`, group.chat_id, title);
+                if (this.sendToGroup) await this.feishu.sendGroupMarkdown(`暂无站会提交。\n\n${missingText}`, group.chat_id, title);
                 totalMissing += missingMembers.length;
                 continue;
             }
@@ -225,11 +400,48 @@ export class ScheduledJobs {
                 }
             }
 
+            if (cardDeliveryEnabled) {
+                let teamFocus: string[] = [];
+                if (this.llm) {
+                    const focusResult = await buildTeamFocusWithLLM(this.llm, standups);
+                    if (focusResult.ok && focusResult.focus?.length) {
+                        teamFocus = focusResult.focus;
+                    } else {
+                        await this.store.appendAuditLog("ai_standup_focus_failed", {
+                            date: dateText,
+                            group_id: group.chat_id,
+                            error: focusResult.error || "empty_response",
+                            fallback: "deterministic_theme_grouping",
+                        });
+                    }
+                }
+                const card = buildStandupCard(standups, group, cardTasks, dateText, teamFocus);
+                const sent = await (this.feishu as any).sendGroupCard(card, group.chat_id, title);
+                if (sent.ok) {
+                    await this.store.appendAuditLog("standup_card_summary_generated", {
+                        date: dateText,
+                        group_id: group.chat_id,
+                        submitted: standups.length,
+                        missing: missingMembers.length,
+                        layout: "compact_two_column_v1",
+                    });
+                    totalSubmitted += standups.length;
+                    totalMissing += missingMembers.length;
+                    continue;
+                }
+                await this.store.appendAuditLog("standup_card_summary_failed", {
+                    date: dateText,
+                    group_id: group.chat_id,
+                    error: sent.error || sent.raw || "unknown Feishu error",
+                });
+            }
+
             let sentAi = false;
+            let aiFailure: AiFailure | undefined;
             if (this.llm) {
                 const res = await buildStandupSummaryWithLLM(this.llm, standups, dateText, missingText);
                 if (res.ok && res.text) {
-                    await this.feishu.sendGroupMarkdown(res.text, group.chat_id, title);
+                    if (this.sendToGroup) await this.feishu.sendGroupMarkdown(res.text, group.chat_id, title);
                     totalSubmitted += standups.length;
                     totalMissing += missingMembers.length;
                     sentAi = true;
@@ -241,17 +453,24 @@ export class ScheduledJobs {
                         missing: missingMembers.length,
                     });
                 } else {
+                    aiFailure = classifyAiFailure(res.error || "empty_response");
                     await this.store.appendAuditLog("ai_standup_summary_failed", {
                         date: dateText,
-                        reason: res.error || "empty_response",
+                        group_id: group.chat_id,
+                        reason: aiFailure.error,
+                        category: aiFailure.category,
+                        fallback: "deterministic_rule",
                         submitted: standups.length,
                     });
                 }
             }
 
             if (!sentAi) {
-                const fallbackText = buildFallbackStandupSummary(standups, dateText, missingText);
-                await this.feishu.sendGroupMarkdown(fallbackText, group.chat_id, title);
+                const fallbackSummary = buildFallbackStandupSummary(standups, dateText, missingText);
+                const fallbackText = aiFailure
+                    ? `${aiDegradationNotice(aiFailure.category, "确定性规则")}\n\n${fallbackSummary}`
+                    : fallbackSummary;
+                if (this.sendToGroup) await this.feishu.sendGroupMarkdown(fallbackText, group.chat_id, title);
                 totalSubmitted += standups.length;
                 totalMissing += missingMembers.length;
             }
@@ -282,15 +501,29 @@ export class ScheduledJobs {
             const title = `【站会补充｜${dateText}】`;
             const note = `本次仅汇总主站会汇总（${summaryAt.format('HH:mm')}）后补交的 ${standups.length} 人，不重复展示已在主汇总中出现的内容。`;
             let text = "";
+            let aiFailure: AiFailure | undefined;
             if (this.llm) {
                 const res = await buildStandupSummaryWithLLM(this.llm, standups, dateText, note);
                 if (res.ok && res.text) text = res.text;
-                else await this.store.appendAuditLog("ai_standup_supplement_summary_failed", { date: dateText, group_id: group.chat_id, reason: res.error || "empty_response", submitted: standups.length });
+                else {
+                    aiFailure = classifyAiFailure(res.error || "empty_response");
+                    await this.store.appendAuditLog("ai_standup_supplement_summary_failed", {
+                        date: dateText,
+                        group_id: group.chat_id,
+                        reason: aiFailure.error,
+                        category: aiFailure.category,
+                        fallback: "deterministic_rule",
+                        submitted: standups.length,
+                    });
+                }
             }
             if (!text) text = buildFallbackStandupSummary(standups, dateText, note);
+            if (aiFailure) text = `${aiDegradationNotice(aiFailure.category, "确定性规则")}\n\n${text}`;
 
-            const sent = await this.feishu.sendGroupMarkdown(`**本次为站会补充**\n${note}\n\n${text}`, group.chat_id, title);
-            if (!sent.ok) throw new Error(`站会补充发送失败：${sent.error || 'unknown Feishu error'}`);
+            if (this.sendToGroup) {
+                const sent = await this.feishu.sendGroupMarkdown(`**本次为站会补充**\n${note}\n\n${text}`, group.chat_id, title);
+                if (!sent.ok) throw new Error(`站会补充发送失败：${sent.error || 'unknown Feishu error'}`);
+            }
 
             supplemented += standups.length;
             await this.store.appendAuditLog("standup_supplement_summary_generated", {
@@ -305,6 +538,7 @@ export class ScheduledJobs {
 
     async dailySummary(groupId: string, day: Date = new Date()): Promise<any> {
         const generated = await this.generateDailySummary(groupId, day);
+        if (!this.sendToGroup) return { summary_ids: generated.summaryIds.join(',') };
         for (const artifact of generated.artifacts) {
             const sent = await this.feishu.sendGroupMarkdown(
                 String(artifact.content || ''),
@@ -320,7 +554,7 @@ export class ScheduledJobs {
         const sync = await TaskService.syncProjectScope({ config: this.config, tapd: this.tapd, store: this.store });
         if (!sync.ok) {
             await this.store.appendAuditLog("daily_summary_task_sync_failed", { group_id: groupId, error: sync.error });
-            throw new Error(`日报生成前 TAPD 全量校验失败：${sync.error}`);
+            throw TaskService.projectSyncError("日报生成前 TAPD 全量校验失败", sync);
         }
         const summaryIds: string[] = [];
         const artifacts: ArtifactInput[] = [];
@@ -375,6 +609,7 @@ export class ScheduledJobs {
 
     async dashboardGenerate(groupId: string, day: Date = new Date()): Promise<any> {
         const generated = await this.generateDashboard(groupId, day);
+        if (!this.sendToGroup) return generated.result;
         const image = generated.artifacts.find(artifact => artifact.type === 'image');
         const markdown = generated.artifacts.find(artifact => artifact.type === 'markdown');
         const uploaded = image?.storageRef
@@ -395,12 +630,13 @@ export class ScheduledJobs {
     async generateDashboard(groupId: string, day: Date = new Date()): Promise<GeneratedDashboard> {
         const result = await this.projectDashboard.generateFresh(day, "scheduled", groupId);
         const targetGroup = result.subscribers[0];
-        const dashboardBaseUrl =
-          result.artifact.public_url ||
-          this.config.runtime?.public_base_url ||
-          "http://localhost:8080/";
-        const dashboardQuery = new URLSearchParams({ groupId, dashboardId: result.artifact.id }).toString();
-        const dashboardUrl = `${dashboardBaseUrl}${dashboardBaseUrl.includes("?") ? "&" : "?"}${dashboardQuery}`;
+        let dashboardBaseUrl = this.config.runtime?.public_base_url || "http://localhost:8080/";
+        dashboardBaseUrl = dashboardBaseUrl.replace(/\/$/, "");
+
+        // 仅保留 groupId，缩短链接并交由前端默认加载最新看板
+        const dashboardQuery = new URLSearchParams({ groupId }).toString();
+        const dashboardUrl = `${dashboardBaseUrl}/?${dashboardQuery}`;
+
         const text = `**【${targetGroup?.name || "群聊"}进度看板 | ${dayjs(day).format('YYYY-MM-DD')}】**\n\nTAPD 已完成全量校验；仅统计创建人或开发人员属于本群成员的有效任务。\n\n🔗 [点击查看完整 Dashboard](${dashboardUrl})`;
         const output = {
             artifact_id: result.artifact.id,
@@ -446,7 +682,7 @@ export class ScheduledJobs {
             const sync = await this.projectTaskSync;
             if (!sync.ok) {
                 await this.store.appendAuditLog("overdue_scan_task_sync_failed", { group_id: groupId, error: sync.error });
-                throw new Error(`超期扫描前 TAPD 全量校验失败：${sync.error}`);
+                throw TaskService.projectSyncError("超期扫描前 TAPD 全量校验失败", sync);
             }
         } else {
             const excludedStatuses = ["deleted", "cancelled", "status_20"];
@@ -560,7 +796,7 @@ export class ScheduledJobs {
         try {
             sendRes = await this.feishu.sendPrivateText(owner, text);
         } catch (error) {
-            await this.finishReminderDeliveryClaim(claim, "retryable", { error: error instanceof Error ? error.message : String(error) });
+            await this.finishDeliveryClaim(claim, "retryable", { error: error instanceof Error ? error.message : String(error) });
             throw error;
         }
 
@@ -572,7 +808,7 @@ export class ScheduledJobs {
                 task.overdue_reminders = reminders;
                 await this.store.saveTask(task as Task);
             }
-            await this.finishReminderDeliveryClaim(claim, permanent ? "rejected" : "retryable", {
+            await this.finishDeliveryClaim(claim, permanent ? "rejected" : "retryable", {
                 error: sendRes.error || sendRes.raw || "unknown Feishu error",
             });
             await this.store.appendAuditLog(permanent ? "overdue_reminder_rejected" : "overdue_reminder_failed", {
@@ -587,7 +823,7 @@ export class ScheduledJobs {
             return permanent ? "rejected" : "failed";
         }
 
-        await this.finishReminderDeliveryClaim(claim, "completed", { message_id: sendRes.message_id });
+        await this.finishDeliveryClaim(claim, "completed", { message_id: sendRes.message_id });
 
         if (sendRes.message_id) {
             await this.store.saveBotMessageContext({
@@ -608,7 +844,54 @@ export class ScheduledJobs {
         return "sent";
     }
 
-    private async claimReminderDelivery(taskId: string, scenario: DueReminderScenario, slot: string, owner: string): Promise<{ key: string; value: any } | undefined | null> {
+    private async claimStandupPromptDelivery(groupId: string, dateText: string, openId: string): Promise<{ key: string; value: any } | undefined | null> {
+        const store = this.store as any;
+        if (typeof store.claimIdempotencyKey !== "function" || typeof store.getIdempotencyValue !== "function" || typeof store.compareAndSetIdempotencyKey !== "function") {
+            return undefined;
+        }
+
+        const key = `standup-push:${encodeURIComponent(groupId)}:${dateText}:${encodeURIComponent(openId)}`;
+        const value = {
+            status: "sending",
+            group_id: groupId,
+            date: dateText,
+            open_id: openId,
+            claimed_at: utcNowIso(),
+            lease_until: new Date(Date.now() + 5 * 60_000).toISOString(),
+            claim_id: randomUUID(),
+        };
+        if (await store.claimIdempotencyKey(key, value)) return { key, value };
+
+        const existing = await store.getIdempotencyValue(key);
+        const leaseExpired = existing?.status === "sending" && Date.parse(existing.lease_until || "") <= Date.now();
+        if (existing?.status !== "retryable" && !leaseExpired) return null;
+        return await store.compareAndSetIdempotencyKey(key, existing, value) ? { key, value } : null;
+    }
+
+    private async claimTaskStandupTemplateDelivery(groupId: string, dateText: string): Promise<{ key: string; value: any } | undefined | null> {
+        const store = this.store as any;
+        if (typeof store.claimIdempotencyKey !== "function" || typeof store.getIdempotencyValue !== "function" || typeof store.compareAndSetIdempotencyKey !== "function") {
+            return undefined;
+        }
+
+        const key = `standup-task-template:${encodeURIComponent(groupId)}:${dateText}`;
+        const value = {
+            status: "sending",
+            group_id: groupId,
+            date: dateText,
+            claimed_at: utcNowIso(),
+            lease_until: new Date(Date.now() + 5 * 60_000).toISOString(),
+            claim_id: randomUUID(),
+        };
+        if (await store.claimIdempotencyKey(key, value)) return { key, value };
+
+        const existing = await store.getIdempotencyValue(key);
+        const leaseExpired = existing?.status === "sending" && Date.parse(existing.lease_until || "") <= Date.now();
+        if (existing?.status !== "retryable" && !leaseExpired) return null;
+        return await store.compareAndSetIdempotencyKey(key, existing, value) ? { key, value } : null;
+    }
+
+    private async claimReminderDelivery(taskId: string, scenario: DueReminderScenario | "task_standup", slot: string, owner: string): Promise<{ key: string; value: any } | undefined | null> {
         const store = this.store as any;
         if (typeof store.claimIdempotencyKey !== "function" || typeof store.getIdempotencyValue !== "function" || typeof store.compareAndSetIdempotencyKey !== "function") {
             return undefined;
@@ -631,7 +914,7 @@ export class ScheduledJobs {
         return await store.compareAndSetIdempotencyKey(key, existing, value) ? { key, value } : null;
     }
 
-    private async finishReminderDeliveryClaim(claim: { key: string; value: any } | undefined, status: string, detail: Record<string, any>): Promise<void> {
+    private async finishDeliveryClaim(claim: { key: string; value: any } | undefined, status: string, detail: Record<string, any>): Promise<void> {
         if (!claim) return;
         const store = this.store as any;
         const next = { ...claim.value, ...detail, status, finished_at: utcNowIso() };
@@ -663,18 +946,47 @@ export class ScheduledJobs {
         if (!this.config.runtime.daily_summary_fetch_history || !chatId) return;
 
         const { startTime, endTime } = this.summaryPeriodRange(day, period);
+        const syncKey = `history-sync:${encodeURIComponent(chatId)}:${startTime.getTime()}:${endTime.getTime()}`;
+        if (typeof this.store.getIdempotencyValue === 'function') {
+            const cached: any = await this.store.getIdempotencyValue(syncKey);
+            if (cached?.status === 'completed') {
+                await this.store.appendAuditLog('daily_summary_history_cache_hit', {
+                    date: dayjs(day).format('YYYY-MM-DD'),
+                    chat_id: chatId,
+                    start_time: startTime.toISOString(),
+                    end_time: endTime.toISOString(),
+                });
+                return;
+            }
+        }
+
+        let incrementalStart = startTime;
+        if (typeof this.store.getLatestSourceMessageSentAt === 'function') {
+            const latest = await this.store.getLatestSourceMessageSentAt(chatId, startTime, endTime);
+            const latestMs = latest ? Date.parse(latest) : Number.NaN;
+            if (Number.isFinite(latestMs)) {
+                incrementalStart = new Date(Math.max(startTime.getTime(), Math.min(endTime.getTime(), latestMs - 2_000)));
+            }
+        }
         let history: any[];
 
         try {
-            history = await this.feishu.fetchChatHistory(chatId, startTime, endTime);
+            history = await this.feishu.fetchChatHistory(chatId, incrementalStart, endTime);
         } catch (exc: any) {
             const reason = String(exc.message || exc);
+            const retryable = exc?.retryable !== false;
             await this.store.appendAuditLog("daily_summary_history_sync_failed", {
                 date: dayjs(day).format('YYYY-MM-DD'),
                 chat_id: chatId,
                 reason,
+                error_code: exc?.code || 'DAILY_SUMMARY_HISTORY_SYNC_FAILED',
+                retryable,
             });
-            throw new Error(`日报群聊历史消息同步失败：${reason}`);
+            throw Object.assign(new Error(`日报群聊历史消息同步失败：${reason}`), {
+                code: exc?.code || 'DAILY_SUMMARY_HISTORY_SYNC_FAILED',
+                retryable,
+                retryAfterMs: Number.isFinite(exc?.retryAfterMs) ? Math.max(0, exc.retryAfterMs) : undefined,
+            });
         }
 
         let synced = 0;
@@ -687,10 +999,22 @@ export class ScheduledJobs {
             if (!existed) inserted++;
         }
 
+        if (typeof this.store.setIdempotencyKey === 'function') {
+            await this.store.setIdempotencyKey(syncKey, {
+                status: 'completed',
+                completed_at: utcNowIso(),
+                chat_id: chatId,
+                start_time: startTime.toISOString(),
+                end_time: endTime.toISOString(),
+                incremental_start_time: incrementalStart.toISOString(),
+            });
+        }
+
         await this.store.appendAuditLog("daily_summary_history_synced", {
             date: dayjs(day).format('YYYY-MM-DD'),
             chat_id: chatId,
             start_time: startTime.toISOString(),
+            incremental_start_time: incrementalStart.toISOString(),
             end_time: endTime.toISOString(),
             synced,
             inserted,

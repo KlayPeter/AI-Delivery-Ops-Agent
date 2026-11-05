@@ -154,6 +154,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 同步公开版外部 API 预算、幂等投递和报告降级基础设施，业务开关与能力入口保持原语义 | 后端全量回归、类型检查 |
 | 2026-07-29 | 默认提升到 15 条，增加同会话 cursor 续页、任意关键词、来源筛选、多源 AI 信号和卡片尾部操作提示；Provider 迁移至 AI HOT v1 | `aiNewsRadar.test.ts`、`routedFeishuDelivery.test.ts`、`config.test.ts`、后端全量回归 |
 | 2026-07-29 | 默认复用系统现有飞书机器人和凭证；增加确定性私聊意图分流，并保留独立机器人作为可选模式 | `config.test.ts`、`aiNewsRadar.test.ts`、`multiBotIngress.test.ts`、`agentHost.test.ts` |
 | 2026-07-29 | 新增 AI News Radar Native Agent、可配置实时数据源、独立飞书机器人私聊入口和同 Bot 卡片投递 | `aiNewsRadar.test.ts`、`multiBotIngress.test.ts`、`triggerRuntime.test.ts`、`routedFeishuDelivery.test.ts`、`agentHost.test.ts` |

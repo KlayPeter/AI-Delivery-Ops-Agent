@@ -41,6 +41,24 @@ const DASHBOARD_STATUS_COLORS: Record<string, string> = {
 
 const STATUS_SORT: Record<string, number> = { "blocked": 0, "overdue": 1, "pending_primary_owner": 2, "pending_confirmation": 3, "in_progress": 4, "development_completed": 5, "owner_marked_done": 6, "testing": 7 };
 const PRIORITY_SORT: Record<string, number> = { "P0": 0, "P1": 1, "P2": 2, "P3": 3 };
+type WorkloadCategory = "requirement" | "development" | "testing";
+
+function workloadCategory(task: any): WorkloadCategory {
+    const workflow = task.trace?.workflow || {};
+    const phase = String(task.effective_phase || workflow.phase || "").trim();
+    const status = String(task.status || "").trim().toLowerCase();
+    if (phase === "testing" && workflow.substate === "pending_product_acceptance") return "requirement";
+    if (["owner_marked_done", "testing"].includes(status)) return "testing";
+    if (["pending_primary_owner", "pending_confirmation", "requirement"].includes(status)) return "requirement";
+    if (["transfer_test", "testing"].includes(phase)) return "testing";
+    if (["development", "development_completed"].includes(phase)) return "development";
+    if (["draft", "requirement"].includes(phase)) return "requirement";
+
+    if (["confirmed", "in_progress", "development_completed", "blocked"].includes(status)) return "development";
+
+    const workitemType = String(task.trace?.tapd?.workitem_type_key || task.trace?.tapd?.workitem_type || "").trim().toUpperCase();
+    return ["DEVELOP", "ARTS"].includes(workitemType) ? "development" : "requirement";
+}
 
 function escapeHtml(unsafe: any): string {
     return String(unsafe ?? "")
@@ -174,10 +192,10 @@ export class DashboardService {
             completed_today: tasks.filter(t => t.effective_completed && (t.completed_at || t.updated_at || "").startsWith(dateText)).length,
             in_progress: (statuses["in_progress"] || 0) + (statuses["confirmed"] || 0),
             blocked: statuses["blocked"] || 0,
-            overdue: tasks.filter(t => t.workload_eligible && t.dashboard_status === "overdue").length,
-            overdue_day1: tasks.filter(t => t.workload_eligible && t.overdue_tier === "overdue_day1").length,
-            overdue_day3: tasks.filter(t => t.workload_eligible && t.overdue_tier === "overdue_day3").length,
-            overdue_day5: tasks.filter(t => t.workload_eligible && t.overdue_tier === "overdue_day5").length,
+            overdue: tasks.filter(t => t.workload_eligible && t.is_overdue).length,
+            overdue_day1: tasks.filter(t => t.workload_eligible && t.is_overdue && t.overdue_tier === "overdue_day1").length,
+            overdue_day3: tasks.filter(t => t.workload_eligible && t.is_overdue && t.overdue_tier === "overdue_day3").length,
+            overdue_day5: tasks.filter(t => t.workload_eligible && t.is_overdue && t.overdue_tier === "overdue_day5").length,
             pending_confirmation: (statuses["pending_primary_owner"] || 0) + (statuses["pending_confirmation"] || 0),
             owner_marked_done: statuses["owner_marked_done"] || 0,
             standup_submit_rate: totalMembers > 0 ? Math.round((standups.length / totalMembers) * 100) / 100 : 0,
@@ -190,7 +208,7 @@ export class DashboardService {
         const highlights: string[] = [];
         const actionable = tasks.filter(t => t.workload_eligible);
         const blocked = actionable.filter(t => t.dashboard_status === "blocked");
-        const overdue = actionable.filter(t => t.dashboard_status === "overdue");
+        const overdue = actionable.filter(t => t.is_overdue);
         const pending = actionable.filter(t => ["pending_primary_owner", "pending_confirmation"].includes(t.dashboard_status));
         const inProgress = actionable.filter(t => ["confirmed", "in_progress"].includes(t.dashboard_status));
         const highPriority = actionable.filter(t => ["P0", "P1"].includes(t.priority));
@@ -245,7 +263,7 @@ export class DashboardService {
         const workloadRows = data.workload.map((item: any, index: number) => {
             const taskWidth = item.task_count ? Math.max(5, item.task_count / maxWorkload * 100) : 0;
             const initial = String(item.name || '未分配').trim().slice(0, 1);
-            return `<div class='workload-row ${index === 0 ? 'workload-top' : ''}'><div class='workload-person'><span class='workload-avatar'>${escapeHtml(initial)}</span><div><b>${escapeHtml(item.name)}</b><small>${item.task_count} 项活跃执行任务</small></div></div><div class='workload-track'><i style='width:${taskWidth}%'></i></div><div class='workload-meta'><b>${item.task_count}</b><span>项</span>${item.estimated_days ? `<em>${item.estimated_days} 人天</em>` : '<em>暂无人天估算</em>'}${item.unestimated_tasks ? `<em class='unestimated'>未估 ${item.unestimated_tasks} 项</em>` : ''}</div></div>`;
+            return `<div class='workload-row ${index === 0 ? 'workload-top' : ''}'><div class='workload-person'><span class='workload-avatar'>${escapeHtml(initial)}</span><div><b>${escapeHtml(item.name)}</b><small>需求 ${item.requirement_tasks} · 开发 ${item.development_tasks} · 测试 ${item.testing_tasks}</small></div></div><div class='workload-track'><i style='width:${taskWidth}%'></i></div><div class='workload-meta'><b>${item.task_count}</b><span>项</span>${item.estimated_days ? `<em>${item.estimated_days} 人天</em>` : '<em>暂无人天估算</em>'}${item.unestimated_tasks ? `<em class='unestimated'>未估 ${item.unestimated_tasks} 项</em>` : ''}</div></div>`;
         }).join('') || '<div class="empty">当前群暂无有效成员</div>';
         const calendarTasksJson = JSON.stringify(data.month_calendar.tasks).replace(/</g, '\\u003c');
 
@@ -296,7 +314,7 @@ export class DashboardService {
     .burndown svg { width:100%; height:226px; overflow:visible; }
     .chart-note { color:var(--muted); font-size:13px; }
     .workload-chart { padding:18px 18px 0; }
-    .workload-row { display:grid; grid-template-columns:126px minmax(110px,1fr) 92px; gap:12px; align-items:center; min-height:52px; border-top:1px solid rgba(34,54,74,.72); }
+    .workload-row { display:grid; grid-template-columns:166px minmax(80px,1fr) 92px; gap:12px; align-items:center; min-height:52px; border-top:1px solid rgba(34,54,74,.72); }
     .workload-person { display:flex; align-items:center; gap:8px; min-width:0; }
     .workload-avatar { display:grid; flex:0 0 auto; width:26px; height:26px; place-items:center; border:1px solid rgba(33,166,255,.35); border-radius:9px; color:#c8edff; background:linear-gradient(145deg,rgba(33,166,255,.25),rgba(167,139,250,.18)); font-weight:700; }
     .workload-person div { min-width:0; } .workload-person b,.workload-person small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .workload-person b { color:#e2eff7; font-size:14px; } .workload-person small { margin-top:2px; color:#6f899f; font-size:11px; }
@@ -423,7 +441,7 @@ export class DashboardService {
     <div class="charts">
       <section class="chart-card burndown"><div class="section-head"><h2>近 7 天未完成任务趋势</h2><span>群内关联叶子任务</span></div><div class="chart-body">${this.renderBurndownSvg(data.burndown)}<div class="chart-note">按创建与完成时间还原每日未完成叶子任务；任务新增或范围变化时曲线可以上升。</div></div></section>
       <section class="chart-card"><div class="section-head"><h2>状态分布</h2><span>8 类交付状态</span></div><div class="status-wrap"><div class="donut"></div><div class="legend">${statusLegend}</div></div></section>
-      <section class="chart-card"><div class="section-head"><div class="section-title"><span class="section-icon">◒</span><h2>群成员任务负载</h2></div><span>按 TAPD 处理人 · 全部活跃工作项</span></div><div class="workload-chart">${workloadRows}<div class="chart-note">需求、开发、美术工作项及草案、需求等未完成状态均纳入；父项与子项分别计数，已完成子树不计入负载。</div></div></section>
+      <section class="chart-card"><div class="section-head"><div class="section-title"><span class="section-icon">◒</span><h2>群成员任务负载</h2></div><span>按当前责任阶段 · 需求 / 开发 / 测试</span></div><div class="workload-chart">${workloadRows}<div class="chart-note">流程角色优先决定当前负责人；待测试和测试中只计入测试任务，产品验收计入需求任务。父项与子项分别计数，已完成子树不计入负载。</div></div></section>
     </div>
     <div class="focus">
       <section class="section" style="margin-top:0"><div class="section-head"><h2>今日重点</h2><span>优先处理 3–5 项</span></div><ol class="focus-list">${highlightItems}</ol></section>
@@ -780,15 +798,20 @@ export class DashboardService {
     private enrichTask(task: any, dateText: string, latestUpdate?: any, hierarchyState?: any, completionSource?: any): any {
         const rawStatus = task.status || "pending_confirmation";
         const effectiveCompleted = Boolean(hierarchyState?.is_completed);
+        const inheritedPhase = hierarchyState?.inherited_phase || null;
+        const inheritedStatus = inheritedPhase === "testing" ? "testing" : inheritedPhase === "transfer_test" ? "owner_marked_done" : null;
         const completedAt = task.trace?.tapd?.completed_at || completionSource?.trace?.tapd?.completed_at || (effectiveCompleted ? completionSource?.updated_at || task.updated_at : null);
         const due = task.due_date ? dayjs(task.due_date) : null;
         const overdue = !effectiveCompleted && hierarchyState?.is_leaf !== false && due?.isValid() && due.isBefore(dayjs(dateText), 'day');
-        const dashboardStatus = hierarchyState?.completed_by_ancestor ? "accepted" : overdue ? "overdue" : rawStatus;
+        const isOverdue = rawStatus === "overdue" || overdue;
+        const dashboardStatus = hierarchyState?.completed_by_ancestor
+            ? "accepted"
+            : inheritedStatus || (isOverdue ? "overdue" : rawStatus);
         const policy = overdue ? overduePolicy(task.due_date, dateText) : null;
         const daysToDue = due?.isValid() ? due.diff(dayjs(dateText), 'day') : null;
         const workloadEligible = Boolean(hierarchyState?.is_active && hierarchyState?.is_leaf && !effectiveCompleted);
         const assignmentEligible = Boolean(hierarchyState?.is_active && !effectiveCompleted);
-        const highRisk = workloadEligible && (["blocked", "overdue"].includes(dashboardStatus) || !task.primary_owner_name);
+        const highRisk = workloadEligible && (["blocked", "overdue"].includes(dashboardStatus) || isOverdue || !task.primary_owner_name);
         const mediumRisk = workloadEligible && !highRisk && (["P0", "P1"].includes(task.priority) || (daysToDue !== null && daysToDue <= 2));
         const riskLevel = highRisk ? "high" : mediumRisk ? "medium" : "low";
         const riskLabel = highRisk ? "高" : mediumRisk ? "中" : "低";
@@ -797,6 +820,10 @@ export class DashboardService {
         return {
             ...task,
             dashboard_status: dashboardStatus,
+            effective_phase: inheritedPhase || task.trace?.workflow?.phase || null,
+            inherited_phase: inheritedPhase,
+            inherited_phase_source_id: hierarchyState?.inherited_phase_source_id || null,
+            is_overdue: isOverdue,
             effective_completed: effectiveCompleted,
             completed_by_ancestor: Boolean(hierarchyState?.completed_by_ancestor),
             is_leaf: hierarchyState?.is_leaf !== false,
@@ -837,22 +864,40 @@ export class DashboardService {
         const values = new Map<string, any>();
         const memberByName = new Map<string, any>();
         for (const member of memberById.values()) {
-            values.set(member.open_id, { open_id: member.open_id, name: member.name, task_count: 0, estimated_days: 0, unestimated_tasks: 0 });
+            values.set(member.open_id, {
+                open_id: member.open_id,
+                name: member.name,
+                task_count: 0,
+                requirement_tasks: 0,
+                development_tasks: 0,
+                testing_tasks: 0,
+                estimated_days: 0,
+                unestimated_tasks: 0,
+            });
             if (member.name) memberByName.set(String(member.name).trim(), member);
         }
 
         for (const task of tasks.filter(task => task.assignment_eligible)) {
+            const category = workloadCategory(task);
             const owners = new Map<string, any>();
-            for (let index = 0; index < Math.max(task.assignee_open_ids?.length || 0, task.assignee_names?.length || 0); index++) {
-                const owner = memberById.get(task.assignee_open_ids?.[index]) || memberByName.get(String(task.assignee_names?.[index] || '').trim());
+            const roles = task.trace?.workflow?.roles || task.trace?.roles || {};
+            const role = category === "requirement" ? roles.product : category === "development" ? roles.developer : roles.tester;
+            if (role?.open_id || role?.name) {
+                const owner = memberById.get(role.open_id) || memberByName.get(String(role.name || '').trim());
                 if (owner) owners.set(owner.open_id, owner);
+            } else {
+                for (let index = 0; index < Math.max(task.assignee_open_ids?.length || 0, task.assignee_names?.length || 0); index++) {
+                    const owner = memberById.get(task.assignee_open_ids?.[index]) || memberByName.get(String(task.assignee_names?.[index] || '').trim());
+                    if (owner) owners.set(owner.open_id, owner);
+                }
+                const primaryOwner = memberById.get(task.primary_owner_open_id) || memberByName.get(String(task.primary_owner_name || '').trim());
+                if (primaryOwner) owners.set(primaryOwner.open_id, primaryOwner);
             }
-            const primaryOwner = memberById.get(task.primary_owner_open_id) || memberByName.get(String(task.primary_owner_name || '').trim());
-            if (primaryOwner) owners.set(primaryOwner.open_id, primaryOwner);
 
             for (const owner of owners.values()) {
                 const value = values.get(owner.open_id);
                 value.task_count++;
+                value[`${category}_tasks`]++;
                 if (task.effort_days === null || task.effort_days === undefined) value.unestimated_tasks++;
                 else value.estimated_days = Math.round((value.estimated_days + Number(task.effort_days)) * 100) / 100;
             }

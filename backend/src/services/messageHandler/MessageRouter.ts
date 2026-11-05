@@ -68,7 +68,7 @@ export class MessageRouter {
         }
 
         if (source === "group") {
-            await reply(ctx, message, source, "抱歉，我没有识别到有效的指令。\n目前支持的操作有：\n- 创建/安排/子任务\n- 对我回复接受、打回、完成某任务\n- 回复具体进度\n- 生成/发送群聊日报\n- 生成本周/上周周报");
+            await reply(ctx, message, source, "抱歉，我没有识别到有效的指令。\n目前支持的操作有：\n- 创建/安排/子任务\n- 登记带交付时间的任务型站会事项\n- 对我回复接受、打回、完成某任务\n- 回复具体进度\n- 生成/发送群聊日报\n- 生成本周/上周周报");
             return { handled: true, action: "unrecognized_command", reason: "no_valid_intent_found" };
         }
         await reply(ctx, message, source, "抱歉，我没有识别到有效的指令。\n目前支持的操作有：\n- 创建任务、安排一下\n- 向我发送站会报告\n- 对我回复接受、打回、完成某任务\n- 更新任务具体进度\n- 生成/发送群聊日报");

@@ -12,6 +12,7 @@ export default function StandupsPage() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any>(null);
   const [selectedDate, setSelectedDate] = useState<any>(dayjs());
+  const [category, setCategory] = useState<'normal' | 'task'>('normal');
   const [filterStatus, setFilterStatus] = useState('all');
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedStandup, setSelectedStandup] = useState<any>(null);
@@ -23,11 +24,11 @@ export default function StandupsPage() {
   const [groups, setGroups] = useState<any[]>([]);
   const [selectedGroup, setSelectedGroup] = useState('');
 
-  const fetchStandups = async (dateStr: string, groupId: string) => {
+  const fetchStandups = async (dateStr: string, groupId: string, type: 'normal' | 'task') => {
     if (!groupId) return; // Wait for group to be selected
     setLoading(true);
     try {
-      const json = await api.fetchStandups(dateStr, groupId);
+      const json = await api.fetchStandups(dateStr, groupId, type);
       setData(json);
     } catch (err: any) {
       console.error(err);
@@ -38,7 +39,7 @@ export default function StandupsPage() {
   };
 
   const handleRemind = async () => {
-    if (!selectedGroup) return;
+    if (!selectedGroup || category !== 'normal') return;
     setRemindLoading(true);
     try {
       await api.triggerJob("standup-remind", selectedGroup, false);
@@ -73,7 +74,10 @@ export default function StandupsPage() {
     const init = async () => {
       try {
         const config = await api.fetchConfig();
-        const configGroups = (config.groups || []).filter((g: any) => g.schedule?.standup_push_enabled !== false);
+        const configGroups = (config.groups || []).filter((g: any) =>
+          g.schedule?.module_standup_enabled !== false
+          && (g.schedule?.standup_push_enabled !== false || g.schedule?.task_standup_enabled === true)
+        );
         setGroups(configGroups);
         if (configGroups.length > 0) {
           setSelectedGroup(configGroups[0].chat_id);
@@ -89,9 +93,9 @@ export default function StandupsPage() {
 
   useEffect(() => {
     if (selectedGroup) {
-      fetchStandups(selectedDate.format('YYYY-MM-DD'), selectedGroup);
+      fetchStandups(selectedDate.format('YYYY-MM-DD'), selectedGroup, category);
     }
-  }, [selectedDate, selectedGroup]);
+  }, [selectedDate, selectedGroup, category]);
 
   const columns: TableColumnsType<any> = [
     {
@@ -141,6 +145,44 @@ export default function StandupsPage() {
     },
   ];
 
+  const taskColumns: TableColumnsType<any> = [
+    {
+      title: '任务',
+      dataIndex: 'title',
+      key: 'title',
+    },
+    {
+      title: '负责人',
+      dataIndex: 'owner_name',
+      key: 'owner_name',
+      align: 'center',
+    },
+    {
+      title: '交付时间',
+      dataIndex: 'due_at',
+      key: 'due_at',
+      align: 'center',
+      render: (value: string | null) => value ? dayjs(value).format('YYYY-MM-DD HH:mm') : '-',
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      align: 'center',
+      render: (value: string, record: any) => (
+        <Tag color={value === 'completed' ? 'success' : record.reported ? 'processing' : 'error'}>
+          {record.status_label}
+        </Tag>
+      ),
+    },
+    {
+      title: '最新回复',
+      dataIndex: 'content',
+      key: 'content',
+      render: (value: string) => value || <Text type="secondary">暂无回复</Text>,
+    },
+  ];
+
   return (
     <div style={{ padding: "24px", flex: 1, overflow: "auto", backgroundColor: "#f5f5f5" }}>
       <div style={{ maxWidth: 1400, margin: '0 auto' }}>
@@ -157,54 +199,82 @@ export default function StandupsPage() {
             placeholder="请选择所属群组"
             options={groups.map((g: any) => ({ label: g.name || g.chat_id, value: g.chat_id }))}
           />
+          <Select
+            value={category}
+            onChange={(value: 'normal' | 'task') => { setCategory(value); setFilterStatus('all'); }}
+            style={{ width: 140 }}
+            options={[{ label: '普通站会', value: 'normal' }, { label: '任务型站会', value: 'task' }]}
+          />
           <Select value={filterStatus} onChange={setFilterStatus} style={{ width: 120 }}>
             <Select.Option value="all">全部状态</Select.Option>
-            <Select.Option value="submitted">已提交</Select.Option>
-            <Select.Option value="missing">未提交</Select.Option>
+            {category === 'normal' ? <>
+              <Select.Option value="submitted">已提交</Select.Option>
+              <Select.Option value="missing">未提交</Select.Option>
+            </> : <>
+              <Select.Option value="reported">已回复</Select.Option>
+              <Select.Option value="unreported">未回复</Select.Option>
+            </>}
           </Select>
           <DatePicker
             value={selectedDate}
             onChange={(val: any) => val && setSelectedDate(val)}
             allowClear={false}
           />
-          <Button onClick={handleViewSummary} loading={summaryLoading}>查看站会汇总</Button>
-          <Button type="primary" onClick={handleRemind} loading={remindLoading}>一键提醒未交</Button>
+          <Button onClick={handleViewSummary} loading={summaryLoading} disabled={category === 'task'}>查看站会汇总</Button>
+          <Button type="primary" onClick={handleRemind} loading={remindLoading} disabled={category === 'task'}>一键提醒未交</Button>
         </Space>
       </div>
 
       <Spin spinning={loading}>
         {data && (
           <>
-            <Row gutter={16} style={{ marginBottom: 24 }}>
-              <Col span={8}>
-                <Card>
-                  <div style={{ color: '#8c8c8c' }}>团队总人数</div>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{data.stats.total}</div>
-                </Card>
-              </Col>
-              <Col span={8}>
-                <Card>
-                  <div style={{ color: '#8c8c8c' }}>已提交</div>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#52c41a' }}>{data.stats.submitted}</div>
-                </Card>
-              </Col>
-              <Col span={8}>
-                <Card>
-                  <div style={{ color: '#8c8c8c' }}>未提交</div>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#f5222d' }}>{data.stats.missing}</div>
-                </Card>
-              </Col>
-            </Row>
+            {category === 'normal' ? <>
+              <Row gutter={16} style={{ marginBottom: 24 }}>
+                <Col span={8}>
+                  <Card>
+                    <div style={{ color: '#8c8c8c' }}>团队总人数</div>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{data.stats.total}</div>
+                  </Card>
+                </Col>
+                <Col span={8}>
+                  <Card>
+                    <div style={{ color: '#8c8c8c' }}>已提交</div>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#52c41a' }}>{data.stats.submitted}</div>
+                  </Card>
+                </Col>
+                <Col span={8}>
+                  <Card>
+                    <div style={{ color: '#8c8c8c' }}>未提交</div>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#f5222d' }}>{data.stats.missing}</div>
+                  </Card>
+                </Col>
+              </Row>
 
-            <Table
-              dataSource={data.members.filter((m: any) =>
-                filterStatus === 'all' ? true :
-                filterStatus === 'submitted' ? m.submitted : !m.submitted
-              )}
-              columns={columns}
-              rowKey="open_id"
-              pagination={false}
-            />
+              <Table
+                dataSource={data.members.filter((m: any) =>
+                  filterStatus === 'all' ? true :
+                  filterStatus === 'submitted' ? m.submitted : !m.submitted
+                )}
+                columns={columns}
+                rowKey="open_id"
+                pagination={false}
+              />
+            </> : <>
+              <Row gutter={16} style={{ marginBottom: 24 }}>
+                <Col span={6}><Card><div style={{ color: '#8c8c8c' }}>任务总数</div><div style={{ fontSize: '24px', fontWeight: 'bold' }}>{data.stats.total}</div></Card></Col>
+                <Col span={6}><Card><div style={{ color: '#8c8c8c' }}>已回复</div><div style={{ fontSize: '24px', fontWeight: 'bold', color: '#52c41a' }}>{data.stats.reported}</div></Card></Col>
+                <Col span={6}><Card><div style={{ color: '#8c8c8c' }}>未回复</div><div style={{ fontSize: '24px', fontWeight: 'bold', color: '#f5222d' }}>{data.stats.unreported}</div></Card></Col>
+                <Col span={6}><Card><div style={{ color: '#8c8c8c' }}>已完成</div><div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1677ff' }}>{data.stats.completed}</div></Card></Col>
+              </Row>
+              <Table
+                dataSource={(data.tasks || []).filter((task: any) =>
+                  filterStatus === 'all' ? true : filterStatus === 'reported' ? task.reported : !task.reported
+                )}
+                columns={taskColumns}
+                rowKey="id"
+                pagination={false}
+              />
+            </>}
           </>
         )}
       </Spin>
