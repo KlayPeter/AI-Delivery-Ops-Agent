@@ -36,3 +36,10 @@ __pycache__/
 .pytest_cache/
 .tmp/
 .DS_Store
+
+# Local web research artifacts
+.firecrawl/
+
+# Local workspace credentials
+connections.json
+connections.json.*.tmp

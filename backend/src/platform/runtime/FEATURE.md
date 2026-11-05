@@ -69,6 +69,10 @@ flowchart TD
 - 日志和页面不拥有业务状态，不用于修补任务或站会真相源。
 - 可观测性不是独立 Agent；它是所有 Agent 和确定性流程共享的平台能力。
 
+## 工作台入口
+
+新增本地工作台：最近 50 个根 Run、结果/步骤/详情和人工继续；Run 列表与 Artifact 查询固定默认 workspace/bot。运行入口使用 manual Trigger 和 none 回复策略，Tool 自身仍可能写业务数据。管理 API（包括既有 Run 详情）统一检查本机 Host/Origin，防止其他网站读取本地个人产物。HTTP 默认监听 127.0.0.1。连接保存与实际运行状态分开呈现，见 [工作台功能卡](../workspace/FEATURE.md)。
+
 ## 核心规则
 
 Native 插件可以使用宿主 Orchestrator/Tool Gateway 组合执行；RAG 回答把检索、模型步骤与带版本证据的 Artifact 归入同一 Run。引用核验只证明身份和精确引文存在，不代表结论语义已验证。模型步骤失败时不发布答案。
@@ -109,7 +113,7 @@ Host 关闭时先停止消息注册表接受新执行，等待在途确定性消
 
 ## 本地启动与就绪
 
-默认飞书 App ID/Secret 都未配置时不创建连接，`/readyz` 的必需连接数为零；Agent Host 与数据库仍须真正就绪。部分凭据、错误 App ID 和已启用其他机器人的连接错误仍导致启动失败。连接启动与就绪共用 `FeishuBotConnectionManager.requiredBots()`。本地 `.env.example` 通过 `HOST=127.0.0.1` 限制监听地址；API 尚未提供登录认证。参见 [本地运行](../../../../../docs/LOCAL_DEVELOPMENT.md)。
+默认飞书 App ID/Secret 都未配置时不创建连接，`/readyz` 的必需连接数为零；Agent Host 与数据库仍须真正就绪。部分凭据、错误 App ID 和已启用其他机器人的连接错误仍导致启动失败。连接启动与就绪共用 `FeishuBotConnectionManager.requiredBots()`。本地 `.env.example` 通过 `HOST=127.0.0.1` 限制监听地址；API 尚未提供登录认证。参见 [本地运行](../../../../docs/LOCAL_DEVELOPMENT.md)。
 
 ## 本地历史复核
 
@@ -223,6 +227,7 @@ CLI 可选 --state 保存 Run/Step/Tool/Artifact；默认仍为内存。知识�
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 新增工作台运行视图与管理 API 本机来源边界 | 工作台专项、后端回归、前端检查与本地浏览器验收 |
 | 2026-11-05 | 无飞书凭据也可启动本地管理界面，就绪只要求已配置的入站连接；支持 HOST 指定绑定 | 多机器人/健康回归、独立空库 HTTP 验证、后端全量回归 |
 | 2026-11-05 | Native RAG 保存同一 Run 的检索、生成和验收证据；修复预取消/领取中取消仍执行 Tool 的竞态 | RAG、Tool/Skill、模型循环与后端全量回归、类型检查 |
 | 2026-11-05 | Host 等待在途群调度后释放插件，应用退出先等待 Scheduler；计划/轮询失败单独审计，旧幂等键保留 | 调度与插件回归、后端 428 通过 / 1 TAPD 跳过、类型检查 |

@@ -1,0 +1,49 @@
+import { randomUUID } from 'node:crypto';
+import { Elysia } from 'elysia';
+import { z } from 'zod';
+import type { AgentHost } from '@/platform/bootstrap/agentHost';
+import type { AppConfig } from '@/core/config';
+import { isLocalWorkspaceRequest, type LocalConnections } from './connections';
+
+const runInput = z.object({ capability: z.string().min(1).max(200), input: z.record(z.string(), z.unknown()).refine(value => Buffer.byteLength(JSON.stringify(value)) <= 32768), triggerId: z.string().uuid().optional() }).strict();
+const resumeInput = runInput.omit({ capability: true });
+
+export function createWorkspaceApi(host: AgentHost, connections: LocalConnections, getConfig: () => AppConfig) {
+    return new Elysia({ prefix: '/api/workspace', name: 'local-agent-workspace' })
+        .onBeforeHandle(({ request, set }) => {
+            if (!isLocalWorkspaceRequest(request)) {
+                set.status = 403;
+                return { error: '工作台仅接受本机页面请求' };
+            }
+        })
+        .onError(({ error, set }) => {
+            set.status = 400;
+            return { error: error instanceof z.ZodError ? '输入格式不正确，请检查必填项' : error instanceof Error ? error.message : '操作失败' };
+        })
+        .get('/state', async () => {
+            const [agents, runs] = await Promise.all([host.listAgents(), host.listLocalRuns()]);
+            const config = getConfig();
+            const plugins = host.listPlugins();
+            const managedByPluginFile = Boolean(process.env.AGENT_PLUGINS_FILE);
+            const knowledgeKind = plugins.some(plugin => plugin.id === 'knowledge.web') ? 'web'
+                : plugins.some(plugin => plugin.id === 'knowledge.markdown') ? (managedByPluginFile ? 'markdown' : process.env.KNOWLEDGE_KIND || 'sample') : 'none';
+            return { agents, runs, plugins, health: host.health(), modelConfigured: Boolean(config.ai.api_key && config.ai.model), knowledgeKind, managedByPluginFile };
+        })
+        .get('/connections', () => connections.snapshot())
+        .put('/connections', async ({ body }) => connections.save(body))
+        .post('/runs', async ({ body }) => {
+            const input = runInput.parse(body);
+            const result = await host.runLocal(input.capability, input.input, input.triggerId || randomUUID());
+            return { runId: result.execution?.run.id || result.claim.runId, status: result.execution?.run.status || result.status };
+        })
+        .get('/runs/:runId', async ({ params, set }) => {
+            const details = await host.getLocalRunDetails(params.runId);
+            if (!details) { set.status = 404; return { error: '未找到运行记录' }; }
+            return details;
+        })
+        .post('/runs/:runId/resume', async ({ params, body }) => {
+            const input = resumeInput.parse(body);
+            const result = await host.resumeLocal(params.runId, input.input, input.triggerId || randomUUID());
+            return { runId: result.execution?.run.id || result.claim.runId, status: result.execution?.run.status || result.status };
+        });
+}

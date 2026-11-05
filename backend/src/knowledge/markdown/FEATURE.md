@@ -23,7 +23,7 @@ Native Agent 是该确定性能力进入现有 Host、Trigger、Run 和 Artifact
 flowchart TD
     C[可信插件配置：固定目录与排除前缀] --> P[Cordis: knowledge.markdown]
     P --> N[Native Agent / 只读 Tool]
-    CLI[本地 CLI / 手动 SDK 触发] --> N
+    CLI[本地 CLI / 手动 SDK / 本机工作台] --> N
     RAG[可选 knowledge.answer 插件] --> N
     N --> S{本地手动范围且输入有效?}
     S -- 否 --> X[拒绝，不读取目录]
@@ -52,6 +52,10 @@ flowchart TD
 - 不执行文件、脚本或笔记中的指令，不写回原文件。
 - 不提供生成式回答、向量检索、完整 Markdown 语法解析或自动关联笔记正文扩展。
 - 不提供多用户认证、Vault 共享或原生代码/敌对文件系统的操作系统沙箱。
+
+## 本机工作台入口
+
+本地 HTTP 工作台可以配置和使用Markdown / Obsidian。来源设置仅接受本机控制面请求，保存后重启生效；检索请求不能改写目录或 URL，仍要求无 chat/conversation 的个人 manual Scope。HTTP 应用复用宿主 Prisma KV 保存本次 Run 与证据，与 CLI 可选独立 SQLite 状态文件分开；不提供多人共享授权。界面展示行号、原文、版本证据及部分来源失败，Markdown 不自动加载远端图片。模型回答发送所选片段给当前宿主模型。见 [工作台功能卡](../../platform/workspace/FEATURE.md)。
 
 ## 核心规则
 
@@ -141,6 +145,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 增加本机工作台来源配置与检索/回答入口，保留个人 Scope 和来源契约 | 工作台专项、后端回归、前端检查与本地浏览器验收 |
 | 2026-11-05 | 首次实现只读 Markdown/Obsidian 来源插件、版本化关键词检索与本地 CLI | 专项 10 项测试与 CLI 执行、类型及打包检查；后端全量 438 通过 / 1 真实 TAPD 跳过 |
 | 2026-11-05 | 排序与个人范围校验提取供网页来源复用，目录检索口径保持；CLI 显式选择来源 | 原 23 项来源/RAG 回归、新增网页专项与后端全量 |
 | 2026-11-05 | CLI 模型设置提取为与发布准备共享的读取器，原来源行为和显式模型边界保持 | 原知识专项和后端回归 |

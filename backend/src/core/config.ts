@@ -251,19 +251,19 @@ export function buildConfig(raw: any): AppConfig {
 
     const tapdRaw = raw.tapd || {};
     const tapd: TapdConfig = {
-        workspace_id: Number(tapdRaw.workspace_id ?? envNumber("TAPD_WORKSPACE_ID", 0)),
+        workspace_id: envNumber("TAPD_WORKSPACE_ID", Number(tapdRaw.workspace_id ?? 0)),
         api_token: envString("TAPD_API_TOKEN"),
-        api_base: tapdRaw.api_base || envString("TAPD_API_BASE", "https://api.tapd.cn"),
-        workitem_type_id: tapdRaw.workitem_type_id || envString("TAPD_WORKITEM_TYPE_ID"),
+        api_base: envString("TAPD_API_BASE", tapdRaw.api_base || "https://api.tapd.cn"),
+        workitem_type_id: envString("TAPD_WORKITEM_TYPE_ID", tapdRaw.workitem_type_id || ""),
         attachment_custom_field: tapdRaw.attachment_custom_field || envString("TAPD_ATTACHMENT_CUSTOM_FIELD"),
     };
 
     const aiRaw = raw.ai || {};
     const ai: AIConfig = {
-        provider: aiRaw.provider || envString("AI_PROVIDER", "openai"),
-        api_base: aiRaw.api_base || envString("AI_API_BASE", "https://api.openai.com/v1"),
+        provider: envString("AI_PROVIDER", aiRaw.provider || "openai"),
+        api_base: envString("AI_API_BASE", aiRaw.api_base || "https://api.openai.com/v1"),
         api_key: envString("AI_API_KEY"),
-        model: aiRaw.model || envString("AI_MODEL"),
+        model: envString("AI_MODEL", aiRaw.model || ""),
         max_tokens: Number(aiRaw.max_tokens ?? envNumber("AI_MAX_TOKENS", 4096)),
         temperature: Number(aiRaw.temperature ?? envNumber("AI_TEMPERATURE", 0.2)),
         retry_count: boundedRetryCount(aiRaw.retry_count ?? envNumber("AI_RETRY_COUNT", 1)),

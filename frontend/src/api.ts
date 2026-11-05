@@ -41,6 +41,12 @@ const request = async (promise: Promise<any>) => {
 const safeArray = (value: any) => (Array.isArray(value) ? value : []);
 
 export const api = {
+  fetchWorkspace: () => request(client.get('/workspace/state')),
+  fetchConnections: () => request(client.get('/workspace/connections')),
+  saveConnections: (values: Record<string, string | null>) => request(client.put('/workspace/connections', values)),
+  runAgent: (capability: string, input: Record<string, unknown>, triggerId: string) => request(client.post('/workspace/runs', { capability, input, triggerId })),
+  fetchRun: (runId: string) => request(client.get(`/workspace/runs/${encodeURIComponent(runId)}`)),
+  resumeRun: (runId: string, input: Record<string, unknown>, triggerId: string) => request(client.post(`/workspace/runs/${encodeURIComponent(runId)}/resume`, { input, triggerId })),
   fetchConfig: () => request(client.get("/config")),
   saveConfig: (data: any) => request(client.post("/config", data)),
   fetchDashboards: async () => {

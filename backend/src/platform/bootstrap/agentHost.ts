@@ -1,7 +1,7 @@
 import { PluginRuntime } from '@/platform/plugins/runtime';
 import type { FeaturePlugin } from '@/platform/plugins/contracts';
 import type { SourceMessage } from '@/models/types';
-import type { AgentManifest } from '@/platform/agents/contracts';
+import type { AgentManifest, AgentRun } from '@/platform/agents/contracts';
 import { PersistentAgentCatalog } from '@/platform/agents/catalog';
 import { createExternalAgentPackage, type ExternalAgentInstallOptions } from '@/platform/agents/externalInstaller';
 import { HttpAgentAdapter } from '@/platform/agents/httpAdapter';
@@ -359,12 +359,44 @@ export class AgentHost {
         };
     }
 
+    async listLocalRuns() {
+        await this.initialize();
+        const entries = await this.getContext().store.listIdempotencyEntries<AgentRun>('agent:run:');
+        return entries.map(entry => entry.value)
+            .filter(run => run.workspaceId === DEFAULT_WORKSPACE_ID && run.botInstanceId === DEFAULT_BOT_INSTANCE_ID && !run.parentRunId)
+            .sort((left, right) => right.createdAt.localeCompare(left.createdAt)).slice(0, 50);
+    }
+
+    async getLocalRunDetails(runId: string) {
+        await this.initialize();
+        const run = await this.runStore!.get(runId);
+        if (!run || run.workspaceId !== DEFAULT_WORKSPACE_ID || run.botInstanceId !== DEFAULT_BOT_INSTANCE_ID) return null;
+        return this.getRunDetails(runId);
+    }
+
+    listPlugins() {
+        return (this.options.plugins || []).map(plugin => ({ ...plugin.manifest, agents: (plugin.agents || []).map(agent => agent.manifest.id) }));
+    }
+
+    async runLocal(capability: string, input: unknown, triggerId: string) {
+        const scope = createTriggerScope({ workspaceId: DEFAULT_WORKSPACE_ID, botInstanceId: DEFAULT_BOT_INSTANCE_ID, triggerType: 'manual', triggerId });
+        return this.dispatch(createTriggerEnvelope({ scope, occurredAt: new Date().toISOString(), payload: input, replyPolicy: { mode: 'none' } }), capability, input);
+    }
+
+    async resumeLocal(runId: string, input: unknown, triggerId: string) {
+        if (!await this.getLocalRunDetails(runId)) throw new Error('Run not found in local workspace');
+        const scope = createTriggerScope({ workspaceId: DEFAULT_WORKSPACE_ID, botInstanceId: DEFAULT_BOT_INSTANCE_ID, triggerType: 'manual', triggerId });
+        return this.resume(createTriggerEnvelope({ scope, occurredAt: new Date().toISOString(), payload: input, replyPolicy: { mode: 'none' } }), runId, input);
+    }
+
     async listAgents(): Promise<Array<Record<string, unknown>>> {
         await this.initialize();
         const nativeAgents = (this.options.plugins || []).flatMap(plugin => (plugin.agents || []).map(agent => ({
             agentId: agent.manifest.id,
             name: agent.manifest.name,
             version: agent.manifest.version,
+            description: agent.manifest.description,
+            inputSchema: agent.manifest.inputSchema,
             runtime: agent.manifest.runtime.type,
             installationId: agent.installationId,
             status: 'active',
@@ -378,6 +410,8 @@ export class AgentHost {
             agentId: agentPackage.manifest.id,
             name: agentPackage.manifest.name,
             version: agentPackage.manifest.version,
+            description: agentPackage.manifest.description,
+            inputSchema: agentPackage.manifest.inputSchema,
             runtime: agentPackage.manifest.runtime.type,
             installationId: agentPackage.installation.id,
             status: agentPackage.installation.status,

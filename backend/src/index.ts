@@ -41,7 +41,12 @@ import { EnvironmentSecretResolver } from './platform/secrets/resolver';
 import { DEFAULT_BOT_INSTANCE_ID } from './platform/runtime/scope';
 import { AI_NEWS_RADAR_CAPABILITY } from './agents/native/ai-news-radar/aiNewsRadarAgent';
 import { createAiNewsIntentRouter } from './agents/native/ai-news-radar/intent';
+import { isLocalWorkspaceRequest, LocalConnections } from './platform/workspace/connections';
+import { workspaceKnowledge } from './platform/workspace/knowledge';
+import { createWorkspaceApi } from './platform/workspace/api';
 
+const localConnections = new LocalConnections(path.join(loadConfig().data_path, 'connections.json'));
+await localConnections.initialize();
 let config = loadConfig();
 let store = new PrismaStore(config.data_path);
 let feishu: FeishuAdapter;
@@ -112,7 +117,10 @@ await reloadConfig();
 
 const pluginSelection = process.env.AGENT_PLUGINS_FILE
     ? await loadPluginConfiguration(process.env.AGENT_PLUGINS_FILE, deliveryTeamPlugins)
-    : undefined;
+    : (() => {
+        const personalKnowledge = workspaceKnowledge();
+        return { plugins: [...deliveryTeamPlugins, ...personalKnowledge.plugins], config: personalKnowledge.config };
+    })();
 agentHost = createDeliveryOpsHost(() => (handler as any).ctx, 1000, undefined, [], {
     messageRoutes,
     schedules,
@@ -154,6 +162,13 @@ scheduler.start();
 const app = new Elysia()
     .use(createApiDocumentation())
     .use(cors())
+    .onBeforeHandle(({ request, set }) => {
+        if (new URL(request.url).pathname.startsWith('/api/') && !isLocalWorkspaceRequest(request)) {
+            set.status = 403;
+            return { error: '本地管理 API 仅接受本机页面请求' };
+        }
+    })
+    .use(createWorkspaceApi(agentHost, localConnections, () => config))
     .get('/healthz', () => livenessReport())
     .get('/readyz', async ({ set }) => {
         const report = await readinessReport({
@@ -736,7 +751,7 @@ const app = new Elysia()
         }
     })
     .listen({
-        hostname: process.env.HOST || '0.0.0.0',
+        hostname: process.env.HOST || '127.0.0.1',
         port: process.env.PORT ? parseInt(process.env.PORT) : 8090,
     });
 
