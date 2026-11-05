@@ -5,9 +5,11 @@ import { requirePersonalScope } from '../scope';
 import { knowledgeSearchInput } from '../search';
 import { fetchPublicPage } from './network';
 import { WebKnowledgeSource, webSourceConfig } from './source';
+import { versionRequest } from '../versions';
 
 export const KNOWLEDGE_WEB_CAPABILITY = 'knowledge.web.retrieve';
 export const KNOWLEDGE_WEB_SEARCH_TOOL = 'knowledge.web.search';
+export const KNOWLEDGE_WEB_VERSIONS_TOOL = 'knowledge.web.versions';
 export const knowledgeWebManifest: AgentManifest = {
     schemaVersion: '1.1', id: 'native.knowledge-web', name: 'Public web knowledge', version: '1.0.0',
     description: 'Read configured public pages with bounded network access and return versioned keyword evidence; no crawling or generation.',
@@ -25,6 +27,14 @@ export function createKnowledgeWebPlugin(loadPage: typeof fetchPublicPage = fetc
         agents: [{ manifest: knowledgeWebManifest, installationId: 'install-knowledge-web' }],
         apply(ctx, config) {
             const source = new WebKnowledgeSource(webSourceConfig.parse(config), loadPage);
+            ctx.delivery.tools.register({
+                id: KNOWLEDGE_WEB_VERSIONS_TOOL, version: '1.0.0', description: 'Check supplied version references using only configured public URLs. Returns document status, not page bodies; an unreadable page is unavailable, not proven deleted.',
+                inputSchema: { type: 'object', required: ['documents'], properties: { documents: { type: 'array' } } }, outputSchema: { type: 'object' },
+                sideEffect: 'read', riskLevel: 'low', idempotent: true, timeoutSeconds: 45,
+            }, async (input, execution) => {
+                requirePersonalScope(execution.scope);
+                return source.versions(versionRequest.parse(input), execution.signal);
+            });
             ctx.delivery.tools.register({
                 id: KNOWLEDGE_WEB_SEARCH_TOOL, version: '1.0.0', description: 'Refresh and search only configured public pages. Returns untrusted excerpts, original URLs and content versions; line numbers refer to extracted text.',
                 inputSchema: { type: 'object', required: ['query'], properties: { query: { type: 'string' }, limit: { type: 'integer' } } },

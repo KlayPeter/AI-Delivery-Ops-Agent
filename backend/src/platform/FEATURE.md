@@ -55,6 +55,8 @@ flowchart TD
     OM --> K
     G --> J
     H --> K["Artifact / Step / Checkpoint"]
+    K --> LS[CLI 可选私有 SQLite KV 与独占会话]
+    LS --> IR[历史知识引用复核；原证据保留]
     J --> K
     K --> L["Outbox"]
     L --> M["目标 Bot 与飞书群"]
@@ -100,6 +102,10 @@ Tool Gateway 在预取消和领取账本期间取消时拒绝进入 Handler；�
 14. **机器人日志最小化且可验收。** AI 新闻入站和出站审计只保留 bot、message、chat、投递结果等路由元数据，不保存私聊或卡片正文；飞书事件先以 workspace、BotInstance、message ID 建立数据库原子 Claim，再写入最多 1000 条的进程内快速缓存，`/readyz` 要求所有启用的入站机器人连接可用。默认复用模式不增加连接数。
 15. **外部投递遵守供应商反馈。** 飞书请求接收 Worker 的取消信号；429 使用 `Retry-After`，月额度耗尽按 App ID 进入不可重试熔断，不能重新运行 Agent 或误伤其他机器人。
 15. **文章产物由平台安全渲染。** `article_list` 只接受 HTTP/HTTPS 原文链接，平台负责追加信号来源和操作提示；Provider 返回内容不能控制提示语、生成任意卡片结构或暴露内部 cursor。
+
+## 本地 CLI 状态
+
+知识与发布 CLI 可显式选择 SQLitePersistentKeyValueStore，复用既有 KV/Run/Artifact 契约。默认团队应用仍使用既有持久化路径。新状态文件校验专用 application_id/schema，创建私有文件与目录，拒绝符号链接、硬链接、共享权限与外部数据库。独立 SQLite 锁事务限制同一文件一个 CLI Host，避免重启恢复误标另一个活跃会话；已提交状态单独持久化，进程退出释放锁。此实现不是应用认证、加密存储或多机数据库。
 
 ## 用户能力
 
@@ -174,6 +180,8 @@ Tool Gateway 在预取消和领取账本期间取消时拒绝进入 Handler；�
 
 ### 主要实现
 
+- `backend/src/platform/persistence/sqliteStore.ts`：CLI 私有 KV、专用 schema 和独占会话。
+- `backend/test/localState.test.ts`：KV/重开、权限、跨进程与强制退出恢复。
 - `backend/src/platform/plugins/contracts.ts`、`runtime.ts`：版本化功能插件与 Cordis 生命周期。
 - `backend/src/agents/host.ts`、`backend/src/agents/plugins/`：应用组合与七个独立 Agent 插件。
 
@@ -222,3 +230,5 @@ Tool Gateway 在预取消和领取账本期间取消时拒绝进入 Handler；�
 | 2026-07-27 | 注册 `native.weekly-report`，加入主 Agent 可委派 capability，并通过 Artifact/Outbox 投递周报链接 | `weeklyReport.test.ts`、`scheduler.test.ts`、Agent Host 回归 |
 | 2026-07-22 | 补充 Manifest、Binding、Scope、委派和 Agent 化判断规则，精简文档结构 | CodeGraph 与 Agent Runtime 测试 |
 | 2026-07-22 | 建立 Agent 平台功能卡，记录当前 Agent、Skill 判断和多机器人扩展点 | CodeGraph 架构审查 |
+
+本地状态变更（2026-11-05）：新增可选 CLI SQLite 实现，知识与发布 Run 可跨进程保存；不改变默认团队应用的业务 Store。验证覆盖原子 KV、外部文件拒绝、独占进程及已提交记录恢复。

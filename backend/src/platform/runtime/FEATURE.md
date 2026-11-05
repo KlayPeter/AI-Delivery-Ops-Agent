@@ -45,6 +45,8 @@ flowchart TD
     D --> K["Logs / Contexts / Debug 页面"]
     A --> X["消息处理失败分类审计"]
     X --> K
+    E --> KS[可选 CLI 私有 SQLite 状态]
+    KS --> IC[实际知识引用复核与独立评估]
     E --> K
     I --> K
     J --> K
@@ -90,7 +92,7 @@ Host 关闭时先停止消息注册表接受新执行，等待在途确定性消
 14. **Tool 调用预算覆盖完整 Run。** `AgentManifest.limits.maxToolCalls` 同时约束模型直接调用和 Skill 内部调用；暂停恢复或同一 Run 再进入时从已持久化 Tool Step 恢复用量，幂等命中旧结果不重复扣减，超限写 `guardrail` Step 并返回不可重试错误。
 15. **进程重启必须收敛非终态。** 单实例 Host 接收新触发前，将上次进程遗留的 `queued/running` Run、运行中 Step、Tool Call 和 Trigger 原子标记为 `PROCESS_RESTARTED`；`waiting_human`、成功记录和 Outbox 租约保持原语义，不自动重放可能已产生副作用的操作。
 16. **存活与就绪必须分离。** `/healthz` 只证明 HTTP 进程可响应，供 liveness 使用；`/readyz` 必须同时验证 SQLite 可查询且 Agent Host 已初始化并启动，失败返回 503，供 startup/readiness 在依赖异常时停止接收流量。探针响应不暴露数据库路径或底层错误。
-17. **发布必须通过质量门禁并可追溯。** CI 在镜像构建前运行后端依赖锁定安装、Prisma 校验、类型检查和全量测试，以及前端锁定安装、lint、类型检查、测试和生产构建；镜像以提交 SHA 作为部署标签，同时保留 `latest` 兼容标签，部署不再依靠强制重启拉取可变镜像。
+17. **CI 是质量检查，不代表部署。** 当前 GitHub Actions 运行锁定安装、后端 Prisma/类型/测试、前端 lint/类型/测试/构建、Docker 构建与秘密扫描；不连接服务器、不推送生产镜像，也不证明线上业务可用。按用户当前要求不部署服务器。
 18. **Host 仅在扩展装配完整后就绪。** 本地 `AgentHostExtension` 在 Runtime 创建前串行注册且每个唯一 ID 只执行一次；任何扩展校验或注册失败都会阻止 `initialized=true`，从而使 `/readyz` 保持失败。
 19. **入站和投递幂等必须包含 BotInstance。** 飞书事件的进程内缓存键使用 `botInstanceId:messageId`，持久化 Trigger Claim 使用 workspace、bot、trigger type、message ID；两个应用即使产生相同 message ID 也不能互相吞消息。
 20. **私聊目标必须显式保存 channel。** `ReplyPolicy` 的配置目标可声明 `private` 或 `group`；新闻机器人使用发送者在该应用下的 OpenID 作为 private 目标，不能根据存在 `chatId` 就推断为群聊。
@@ -103,6 +105,10 @@ Host 关闭时先停止消息注册表接受新执行，等待在途确定性消
 27. **入站事件使用跨实例原子去重。** 收到飞书 message ID 后，以 workspace、BotInstance 和 message ID 组成 `feishu:event:` 幂等键并由数据库原子领取；进程内有界缓存只作为同实例快速路径，不能作为生产集群唯一去重机制。
 28. **重复触发不等于再次完成。** Agent Trigger Store 返回 `duplicate` 时，Scheduler 只记录 `job_duplicate_skipped`，不能追加第二条 `job_completed`；日志页明确显示“重复触发已跳过”，避免把幂等命中误读成业务再次执行。
 29. **API 文档必须经过生产代理可达。** Swagger UI 使用 `/api/swagger`，OpenAPI JSON 使用 `/api/swagger/json`；两者统一放在生产环境已转发到后端的 `/api` 前缀下，不能使用会被前端 SPA 接管的根路径 `/swagger`。
+
+## 本地历史复核
+
+CLI 可选 --state 保存 Run/Step/Tool/Artifact；默认仍为内存。知识影响插件只读原 Artifact 的实际引用并独立写评估，不修改旧证据。作用域先验证 workspace/bot，再读取目标产物。评估 revision 经 CAS 竞争，旧检查不能覆盖新检查；来源失败、旧格式或中断不能显示为 current。单一活跃状态会话通过 SQLite 独占锁保证，避免把另一个 CLI 的运行误判为重启遗留。
 
 ## 用户能力
 
@@ -164,6 +170,9 @@ Host 关闭时先停止消息注册表接受新执行，等待在途确定性消
 
 ### 主要实现
 
+- `backend/src/platform/persistence/sqliteStore.ts`：CLI 私有记录与会话锁。
+- `backend/src/knowledge/impact/service.ts`：只读原引用与独立评估。
+- `backend/test/localState.test.ts`、`backend/test/knowledgeImpact.test.ts`：持久化、范围、检查竞争与历史证据回归。
 - `backend/src/platform/agents/runStore.ts`、`persistentRunStore.ts`：Agent 运行记录。
 - `backend/src/platform/agents/modelLoopAdapter.ts`、`backend/src/platform/tools/budget.ts`、`gateway.ts`：Run 级 Tool 预算恢复、共享扣减与超限 Guardrail。
 - `backend/src/platform/agents/persistentRunStore.ts`、`backend/src/platform/tools/callStore.ts`、`backend/src/platform/runtime/persistentTriggerStore.ts`、`interruption.ts`：进程重启后的原子状态收敛。

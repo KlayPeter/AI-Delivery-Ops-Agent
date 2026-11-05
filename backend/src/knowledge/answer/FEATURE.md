@@ -13,7 +13,7 @@ last_reviewed: 2026-11-05
 
 ## 功能定位
 
-`knowledge.answer` 默认依赖 `knowledge.markdown`；网页组合改为依赖 `knowledge.web` 并调用其检索 Tool。两者复用同一实现与 Capability，每个 Host 只能选择一个回答组合，当前不支持跨来源联合检索。不复制来源读取、索引或授权逻辑。它通过现有 Tool Gateway 取得片段，由宿主 Orchestrator 生成结构化结论，再执行确定性引用校验。当前 RAG 使用关键词检索；向量、重排、历史产物过期和多人共享均未实现。
+`knowledge.answer` 默认依赖 `knowledge.markdown`；网页组合改为依赖 `knowledge.web` 并调用其检索 Tool。两者复用同一实现与 Capability，每个 Host 只能选择一个回答组合，当前不支持跨来源联合检索。不复制来源读取、索引或授权逻辑。它通过现有 Tool Gateway 取得片段，由宿主 Orchestrator 生成结构化结论，再执行确定性引用校验。当前 RAG 使用关键词检索；向量、重排、自动监控与多人共享尚未实现；独立 knowledge.impact 可显式检查已保存 Run 的实际引用。
 
 这是固定的检索、生成与核验管线，因此使用 Native Agent；模型在生成阶段没有 Tool，也不承担调度或文件读写。既有 Model Loop、委派和 Checkpoint 仍由平台其他 Agent 提供，本功能不伪装成多 Agent 自治或暂停恢复流程。
 
@@ -31,6 +31,7 @@ flowchart TD
     N -- 否 --> A[资料不足：不调用模型]
     N -- 是 --> M[Orchestrator：生成 JSON，无 Tool 与人工追问函数]
     M --> K[输出结构与共享 verifyCitations 引文核验]
+    R --> HI[可选 state 保存与后续 impact 复核]
     K -- 通过 --> R[带来源与核验范围的回答 Artifact]
     K -- 模型认为不足 --> A
     K -- 非法 --> F[Run 失败，不发布答案 Artifact]
@@ -67,7 +68,7 @@ flowchart TD
 7. 模型输出只接受 answered+claims 或 insufficient_evidence+reason。每条结论需要至少一个引用；引用 ID 必须来自本次供给证据，引文必须是对应原文中的非空精确子串。模型文本在解析前限制为 64 KiB。
 8. 非法 JSON、未知引用、改写引文、无引用结论、意外 Tool 请求或模型异常使 Run 失败，不保存答案 Artifact。模型自行判断证据不足时可返回不足状态，保持来源和检索信息。
 9. `verification.citationIdentityAndQuotePresence=checked` 只表示上述确定性检查通过。`semanticSupport=not_verified` 明确说明语义蕴含、完整性和真实世界正确性未自动证明。
-10. 源文件在生成期间改变时，答案仍引用检索时的实际版本和片段，不把当前文件冒充历史依据；下一次运行重新检索。尚未提供答案完成时的源文件重验或历史产物自动过期标记。
+10. 源文件在生成期间改变时，答案仍引用检索时的实际版本和片段，不把当前文件冒充历史依据；下一次运行重新检索。不在答案完成时自动重验；后续可用 knowledge.impact 显式检查已保存 Run 的实际引用，原答案和旧证据保持。
 11. 索引 partial 状态保留在生成输入和输出中。回答仅依据可读且命中的资料，不能声称已经检查全部知识。
 12. 默认团队组合不装配本插件。CLI 只在 `--ask` 时装配，并要求专用 KNOWLEDGE_API_BASE/MODEL/API_KEY；不自动使用团队 AI 凭据。命令显示模型目标地址，密钥不输出。
 
@@ -75,7 +76,7 @@ flowchart TD
 
 - 在已配置可信模型后，根据选定目录提问，获得结论、引文、内容版本和行号。
 - 看到资料不足、索引不完整、生成失败或引用非法等不同结果。
-- 查看同一 Run 内的检索 Tool 与模型步骤；本地 CLI 的记录只存于进程内存。
+- 查看同一 Run 内的检索 Tool 与模型步骤；本地 CLI 默认内存，可用 --state 保存跨进程记录。
 
 ## 入口与触发
 
@@ -106,7 +107,7 @@ flowchart TD
 ## 数据与状态
 
 - 单次回答保存原始检索证据、引用版本、段落行号、partial 和上下文截断信息。网页证据额外保留 sourceKind、fetchedAt 和 lineBasis=extracted_text；行号不冒充原始 HTML 定位。
-- CLI 索引、Run/Step/Artifact 在内存中；宿主应用嵌入使用时遵循其存储和留存策略。
+- CLI 索引可重建，Run/Step/Artifact 默认在内存；显式 --state 保存记录；宿主应用嵌入使用时遵循其存储和留存策略。
 - Tool 账本和模型步骤归同一个 Run；重复 Trigger 不重复调用模型。
 - 模型失败时步骤保留失败状态，不将缺失用量冒充已测得的零费用。
 
@@ -121,6 +122,8 @@ flowchart TD
 
 ### 主要实现
 
+- `backend/src/knowledge/impact/service.ts`：读取实际引用，独立保存复核结果。
+- `backend/src/platform/persistence/sqliteStore.ts`：CLI 可选私有运行记录。
 - `backend/src/knowledge/answer/plugin.ts`：RAG 插件、受治理检索、模型调用和步骤记录。
 - `backend/src/knowledge/answer/evidence.ts`：证据协议、上下文预算、结构与共享 verifyCitations；发布准备复用同一精确引文检查。
 - `backend/src/knowledge/modelConfiguration.ts`：CLI 专用模型设置，与发布准备复用，保持原环境变量与验证。
@@ -147,3 +150,4 @@ flowchart TD
 | 2026-11-05 | 新增可选 RAG 回答插件，复用宿主 Orchestrator/Tool Gateway，发布前核验引用与引文；CLI 显式配置模型 | 专项 13 项使用真实 SDK 与本地模拟模型；类型检查、后端 452 通过 / 1 TAPD 跳过；未调用付费远端模型 |
 | 2026-11-05 | 同一回答实现支持显式网页来源组合，保留提取文本定位与抓取时间 | 33 项知识专项、后端全量与类型检查 |
 | 2026-11-05 | 精确引文校验与 CLI 模型设置供发布准备复用，回答口径保持；拒绝重复证据 ID | 原知识专项与发布准备回归 |
+| 2026-11-05 | 保留稳定来源身份供历史引用复核，CLI 可选跨进程保存；原生成与引文核验保持 | 原知识回归与真实 CLI 模拟模型验证 |

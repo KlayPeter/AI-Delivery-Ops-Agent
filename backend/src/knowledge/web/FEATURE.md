@@ -36,6 +36,8 @@ flowchart TD
     B -- 单页失败 --> F[partial；移除该页旧内容]
     F --> I
     B -- 取消或整轮超预算 --> Z[本次失败，不查询旧索引]
+    I --> VT[versions Tool：规范 URL 身份、版本与可用性]
+    VT --> IC[可选历史引用复核]
     I --> Q[共享关键词排序]
     Q --> R[URL、内容版本、提取文本行号与片段]
     R --> O[JSON Artifact / 引用核验回答]
@@ -52,7 +54,7 @@ flowchart TD
 ### 非目标
 
 - 登录态、Cookie、私有站点、付费墙、浏览器交互、JavaScript 渲染、全站爬取和附件解析。
-- 联合检索、向量检索、持久化索引、历史产物自动过期、知识回写和多人授权。
+- 联合检索、向量检索、持久化索引、持续自动过期监控、知识回写和多人授权。
 - 不将正文提取和精确引文核验宣称为语义事实证明。
 
 ## 核心规则
@@ -68,6 +70,9 @@ flowchart TD
 9. CLI 使用 `--root` 或可重复的 `--url`，只能选一类；文件排除和 Vault 名称仅适用于 root。query/sync 不调用模型；ask 复用专用模型配置和现有引用核验。默认团队组合不加载网页插件。
 10. 只允许无聊天/会话的手动或 Agent 范围；这不构成认证或 RBAC。原生插件是可信宿主代码，Manifest 的 networkHosts 不会自动沙箱化其请求；本来源的实际网络限制由固定 URL 配置与 network.ts 执行。
 
+
+新增引用包含 sourceKind/sourceKey：来源身份参与 citationId，避免不同 Vault/URL 的同名内容混淆。versions Tool 不接受新根目录或新抓取地址；刷新既定来源后比较历史版本，无法读取时不伪装成删除。旧引用缺少来源身份时由 impact 插件明确标记无法核验。CLI 可选择 --state 保存私有运行记录；默认内存模式保持。
+
 ## 用户能力
 
 - 提供一个或多个公开链接，查看抓取结果、失败、变化与可引用正文。
@@ -81,6 +86,7 @@ flowchart TD
 | CLI `--url` | 重复公开链接、query/ask、可选 limit | JSON 来源/回答与 Run ID |
 | `knowledge.web.retrieve` | operation=sync/search、query/limit | 同步报告或检索 Artifact |
 | `knowledge.web.search` Tool | query、limit 1–10 | 当前来源报告与证据 |
+| `knowledge.web.versions` Tool | 最多二百个来源身份/URL/旧版本 | 当前、变化、不可读或范围外，不返回正文 |
 | 网页回答组合 | `knowledge.answer` question/limit | 原有回答与引用核验结果 |
 
 ## 运行逻辑
@@ -118,6 +124,8 @@ flowchart TD
 
 ### 主要实现
 
+- `backend/src/knowledge/versions.ts`：版本请求与响应协议。
+- `backend/src/platform/persistence/sqliteStore.ts`：CLI 可选私有持久化与单会话锁。
 - `backend/src/knowledge/modelConfiguration.ts`：知识 CLI 与发布准备共用显式模型配置，query/sync 不使用模型。
 - `backend/src/knowledge/web/network.ts`：公共网络检查、IP 固定、传输和预算。
 - `backend/src/knowledge/web/parser.ts`：正文提取、定位语义与版本。
@@ -141,5 +149,6 @@ flowchart TD
 | 2026-11-05 | 新增公开单页来源与网页回答组合，复用原排序和 RAG | 专项 33 通过；类型检查；后端 462 通过 / 1 TAPD 跳过；公开网页 CLI 抓取成功；生成使用本地模拟模型 |
 | 2026-11-05 | 显式引用解析依赖要求的标准 DOM 类型，修复干净后端安装的类型检查失败 | 干净归档安装、类型检查和后端回归；不依赖本机其他依赖带入 DOM 声明 |
 | 2026-11-05 | CLI 模型设置提取为与发布准备共享的读取器，原来源行为和显式模型边界保持 | 原知识专项和后端回归 |
+| 2026-11-05 | 来源身份参与引用，新增只读 versions Tool；支持独立历史引用复核与 CLI 可选持久化 | 来源回归、Impact 专项与跨进程 CLI |
 
 设计依据：[Mozilla Readability](https://github.com/mozilla/readability)、[LinkeDOM](https://github.com/WebReflection/linkedom)、[Node HTTPS](https://nodejs.org/api/https.html)、[IPv4 特殊地址](https://www.iana.org/assignments/iana-ipv4-special-registry)、[IPv6 特殊地址](https://www.iana.org/assignments/iana-ipv6-special-registry)。依赖固定为 Readability 0.6.0（Apache-2.0）和 LinkeDOM 0.18.15（ISC）。

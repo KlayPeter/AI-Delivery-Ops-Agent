@@ -13,7 +13,7 @@ last_reviewed: 2026-11-05
 
 ## 功能定位
 
-这是个人知识接入的文件源、索引、引用和检索实现。来源文件仍是事实源，进程内索引是可重建副本。它为独立的 `knowledge.answer` RAG 插件及后续知识驱动任务提供证据；来源插件本身不生成回答，也不代表已实现向量检索、知识回写或知识变更对历史产物的影响分析。
+这是个人知识接入的文件源、索引、引用和检索实现。来源文件仍是事实源，进程内索引是可重建副本。它为独立的 `knowledge.answer` RAG 插件及后续知识驱动任务提供证据；来源插件本身不生成回答；新增版本 Tool 供独立 knowledge.impact 检查历史引用，向量检索与知识回写仍未实现。
 
 Native Agent 是该确定性能力进入现有 Host、Trigger、Run 和 Artifact 的适配入口，不包含自主模型循环。来源本身是领域服务；同一插件也提供受治理 Tool，主 Host 无需修改。
 
@@ -31,6 +31,8 @@ flowchart TD
     W --> V[读取内容哈希、属性、段落与笔记链接]
     V --> I[原子发布本轮内存索引与同步报告]
     V -- 整轮失败或取消 --> F[明确失败，不查询旧索引]
+    I --> VT[versions Tool：来源身份、当前版本与可用性]
+    VT --> IC[可选历史引用复核]
     I --> Q[与网页源共享中文分词和关键词排序]
     Q --> E[来源版本、引用 ID、行号、原文片段与链接状态]
     E --> A[JSON Artifact / CLI 输出]
@@ -63,7 +65,10 @@ flowchart TD
 8. 普通 Wikilink、简单行内 Markdown 链接与标题引用保留关系。同名笔记或别名有多个候选时标为歧义；附件、越界、块引用和缺失链接分别标注。代码围栏内不提取链接；不展开嵌入正文。
 9. 成功同步报告含增改移除数量、文件失败和链接状态。变化路径与失败详情各最多 25 条，返回总数及变化截断标记；检索只附少量链接关系，候选数量仍可见。
 10. 插件只接受无 chatId/conversationId 的手动或 Agent 范围；拒绝群聊、私聊和消息触发。此限制缩小当前入口，不等于访问控制。不得在缺少认证的共享管理端加载真实私人资料。
-11. CLI 的 root 模式仅选择此来源；url 模式选择独立网页来源，两类当前互斥。query/sync 不调用模型；显式 `--ask` 才增加回答插件并使用专用模型配置。CLI 不启动 Web、消息连接、业务定时器或投递 Worker；运行、Artifact 和索引均在进程内存中，结束后销毁。宿主应用安装插件时则沿用宿主的持久化及留存策略。
+11. CLI 的 root 模式仅选择此来源；url 模式选择独立网页来源，两类当前互斥。query/sync 不调用模型；显式 `--ask` 才增加回答插件并使用专用模型配置。CLI 不启动 Web、消息连接、业务定时器或投递 Worker；默认运行、Artifact 和索引在内存中；显式 --state 保存运行记录与 Artifact，索引仍可重建。宿主应用安装插件时则沿用宿主的持久化及留存策略。
+
+
+新增引用包含 sourceKind/sourceKey：来源身份参与 citationId，避免不同 Vault/URL 的同名内容混淆。versions Tool 不接受新根目录或新抓取地址；刷新既定来源后比较历史版本，无法读取时不伪装成删除。旧引用缺少来源身份时由 impact 插件明确标记无法核验。CLI 可选择 --state 保存私有运行记录；默认内存模式保持。
 
 ## 用户能力
 
@@ -79,6 +84,7 @@ flowchart TD
 | `knowledge.markdown.retrieve` | operation=sync/search、可选 query/limit | Native Agent 结果与 JSON Artifact |
 | `knowledge.markdown.search` Tool | query、可选 limit 1–10 | 来源报告和命中片段 |
 | `knowledge.markdown.sync` Tool | 空对象 | 同步报告 |
+| `knowledge.markdown.versions` Tool | 最多二百个路径/来源身份/旧版本 | 当前、变化、缺失、不可读或范围外；不返回正文 |
 
 ## 运行逻辑
 
@@ -101,9 +107,9 @@ flowchart TD
 ## 数据与状态
 
 - 原文件由用户拥有，插件没有写文件入口。
-- 索引仅保留当前可读版本；CLI 不持久化。运行证据保存本次实际返回的片段与版本，不保存整座 Vault 的历史快照。
+- 索引仅保留当前可读版本；CLI 默认不持久化，可用 --state 保存运行证据。运行证据保存本次实际返回的片段与版本，不保存整座 Vault 的历史快照。
 - 在同一服务实例内报告增改移除；每次 CLI 启动都是新实例，因此首次同步会将所有当前文档报告为新增。
-- 历史 Artifact 不因源文件删除自动删除。历史可见性、保留与产物过期分析需要后续功能。
+- 历史 Artifact 不因源文件删除自动删除。独立 knowledge.impact 可按指定 Run 检查文档版本并保存复核评估；自动监控和全局影响索引仍待实现。
 
 ## 失败、安全与降级
 
@@ -117,6 +123,8 @@ flowchart TD
 
 ### 主要实现
 
+- `backend/src/knowledge/versions.ts`：版本请求与响应协议。
+- `backend/src/platform/persistence/sqliteStore.ts`：CLI 可选私有持久化与单会话锁。
 - `backend/src/knowledge/modelConfiguration.ts`：知识 CLI 与发布准备共用显式模型配置，query/sync 不使用模型。
 - `backend/src/knowledge/markdown/source.ts`：配置、有界读取、同步与关键词检索。
 - `backend/src/knowledge/search.ts`、`backend/src/knowledge/scope.ts`：与网页来源共享排序和范围校验；原 Scope 导出保持兼容。
@@ -136,3 +144,4 @@ flowchart TD
 | 2026-11-05 | 首次实现只读 Markdown/Obsidian 来源插件、版本化关键词检索与本地 CLI | 专项 10 项测试与 CLI 执行、类型及打包检查；后端全量 438 通过 / 1 真实 TAPD 跳过 |
 | 2026-11-05 | 排序与个人范围校验提取供网页来源复用，目录检索口径保持；CLI 显式选择来源 | 原 23 项来源/RAG 回归、新增网页专项与后端全量 |
 | 2026-11-05 | CLI 模型设置提取为与发布准备共享的读取器，原来源行为和显式模型边界保持 | 原知识专项和后端回归 |
+| 2026-11-05 | 来源身份参与引用，新增只读 versions Tool；支持独立历史引用复核与 CLI 可选持久化 | 来源回归、Impact 专项与跨进程 CLI |

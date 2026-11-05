@@ -69,6 +69,6 @@ result.markdown 是可复制草稿，result.draft 保存结构化条目和发现
 
 GitHub 每类默认读取五页、每页三十项；部署配置可调整，但有最大页数、字节和时限。读取结束不构成原子快照，期间并发变化可能导致遗漏。分页不足、重复和正文/输出截断可见。模型上下文超过预算时返回证据并要求复核，不静默删 PR。
 
-只读来源内容、版本和实际引文保存在本次 Artifact。CLI 的索引和运行记录只在内存，退出后消失；JSON 输出可由使用者自行保存，包含个人片段，应按自己的资料管理。知识更新后尚不会自动标记历史草稿过期，也不会执行外部写入。
+只读来源内容、版本和实际引文保存在本次 Artifact。CLI 默认索引和运行记录在内存；加 `--state ../data/personal-runtime.sqlite` 可保存记录，索引仍可重建；JSON 输出可由使用者自行保存，包含个人片段，应按自己的资料管理。知识更新后可按已保存 Run 的实际引用显式检查并保存复核评估，见[操作指南](KNOWLEDGE_IMPACT.md)。持续自动监控与外部写入未实现。
 
 插件组合见 `backend/profiles/agents/release-demo.yaml` 与 `release-web-demo.yaml`；其中 example/project 需替换，root 相对于启动目录。一个 Host 选择一个 release.prepare 来源组合。默认团队配置不安装这些插件。当前没有共享 Web 的身份和私人 Artifact 隔离，仅推荐可信本机使用。

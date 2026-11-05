@@ -15,7 +15,7 @@ last_reviewed: 2026-11-05
 
 `release.prepare` 是独立功能插件，依赖 `connector.github` 和一个知识来源。默认使用 Markdown/Obsidian；webPlugin.ts 切换到网页来源，复用同一发布实现。固定的取证、生成与验收管线使用 Native Agent，接入现有 Host、Tool Gateway、Run/Step/Artifact；不包含自主多 Agent 循环。
 
-CLI 与配置档可使用。知识与 GitHub 事实在同一次实际任务中参与草稿生成；外部写入、产品界面和历史产物过期仍未实现。
+CLI 与配置档可使用。知识与 GitHub 事实在同一次实际任务中参与草稿生成；外部写入、产品界面和持续监控尚未实现；保存后的实际知识引用可用独立 impact 插件显式复核。
 
 ## 实现流程图
 
@@ -40,6 +40,8 @@ flowchart TD
     R --> J
     D --> J
     D --> MD[Markdown Artifact]
+    J --> ST[可选本地 state]
+    ST --> IC[后续显式 impact 引用复核]
 ```
 
 ## 能力边界
@@ -54,7 +56,7 @@ flowchart TD
 
 - 不创建 Release、评论、PR 或外部草稿，也不修改知识库。
 - 不检查代码 Diff、CI/审核状态、标签实际部署或迁移文档是否存在于未读取文件中。
-- 不保证模型语义、规则适用性或发布就绪；不提供聊天/共享 Web、多用户授权、跨来源联合检索或知识变更提醒。
+- 不保证模型语义、规则适用性或发布就绪；不提供聊天/共享 Web、多用户授权、跨来源联合检索或持续自动变更提醒。
 
 ## 核心规则
 
@@ -105,9 +107,9 @@ flowchart TD
 ## 数据与状态
 
 - 每次任务保留实际使用的仓库快照、知识源版本和片段；Run 中两次 Tool 与 Model Step 可追踪。
-- JSON/Markdown 都标记 privateKnowledge；本地 CLI 的存储和索引在内存，退出后销毁。
+- JSON/Markdown 都标记 privateKnowledge；本地 CLI 默认内存；显式 --state 保存 Run/Artifact，索引仍重建。
 - 重复 Trigger 不重复请求来源或模型，新的任务重新读取。
-- 生成期间来源改变不会覆盖已引用片段。历史依赖索引与过期分析后续实现。
+- 生成期间来源改变不会覆盖已引用片段。当前可按已保存 Run 的实际知识引用显式检查变化；全局依赖索引与自动通知后续实现。
 
 ## 失败、安全与降级
 
@@ -117,6 +119,8 @@ flowchart TD
 
 ### 主要实现
 
+- `backend/src/platform/persistence/sqliteStore.ts`：可选私有运行记录。
+- `backend/src/knowledge/impact/service.ts`：复核已引用规则的当前文档版本。
 - `backend/src/domains/release/plugin.ts`：取证、模型调用、追踪与产物。
 - `backend/src/domains/release/evidence.ts`：事实引用、草稿校验和 Markdown。
 - `backend/src/domains/release/webPlugin.ts`：网页来源组合。
@@ -137,3 +141,4 @@ flowchart TD
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
 | 2026-11-05 | 新增只读发布准备插件、网页组合、CLI 与共享引用核验 | 17 项发布专项、干净安装类型检查与后端 487 通过 / 1 TAPD 跳过；真实公开仓库 collect；生成使用本地模拟模型，不声明真实模型质量 |
+| 2026-11-05 | 发布 CLI 可选保存记录，原知识身份供独立 impact 复核；不修改原发布草稿 | 发布回归与跨进程状态验证 |

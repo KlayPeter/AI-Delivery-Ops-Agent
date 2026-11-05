@@ -3,6 +3,7 @@ import { contentHash } from '../markdown/parser';
 import { knowledgeSearchInput, rankNotes } from '../search';
 import { fetchPublicPage, publicPageUrl } from './network';
 import { parsePage } from './parser';
+import { versionRequest } from '../versions';
 
 const urlInput = z.string().trim().min(1).max(1024).transform((value, ctx) => {
     try { return publicPageUrl(value).href; }
@@ -36,14 +37,32 @@ export class WebKnowledgeSource {
             hits: rankNotes(snapshot.pages.map(page => page.note), input.query, signal).slice(0, input.limit).map(({ note, chunk, score, matching }) => {
                 const page = byUrl.get(note.path)!;
                 return {
-                    citationId: contentHash(JSON.stringify([this.config.sourceId, note.path, note.version, chunk.index, chunk.heading, chunk.lineStart, chunk.lineEnd, chunk.text])),
+                    citationId: contentHash(JSON.stringify([this.sourceKey(note.path), note.path, note.version, chunk.index, chunk.heading, chunk.lineStart, chunk.lineEnd, chunk.text])),
                     sourceId: this.config.sourceId, path: note.path, title: note.title, documentVersion: note.version,
+                    sourceKey: this.sourceKey(note.path),
                     heading: chunk.heading, lineStart: chunk.lineStart, lineEnd: chunk.lineEnd, excerpt: chunk.text, score, matching,
                     openUri: page.finalUrl, sourceKind: 'web', lineBasis: 'extracted_text', fetchedAt: page.fetchedAt,
                 };
             }),
         };
     }
+
+    async versions(value: unknown, signal?: AbortSignal) {
+        const input = versionRequest.parse(value);
+        const snapshot = await this.refresh(signal);
+        const current = new Map(snapshot.pages.map(page => [page.url, page.note.version]));
+        return {
+            checkedAt: snapshot.report.syncedAt,
+            documents: input.documents.map(reference => {
+                const currentVersion = current.get(reference.path);
+                const status = !this.config.urls.includes(reference.path) || reference.sourceKey !== this.sourceKey(reference.path) ? 'out_of_scope' as const
+                    : !currentVersion ? 'unavailable' as const : currentVersion === reference.documentVersion ? 'current' as const : 'changed' as const;
+                return { ...reference, status, ...(status === 'current' || status === 'changed' ? { currentVersion } : {}) };
+            }),
+        };
+    }
+
+    private sourceKey(url: string) { return contentHash(JSON.stringify(['web', this.config.sourceId, url])); }
 
     private refresh(signal?: AbortSignal) {
         const pending = this.tail.then(() => this.readSnapshot(signal));

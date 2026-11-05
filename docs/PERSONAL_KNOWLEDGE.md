@@ -1,6 +1,6 @@
 # 使用自己的 Markdown / Obsidian 笔记与公开链接
 
-当前支持只读 Markdown/Obsidian 与公开单页 URL、内容版本、同步、关键词检索，以及显式启用的 RAG 回答。query/sync 不调用模型；网页模式会请求选定网站，ask 还会将问题和选中片段发送给配置的模型。知识回写、联合检索和历史产物过期提醒尚未实现。见[文件来源功能卡](../backend/src/knowledge/markdown/FEATURE.md)、[网页功能卡](../backend/src/knowledge/web/FEATURE.md)、[回答功能卡](../backend/src/knowledge/answer/FEATURE.md)与[设计方案](PERSONAL_KNOWLEDGE_DESIGN.md)。
+当前支持只读 Markdown/Obsidian 与公开单页 URL、内容版本、同步、关键词检索，以及显式启用的 RAG 回答。query/sync 不调用模型；网页模式会请求选定网站，ask 还会将问题和选中片段发送给配置的模型。知识回写、联合检索和持续自动通知尚未实现；已保存 Run 可用独立[知识变更检查](KNOWLEDGE_IMPACT.md)显式复核实际引用。见[文件来源功能卡](../backend/src/knowledge/markdown/FEATURE.md)、[网页功能卡](../backend/src/knowledge/web/FEATURE.md)、[回答功能卡](../backend/src/knowledge/answer/FEATURE.md)与[设计方案](PERSONAL_KNOWLEDGE_DESIGN.md)。
 
 ## 先运行虚构样例
 
@@ -19,7 +19,7 @@ bun run src/scripts/knowledge.ts --root examples/knowledge-vault --query 'API �
 bun run src/scripts/knowledge.ts --root examples/knowledge-vault
 ```
 
-这些 query/sync 命令不需要模型密钥、飞书或 TAPD。CLI 只启动本地 Host，运行记录和索引保存在内存；不启动 HTTP 服务，也不连接消息平台。
+这些 query/sync 命令不需要模型密钥、飞书或 TAPD。CLI 只启动本地 Host，默认运行记录和索引保存在内存；加 --state 可保存运行记录，索引仍重建；不启动 HTTP 服务，也不连接消息平台。
 
 ## 连接选定笔记目录
 
@@ -57,7 +57,7 @@ bun run src/scripts/knowledge.ts --url https://example.com/ --url https://exampl
 
 每个 URL 校验公开网络与 DNS，重定向最多三次且每跳重验，不允许 HTTPS 降级。默认每页 5 秒/512 KiB、整轮 2 MiB，超出或失败会显示在报告中；私网、本机、云元数据与非标准端口拒绝。原生插件属于可信代码，这些网络限制由来源实现执行。
 
-网页报告包含原始/最终 URL、fetchedAt、rawVersion、文档版本和 extraction。引用的 `lineBasis=extracted_text` 表示行号来自提取文本，不能直接当成 HTML 源码行号；openUri 打开当前原文，不是历史快照。单页读取失败会从本轮索引移除旧内容并返回 partial；整轮预算失败或取消则不返回旧索引。当前索引与变化比较仅存在于同一进程。
+网页报告包含原始/最终 URL、fetchedAt、rawVersion、文档版本和 extraction。引用的 `lineBasis=extracted_text` 表示行号来自提取文本，不能直接当成 HTML 源码行号；openUri 打开当前原文，不是历史快照。单页读取失败会从本轮索引移除旧内容并返回 partial；整轮预算失败或取消则不返回旧索引。当前索引与变化比较仅存在于同一进程。显式 --state 保存运行证据，历史引用可跨进程复核。
 
 知识也可用于[只读发布准备](RELEASE_PREPARATION.md)：把仓库 PR/Issue 与选定规则放在同一任务中生成带引用草稿。
 
@@ -80,7 +80,7 @@ bun run src/scripts/knowledge.ts --root examples/knowledge-vault --ask 'API 不�
 
 无关键词命中时直接返回 `insufficient_evidence`，不调用模型；模型判断证据不足时也可返回该状态。非法 JSON、伪造引用、错误引文、无引用结论和模型服务错误会让运行失败，不生成答案 Artifact。部分索引与上下文截断会在 `retrieval` 中保留标记。当前使用关键词检索增强生成，不包括向量检索。
 
-生成阶段没有 Tool 或人工输入函数，也不会进入等待恢复状态。补充笔记后可重新提问。答案保留检索时的内容版本；源文件随后改变时，尚不会自动标记历史答案过期。
+生成阶段没有 Tool 或人工输入函数，也不会进入等待恢复状态。补充笔记后可重新提问。答案保留检索时的内容版本；源文件随后改变时，可用 --check-run 显式检查已保存答案的实际引用；尚未提供持续自动监控。
 
 ## 看懂结果
 
@@ -94,6 +94,10 @@ bun run src/scripts/knowledge.ts --root examples/knowledge-vault --ask 'API 不�
 源文件删除或失效后不会继续出现在新查询中。根目录、遍历或整轮预算失败时命令以非零状态退出，不返回旧索引。单个文件失败则在报告中明确列出，其他有效笔记仍可查询。
 
 默认上限为 2000 份 Markdown、单份 1 MiB、整轮 32 MiB；另有遍历、深度、段落与链接数量限制。更大知识库需要后续持久化索引与规模验证，不能直接扩大上限来承诺性能。
+
+## 保存记录与检查旧结果
+
+query/sync/ask 可选传 `--state ../data/personal-runtime.sqlite` 保存私有运行记录。之后传同一 state、来源与 `--check-run <runId>` 检查实际引用版本；加 `--impact-status` 只读最近一次评估，不刷新来源。详见[完整操作与状态说明](KNOWLEDGE_IMPACT.md)。
 
 ## 插件方式
 

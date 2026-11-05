@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { z } from 'zod';
 import { contentHash, parseNote, resolveNoteLinks, type MarkdownNote, type ResolvedNoteLink } from './parser';
 import { knowledgeSearchInput, rankNotes } from '../search';
+import { versionRequest } from '../versions';
 
 const excludedPath = z.string().trim().min(1).refine(value => !path.isAbsolute(value) && !value.startsWith('\\')
     && !/^[A-Za-z]:|[\0*?\[\]]/.test(value) && !value.replace(/\\/g, '/').split('/').some(part => part === '..' || part === '.'), 'Use a relative file or directory prefix, without glob patterns');
@@ -21,6 +22,9 @@ export type MarkdownSourceConfig = z.input<typeof markdownSourceConfig>;
 
 interface Snapshot {
     notes: MarkdownNote[];
+    sourceKey: string;
+    failedPaths: Set<string>;
+    skippedPaths: Set<string>;
     links: Map<string, ResolvedNoteLink[]>;
     report: {
         sourceId: string; version: string; syncedAt: string; indexed: number; added: string[]; changed: string[]; removed: string[];
@@ -46,13 +50,31 @@ export class MarkdownKnowledgeSource {
         return {
             source: structuredClone(snapshot.report), query: input.query, retrieval: 'keyword' as const,
             hits: scored.slice(0, input.limit).map(({ note, chunk, score, matching }) => ({
-                citationId: contentHash(JSON.stringify([this.config.sourceId, note.path, note.version, chunk.index, chunk.heading, chunk.lineStart, chunk.lineEnd, chunk.text])),
+                citationId: contentHash(JSON.stringify([snapshot.sourceKey, note.path, note.version, chunk.index, chunk.heading, chunk.lineStart, chunk.lineEnd, chunk.text])),
                 sourceId: this.config.sourceId, path: note.path, title: note.title, documentVersion: note.version,
+                sourceKind: 'markdown' as const, sourceKey: snapshot.sourceKey,
                 heading: chunk.heading, lineStart: chunk.lineStart, lineEnd: chunk.lineEnd, excerpt: chunk.text,
                 score, matching,
                 openUri: this.config.vaultName ? `obsidian://open?vault=${encodeURIComponent(this.config.vaultName)}&file=${encodeURIComponent(note.path)}` : undefined,
                 links: snapshot.links.get(note.path)!.slice(0, 3).map(link => ({ ...link, paths: link.paths.slice(0, 3) })),
             })),
+        };
+    }
+
+    async versions(value: unknown, signal?: AbortSignal) {
+        const input = versionRequest.parse(value);
+        const snapshot = await this.refresh(signal);
+        const current = new Map(snapshot.notes.map(note => [note.path, note.version]));
+        return {
+            checkedAt: snapshot.report.syncedAt,
+            documents: input.documents.map(reference => {
+                const skipped = [...snapshot.skippedPaths].some(prefix => reference.path === prefix || reference.path.startsWith(`${prefix}/`));
+                const currentVersion = current.get(reference.path);
+                const status = reference.sourceKey !== snapshot.sourceKey || skipped ? 'out_of_scope' as const
+                    : snapshot.failedPaths.has(reference.path) ? 'unavailable' as const
+                    : !currentVersion ? 'missing' as const : currentVersion === reference.documentVersion ? 'current' as const : 'changed' as const;
+                return { ...reference, status, ...(status === 'current' || status === 'changed' ? { currentVersion } : {}) };
+            }),
         };
     }
 
@@ -68,6 +90,7 @@ export class MarkdownKnowledgeSource {
         if (!(await lstat(root)).isDirectory()) throw new Error('Knowledge root must be a directory');
         const old = new Map(this.snapshot?.notes.map(note => [note.path, note]) || []);
         const notes: MarkdownNote[] = [];
+        const failedPaths = new Set<string>(), skippedPaths = new Set<string>();
         const failures: Array<{ path: string; reason: string }> = [];
         const excluded = this.config.exclude.map(value => value.replace(/\\/g, '/').replace(/\/$/, ''));
         let entries = 0, files = 0, bytes = 0, skipped = 0, failed = 0, unsupportedAttachments = 0, chunks = 0;
@@ -79,7 +102,7 @@ export class MarkdownKnowledgeSource {
                 if (++entries > 10_000) throw new Error('Knowledge scan exceeds 10000 directory entries');
                 const relativePath = relative ? `${relative}/${child.name}` : child.name;
                 if (Buffer.byteLength(relativePath) > 1024) throw new Error('Knowledge path exceeds 1024 bytes');
-                if (child.name.startsWith('.') || excluded.some(prefix => relativePath === prefix || relativePath.startsWith(`${prefix}/`)) || child.isSymbolicLink()) { skipped++; continue; }
+                if (child.name.startsWith('.') || excluded.some(prefix => relativePath === prefix || relativePath.startsWith(`${prefix}/`)) || child.isSymbolicLink()) { skipped++; skippedPaths.add(relativePath); continue; }
                 const filename = path.join(directory, child.name);
                 const resolved = await realpath(filename);
                 const boundary = path.relative(root, resolved);
@@ -113,6 +136,7 @@ export class MarkdownKnowledgeSource {
                     signal?.throwIfAborted();
                     if (bytes > source.config.maxTotalBytes || chunks > 20_000) throw error;
                     failed++;
+                    failedPaths.add(relativePath);
                     if (failures.length < 25) failures.push({ path: relativePath, reason: error instanceof Error ? error.message.slice(0, 256) : 'Cannot read note' });
                 } finally { await handle?.close(); }
             }
@@ -126,7 +150,8 @@ export class MarkdownKnowledgeSource {
         const changed = notes.filter(note => old.has(note.path) && old.get(note.path)!.version !== note.version).map(note => note.path).sort();
         const removed = [...old.keys()].filter(name => !current.has(name)).sort();
         const snapshot: Snapshot = {
-            notes, links: linksByPath,
+            notes, links: linksByPath, failedPaths, skippedPaths,
+            sourceKey: contentHash(JSON.stringify(['markdown', this.config.sourceId, root])),
             report: {
                 sourceId: this.config.sourceId, version: contentHash(notes.map(note => `${note.path}:${note.version}`).sort().join('\n')),
                 syncedAt: new Date().toISOString(), indexed: notes.length,
