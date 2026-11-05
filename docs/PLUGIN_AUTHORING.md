@@ -45,7 +45,7 @@ await host.stop();
 AGENT_PLUGINS_FILE=profiles/agents/team.yaml bun run dev
 ```
 
-团队 SDK 未指定插件时默认组合为九个功能插件、七个 Agent；HTTP 工作台额外装配选定知识来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收与 MCP 接入助手，共 18 个插件、15 个 Agent；配置 GitHub 发布组合后为 20 个插件、16 个 Agent。会议纪要和外部 AI Hot 调度插件没有独立 Agent。会议纪要仍受原有模块开关控制，外部 AI Hot 能力仍需另行安装。示例还包括 `profiles/agents/native-demo.yaml`、`profiles/agents/empty.yaml` 和 `backend/examples/plugins.collectors.yaml`，分别选择 Echo 模板、零业务插件和采集/资料库三个插件。显式插件文件完全决定组合；未装配的插件页面和 API 不开放，基础服务仍由应用拥有。
+团队 SDK 未指定插件时仍为九个功能插件、七个 Agent；HTTP 工作台默认只装配选定知识来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收与 MCP 接入助手，共九个插件、八个 Agent；配置 GitHub 发布组合后为 11 个插件、9 个 Agent。HTTP 不再隐式装配团队能力；使用 profiles/agents/team.yaml 可显式选择原九个团队插件。会议纪要和外部 AI Hot 调度插件没有独立 Agent。会议纪要仍受原有模块开关控制，外部 AI Hot 能力仍需另行安装。示例还包括 `profiles/agents/native-demo.yaml`、`profiles/agents/empty.yaml` 和 `backend/examples/plugins.collectors.yaml`，分别选择 Echo 模板、零业务插件和采集/资料库三个插件。显式插件文件完全决定组合；未装配的插件页面和 API 不开放，基础服务仍由应用拥有。
 
 ```yaml
 apiVersion: '1.0'

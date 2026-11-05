@@ -4,25 +4,25 @@ import { Link, Outlet, useLocation } from 'react-router-dom';
 import { AppstoreOutlined, CheckSquareOutlined, CodeOutlined, DashboardOutlined, DatabaseOutlined, DesktopOutlined, FileTextOutlined, HistoryOutlined, MenuOutlined, RobotOutlined, ScheduleOutlined, SettingOutlined, UnorderedListOutlined, ApiOutlined } from '@ant-design/icons';
 import logo from '../assets/logo.svg';
 import { useWorkspace } from '@/pages/workspace/state';
-import { activePluginPage, type PluginPage } from '@/pages/workspace/pages';
+import { activePluginPage, hasTeamNavigation, type PluginPage } from '@/pages/workspace/pages';
 
 const link = (path: string, label: string) => <Link to={path}>{label}</Link>;
 const pluginIcons: Record<string, React.ReactNode> = { knowledge: <DatabaseOutlined aria-hidden />, standups: <CheckSquareOutlined aria-hidden />, dashboard: <DashboardOutlined aria-hidden />, 'human-gantt': <ScheduleOutlined aria-hidden />, 'weekly-reports': <FileTextOutlined aria-hidden />, 'meeting-summaries': <FileTextOutlined aria-hidden /> };
 const pluginLinks = (pages: PluginPage[], section: PluginPage['section']) => pages.filter(page => page.section === section && page.navigation !== false).map(page => ({ key: page.path, icon: page.view.kind === 'builtin' ? pluginIcons[page.view.id] || <RobotOutlined aria-hidden /> : <RobotOutlined aria-hidden />, label: link(page.path, page.label) }));
-const items = (pages: PluginPage[]) => [
+const items = (pages: PluginPage[], manualJobs: string[]) => [
   { key: '/', icon: <AppstoreOutlined aria-hidden />, label: link('/', '工作台') },
   { key: '/runs', icon: <HistoryOutlined aria-hidden />, label: link('/runs', '运行记录') },
   { key: '/agents', icon: <RobotOutlined aria-hidden />, label: link('/agents', 'Agent') },
   ...pluginLinks(pages, 'workspace'),
   { key: '/plugins', icon: <AppstoreOutlined aria-hidden />, label: link('/plugins', '插件') },
-  { type: 'divider' as const },
+  ...(hasTeamNavigation(pages, manualJobs) ? [{ type: 'divider' as const },
   { key: 'team', label: '团队交付', icon: <ScheduleOutlined aria-hidden />, children: [
     ...pluginLinks(pages, 'team'),
-    { key: '/debug', icon: <CodeOutlined aria-hidden />, label: link('/debug', '业务任务') },
-  ] },
+    ...(manualJobs.length ? [{ key: '/debug', icon: <CodeOutlined aria-hidden />, label: link('/debug', '业务任务') }] : []),
+  ] }] : []),
   { key: 'manage', type: 'group' as const, label: '管理', children: [
     { key: '/connections', icon: <ApiOutlined aria-hidden />, label: link('/connections', '连接与模型') },
-    { key: '/config', icon: <SettingOutlined aria-hidden />, label: link('/config', '定时与团队配置') },
+    ...(hasTeamNavigation(pages, manualJobs) ? [{ key: '/config', icon: <SettingOutlined aria-hidden />, label: link('/config', '定时与团队配置') }] : []),
     { key: '/logs', icon: <UnorderedListOutlined aria-hidden />, label: link('/logs', '审计日志') },
     { key: '/contexts', icon: <DatabaseOutlined aria-hidden />, label: link('/contexts', '上下文') },
   ] },
@@ -36,7 +36,7 @@ export const MainLayout = () => {
   const [openSections, setOpenSections] = useState<string[]>([]);
   const pages = data?.pages || [];
   const activePage = activePluginPage(pages, location.pathname, location.search);
-  const navigation = <nav aria-label="主导航"><Menu mode="inline" openKeys={activePage?.section === 'team' ? [...new Set([...openSections, 'team'])] : openSections} onOpenChange={setOpenSections} selectedKeys={[activePage?.path || location.pathname]} items={items(pages)} onClick={() => setNavigationOpen(false)} /></nav>;
+  const navigation = <nav aria-label="主导航"><Menu mode="inline" openKeys={activePage?.section === 'team' ? [...new Set([...openSections, 'team'])] : openSections} onOpenChange={setOpenSections} selectedKeys={[activePage?.path || location.pathname]} items={items(pages, data?.manualJobs || [])} onClick={() => setNavigationOpen(false)} /></nav>;
   return <Layout className="app-shell">
     <a className="skip-link" href="#main-content">跳到主要内容</a>
     <Layout.Sider width={216} theme="light" className="app-sidebar">

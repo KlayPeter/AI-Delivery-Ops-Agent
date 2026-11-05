@@ -83,6 +83,8 @@ flowchart LR
     QC --> O
 ```
 
+HTTP 默认只装配个人知识、采集、验收与工具接入插件。下表 active 表示能力可启用，不表示团队能力会自动装配；原团队组合通过 profiles/agents/team.yaml 显式选择。
+
 ## 1. 当前功能
 
 | Feature ID | 功能 | 状态 | 运行时 Agent 映射 | 功能文档 |

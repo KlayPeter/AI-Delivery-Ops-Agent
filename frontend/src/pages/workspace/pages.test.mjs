@@ -1,6 +1,26 @@
 import { test } from 'bun:test';
 import assert from 'node:assert/strict';
-import { findPluginPage, pluginAgentHref, activePluginPage, agentPageHref } from './pages.ts';
+import { findPluginPage, pluginAgentHref, activePluginPage, agentPageHref, hasTeamNavigation, defaultCapability } from './pages.ts';
+
+test('default capability uses installed active agents and preserves explicit unavailable links', () => {
+  const personal = [{ status: 'inactive', capabilities: ['delivery.ops.orchestrate'] }, { status: 'active', capabilities: ['knowledge.markdown.retrieve'] }];
+  assert.equal(defaultCapability(personal), 'knowledge.markdown.retrieve');
+  assert.equal(defaultCapability(personal, 'missing.capability'), 'missing.capability');
+  assert.equal(defaultCapability([...personal, { status: 'active', capabilities: ['delivery.ops.orchestrate'] }]), 'delivery.ops.orchestrate');
+  assert.equal(defaultCapability([{ status: 'active', capabilities: ['example.echo'] }]), 'example.echo');
+  assert.equal(defaultCapability([{ status: 'inactive', capabilities: ['example.echo'] }]), '');
+  assert.equal(defaultCapability(), '');
+});
+
+test('team navigation requires a visible contributed team page or an owned manual job', () => {
+  const workspace = { path: '/knowledge', section: 'workspace' };
+  const hidden = { path: '/meeting-summaries', section: 'team', navigation: false };
+  const visible = { path: '/standups', section: 'team' };
+  assert.equal(hasTeamNavigation(), false);
+  assert.equal(hasTeamNavigation([workspace, hidden]), false);
+  assert.equal(hasTeamNavigation([visible]), true);
+  assert.equal(hasTeamNavigation([], ['daily-summary']), true);
+});
 
 test('only installed plugin pages resolve, including a trailing slash', () => {
   const page = { path: '/standups', label: '站会统计', section: 'team', view: { kind: 'builtin', id: 'standups' } };

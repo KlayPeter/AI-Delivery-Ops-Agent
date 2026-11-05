@@ -27,6 +27,7 @@ bun run setup
 
 无需凭据即可启动、检索虚构示例知识和收集公开网页。飞书 App ID 和 Secret
 均留空时不连接，只填一项会拒绝启动；TAPD 与模型参数仅在调用相应能力时需要。
+HTTP 默认只装配个人知识、采集、验收与工具接入能力；团队业务使用已有 team.yaml 显式选择。
 前端与自己的资料接入见[本地运行](../docs/LOCAL_DEVELOPMENT.md)。文档导入需另外
 安装[固定版本 MarkItDown 环境](../docs/DOCUMENT_IMPORT.md)。
 

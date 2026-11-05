@@ -7,6 +7,7 @@ import dayjs from 'dayjs';
 import { api } from '@/api';
 import { capabilityName, errorMessage, needsModel, useWorkspace, type RunInfo } from './state';
 import { prepareInput } from './input';
+import { defaultCapability } from './pages';
 import RunDrawer, { RunStatus } from './RunDrawer';
 
 export default function WorkspacePage({ history = false }: { history?: boolean }) {
@@ -19,9 +20,9 @@ export default function WorkspacePage({ history = false }: { history?: boolean }
   const [runId, setRunId] = useState<string | null>(null);
   const [groupId, setGroupId] = useState<string>();
   const [filter, setFilter] = useState('');
-  const capability = params.get('capability') || 'delivery.ops.orchestrate';
-  const agent = data?.agents.find(item => item.capabilities.includes(capability));
-  const retrieval = data?.agents.flatMap(item => item.capabilities).find(value => ['knowledge.markdown.retrieve', 'knowledge.web.retrieve'].includes(value));
+  const capability = defaultCapability(data?.agents, params.get('capability'));
+  const agent = data?.agents.find(item => item.status === 'active' && item.capabilities.includes(capability));
+  const retrieval = data?.agents.filter(item => item.status === 'active').flatMap(item => item.capabilities).find(value => ['knowledge.markdown.retrieve', 'knowledge.web.retrieve'].includes(value));
   const groupTask = ['summary.daily.generate', 'summary.weekly.generate', 'dashboard.project.generate'].includes(capability);
   const { data: config } = useSWR(groupTask ? 'workspace-team-config' : null, api.fetchConfig);
   const requiresModel = needsModel(agent);
@@ -52,17 +53,18 @@ export default function WorkspacePage({ history = false }: { history?: boolean }
           <label className="sr-only" htmlFor="task-prompt">任务内容</label>
           <Input.TextArea id="task-prompt" className="task-input" value={prompt} onChange={e => setPrompt(e.target.value)} autoSize={{ minRows: 4, maxRows: 12 }} maxLength={4000} placeholder={capability === 'knowledge.impact.check' ? '填写历史回答或发布草稿的运行 ID，多项用逗号或空格分隔…' : capability.startsWith('knowledge.') ? '输入你想检索或回答的问题…' : '描述你想完成的工作，例如：帮我梳理本周项目的风险与下一步安排…'} />
           {groupTask && <div className="group-picker"><label htmlFor="run-group">目标团队</label><Select id="run-group" placeholder="选择已配置的群组" value={groupId} onChange={setGroupId} options={(config?.groups || []).map((g: { chat_id: string; name?: string }) => ({ value: g.chat_id, label: g.name || g.chat_id }))} notFoundContent={<Link to="/config">先配置团队</Link>} /></div>}
-          <div className="composer-footer"><div className="agent-picker"><label htmlFor="task-agent">执行能力</label><Select id="task-agent" value={capability} onChange={selectCapability} options={data?.agents.filter(a => a.status === 'active').flatMap(a => a.capabilities.map(value => ({ value, label: capabilityName(value, a.name) })))} /></div>
+          <div className="composer-footer"><div className="agent-picker"><label htmlFor="task-agent">执行能力</label><Select id="task-agent" aria-label="执行能力" placeholder="选择已装配的能力" value={capability || undefined} onChange={selectCapability} options={data?.agents.filter(a => a.status === 'active').flatMap(a => a.capabilities.map(value => ({ value, label: capabilityName(value, a.name) })))} /></div>
             <Button type="primary" icon={<ArrowUpOutlined aria-hidden />} loading={running} onClick={execute} disabled={!agent || (!jsonInput.trim() && (groupTask ? !groupId : !prompt.trim())) || Boolean(requiresModel && !data?.modelConfigured)}>开始执行</Button>
           </div>
-          {requiresModel && !data?.modelConfigured && <div className="composer-notice">此能力需要模型服务。<Link to="/connections">去连接模型 <ArrowRightOutlined aria-hidden /></Link>，也可以先体验下方的笔记检索。</div>}
+          {!agent && !error && <div className="composer-notice">{capability ? '此能力当前未启用，请选择可用 Agent，或检查插件配置。' : '当前组合没有可用 Agent。'}<Link to="/plugins">查看插件</Link></div>}
+          {requiresModel && !data?.modelConfigured && <div className="composer-notice">此能力需要模型服务。<Link to="/connections">去连接模型 <ArrowRightOutlined aria-hidden /></Link>{retrieval ? '，也可以先体验下方的笔记检索。' : '。'}</div>}
           {capability === 'knowledge.impact.check' && <div className="composer-notice">也可以在<Link to="/runs">历史结果详情</Link>中直接点击「检查引用变化」。</div>}
           {capability === 'release.prepare' && <div className="composer-notice">在<Link to="/release">发布准备页面</Link>选择时间段和个人规则，或使用下方高级参数。</div>}
           <Collapse ghost className="advanced-input" items={[{ key: 'input', label: '高级任务参数', children: <><p className="muted">为已安装插件提供结构化输入；填写后替代上方任务描述。</p><Input.TextArea aria-label="JSON 任务参数" value={jsonInput} onChange={e => setJsonInput(e.target.value)} placeholder={'{ "prompt": "任务描述" }'} rows={4} /></> }]} />
         </section>
         {runError && <Alert type="error" showIcon title="任务未能发起" description={runError} />}
         <div className="quick-actions">
-          {retrieval ? <button onClick={() => { selectCapability(retrieval); setPrompt('API 迁移说明'); }}><FileSearchOutlined aria-hidden /><span><strong>从知识库开始</strong><small>检索已有笔记，查看原文证据</small></span><ArrowRightOutlined aria-hidden /></button> : <Link to="/plugins"><FileSearchOutlined aria-hidden /><span><strong>查看知识插件</strong><small>按需装配个人知识能力</small></span><ArrowRightOutlined aria-hidden /></Link>}
+          {retrieval ? <button onClick={() => { selectCapability(retrieval); if (data?.knowledgeKind === 'sample') setPrompt('API 迁移说明'); }}><FileSearchOutlined aria-hidden /><span><strong>从知识库开始</strong><small>检索已有笔记，查看原文证据</small></span><ArrowRightOutlined aria-hidden /></button> : <Link to="/plugins"><FileSearchOutlined aria-hidden /><span><strong>查看知识插件</strong><small>按需装配个人知识能力</small></span><ArrowRightOutlined aria-hidden /></Link>}
           <Link to="/agents"><RobotOutlined aria-hidden /><span><strong>选择专业 Agent</strong><small>查看当前可用能力与执行方式</small></span><ArrowRightOutlined aria-hidden /></Link>
         </div>
       </>}

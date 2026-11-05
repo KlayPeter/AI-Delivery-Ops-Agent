@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { deliveryTeamPlugins } from '@/agents/plugins/builtins';
-import { workspaceKnowledge } from '@/platform/workspace/knowledge';
+import { loadWorkspacePlugins } from '@/platform/workspace/composition';
 
 test('local plugin configuration stays ignored in every folder while public examples remain visible', async () => {
     const directory = await mkdtemp(path.join(tmpdir(), 'public-plugin-ignore-'));
@@ -49,9 +49,9 @@ test('homepage composition counts match the actual default, GitHub and SDK plugi
     const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
     try {
         for (const key of keys) delete process.env[key];
-        const defaults = [...deliveryTeamPlugins, ...workspaceKnowledge('/tmp/composition-count-test').plugins];
+        const defaults = (await loadWorkspacePlugins('/tmp/composition-count-test', '')).plugins;
         process.env.RELEASE_GITHUB_REPOSITORY = 'example/project';
-        const github = [...deliveryTeamPlugins, ...workspaceKnowledge('/tmp/composition-count-test').plugins];
+        const github = (await loadWorkspacePlugins('/tmp/composition-count-test', '')).plugins;
         for (const [label, plugins] of [['默认 HTTP 工作台', defaults], ['配置 GitHub 后', github], ['团队 SDK', deliveryTeamPlugins]] as const) {
             const row = markdown.split('\n').find(line => line.startsWith(`| ${label} |`));
             expect(row).toBeDefined();

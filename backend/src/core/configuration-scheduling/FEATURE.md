@@ -24,6 +24,8 @@ flowchart TD
     LC --> LF[私有文件·校验·原子保存]
     LF --> BOOT[重启注入环境配置]
     BOOT --> PH
+    PERSONAL[HTTP 默认个人组合：九插件八 Agent] --> PH
+    TEAM[显式 team.yaml：九插件七 Agent] --> PH
     PC["可信插件配置 / 重启生效"] --> PH["Agent、Tool、Skill、消息与群调度装配"]
     PH --> COL[可选网页/文档插件及其页面、上传 API]
     COL --> E
@@ -90,7 +92,7 @@ flowchart TD
 
 ## 核心规则
 
-`AGENT_PLUGINS_FILE` 属于重启生效的可信代码装配配置，选择 Agent、Tool、Skill、确定性消息与群业务调度贡献。默认九个功能插件提供七个 Agent；移除插件关闭其指令、引用、帮助和群业务计划，但现有业务 API、全局维护/成员同步、Web 页面与飞书连接尚未全部跟随。动态业务配置重载复用同一个消息注册表，不重复装配路由。
+`AGENT_PLUGINS_FILE` 属于重启生效的可信代码装配配置，选择 Agent、Tool、Skill、确定性消息与群业务调度贡献。团队 SDK/显式团队组合的九个功能插件提供七个 Agent；移除插件关闭其指令、引用、帮助和群业务计划，但现有业务 API、全局维护/成员同步、Web 页面与飞书连接尚未全部跟随。动态业务配置重载复用同一个消息注册表，不重复装配路由。
 
 自动调度统一通过 `backend/src/core/scheduleCalendar.ts` 判断群级 `schedule.calendar`。指定日期的触发/暂停优先于基础策略；`workdays` 使用中国工作日（含调休），`every_day` 不限制节假日，`selected_dates` 仅执行指定触发日。日期放行不绕过模块开关、任务开关或原定时刻，手动触发不受该日历限制。未配置或 `legacy` 保留原有 `workdays_only` 规则及周报、承诺到期提醒的例外；无效日期与非布尔覆盖值在读取配置时丢弃。
 
@@ -119,9 +121,13 @@ flowchart TD
 
 Debug 与 /api/jobs 统一使用 PluginWebRegistry 的 manualJobs。站会声明六项，任务/日报/看板各声明一项，默认仍为九项；空组合拒绝所有原有业务手动任务，不再回退全局执行器。执行遵守原有日期、工作日、预览与 sendToGroup；Host 停止等待在途任务。它是原有确定性 Job 的选择协议，不是另一种工作流语言或任意命令入口。
 
-来源设置新增 library，明确选择应用资料库；不接受另一个写入目录。宿主用启动时实际 data_path 装配对应 Markdown 来源；保存后仍需重启。资料库插件创建独立范围目录并在启动时恢复自身暂存，无新增定时器。默认 HTTP 为 17 个插件/14 个 Agent，显式组合优先。验证：backend/test/knowledgeLibrary.test.ts 及 workspace.test.ts。
+来源设置新增 library，明确选择应用资料库；不接受另一个写入目录。宿主用启动时实际 data_path 装配对应 Markdown 来源；保存后仍需重启。资料库插件创建独立范围目录并在启动时恢复自身暂存，无新增定时器。默认 HTTP 为九个插件/八个 Agent，显式组合优先。验证：backend/test/knowledgeLibrary.test.ts 及 workspace.test.ts。
 
 默认个人组合增加独立结果验收插件，无新增定时器或外部连接；SDK 默认组合保持。规则来自已装配 FeaturePlugin.checks，不能经页面上传新 Schema 或脚本。卸载提供者释放规则，卸载 quality.checks 关闭页面/API/Agent。验证：backend/test/pluginChecks.test.ts。
+
+## 默认个人与按需团队
+
+HTTP 不再隐式加载团队插件。团队导航与定时配置入口仅在可见团队页面或已授权手动任务存在时显示；核心 /api/config 仍由宿主提供，此处是展示规则，不是 API 授权。默认个人组合没有团队业务任务/站会、看板及周报插件 API。飞书/TAPD 仍可填写并保存连接，但使用相应业务需要显式选择 profiles/agents/team.yaml；切换同一目录保留配置与历史。验证：backend/test/workspaceComposition.test.ts、frontend/src/pages/workspace/pages.test.mjs 与浏览器个人/团队切换。
 
 ## 用户能力
 

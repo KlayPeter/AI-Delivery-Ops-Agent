@@ -1,6 +1,4 @@
 import { createDeliveryOpsHost } from './agents/host';
-import { deliveryTeamPlugins } from './agents/plugins/builtins';
-import { loadPluginConfiguration } from './platform/plugins/configuration';
 import { DELIVERY_OPS_CAPABILITY } from './agents/orchestrator/deliveryOpsAgent';
 import { Elysia } from 'elysia';
 import { cors } from '@elysiajs/cors';
@@ -36,7 +34,7 @@ import { DEFAULT_BOT_INSTANCE_ID } from './platform/runtime/scope';
 import { AI_NEWS_RADAR_CAPABILITY } from './agents/native/ai-news-radar/aiNewsRadarAgent';
 import { createAiNewsIntentRouter } from './agents/native/ai-news-radar/intent';
 import { isLocalWorkspaceRequest, LocalConnections } from './platform/workspace/connections';
-import { workspaceKnowledge } from './platform/workspace/knowledge';
+import { loadWorkspacePlugins } from './platform/workspace/composition';
 import { createWorkspaceApi, createPluginApi } from './platform/workspace/api';
 import { createManualJobsApi } from './platform/workspace/jobsApi';
 
@@ -110,16 +108,12 @@ let intentParser = new MessageIntentParser(llm);
 
 await reloadConfig();
 
-const pluginSelection = process.env.AGENT_PLUGINS_FILE
-    ? await loadPluginConfiguration(process.env.AGENT_PLUGINS_FILE, deliveryTeamPlugins)
-    : (() => {
-        const personalKnowledge = workspaceKnowledge(config.data_path);
-        return { plugins: [...deliveryTeamPlugins, ...personalKnowledge.plugins], config: personalKnowledge.config };
-    })();
+const pluginSelection = await loadWorkspacePlugins(config.data_path);
 agentHost = createDeliveryOpsHost(() => (handler as any).ctx, 1000, undefined, [], {
     messageRoutes,
     schedules,
-    ...(pluginSelection ? { plugins: pluginSelection.plugins, pluginConfig: pluginSelection.config } : {}),
+    plugins: pluginSelection.plugins,
+    pluginConfig: pluginSelection.config,
 });
 await agentHost.initialize();
 await agentHost.start();

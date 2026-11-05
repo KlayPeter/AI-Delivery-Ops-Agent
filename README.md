@@ -11,7 +11,7 @@ Obsidian、公开网页或本地文档开始，检索原文、生成带引用的
 当前为 `v0.1.0-alpha`。无需飞书、TAPD 或模型密钥即可启动并体验示例知识检索；
 调用外部服务或生成回答时，再配置自己的连接。
 
-![个人知识工作台：内置虚构资料的无模型检索](docs/images/knowledge-workspace.jpg)
+![个人知识工作台：内置虚构资料的无模型检索](docs/images/personal-workspace.jpg)
 
 ## 三个值得试的流程
 
@@ -35,12 +35,12 @@ Obsidian、公开网页或本地文档开始，检索原文、生成带引用的
 | 可靠执行 | Agent/Tool/Skill 预算、委派、Session/Checkpoint、Run/Artifact 与 Outbox |
 | 可选团队能力 | GitHub 发布准备、飞书任务与报告、TAPD 同步、多机器人路由 |
 
-默认装配与团队 SDK 分开；显式 `AGENT_PLUGINS_FILE` 完全控制组合，不自动叠加默认插件。
+默认 HTTP 工作台只装配个人知识、资料收集、验收与 MCP 接入助手。团队能力按需选择，显式 `AGENT_PLUGINS_FILE` 完全控制组合，不自动叠加默认插件。
 
 | 组合 | 插件数 | Agent 数 |
 | --- | --- | --- |
-| 默认 HTTP 工作台 | 18 | 15 |
-| 配置 GitHub 后 | 20 | 16 |
+| 默认 HTTP 工作台 | 9 | 8 |
+| 配置 GitHub 后 | 11 | 9 |
 | 团队 SDK | 9 | 7 |
 
 [插件规范与作者模板](docs/PLUGIN_AUTHORING.md)描述当前支持的接口。
@@ -95,7 +95,7 @@ curl http://127.0.0.1:8090/readyz
   [MCP 指南](docs/MCP_TOOLS.md)连接经审查的本地工具。独立配置档需显式选择。
 - 配置 GitHub 后可使用[发布准备](docs/RELEASE_PREPARATION.md)，结合仓库事实与
   个人规则收集证据；生成草稿需要模型，不自动创建发布或发送消息。
-- 团队接入见[第三方配置指南](docs/第三方平台接入配置指南.md)。飞书 App ID 与
+- 团队功能先在后端用 `AGENT_PLUGINS_FILE=profiles/agents/team.yaml bun run dev` 选择现有组合，再按[第三方配置指南](docs/第三方平台接入配置指南.md)填写凭据。飞书 App ID 与
   Secret 均留空时不连接；只填一项会拒绝启动。
 
 ## 架构

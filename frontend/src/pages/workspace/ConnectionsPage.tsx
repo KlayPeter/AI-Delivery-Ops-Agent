@@ -18,11 +18,11 @@ const groups: { key: string; title: string; icon: ReactNode; description: string
     { key: 'RELEASE_GITHUB_BRANCH', label: '目标分支（可选）', placeholder: '留空使用仓库默认分支' },
     { key: 'RELEASE_GITHUB_TOKEN', label: '读取 Token（可选）', secret: true },
   ] },
-  { key: 'feishu', title: '飞书', icon: <ApiOutlined aria-hidden />, description: '连接你的飞书应用，在群聊和私聊中使用 Agent。保存后重启后端，建立机器人长连接。', fields: [
+  { key: 'feishu', title: '飞书', icon: <ApiOutlined aria-hidden />, description: '填写你自己的飞书应用。群聊和私聊能力需另行启用团队插件；保存凭据后重启后端可建立机器人长连接，填写凭据不会自动装配团队 Agent。', fields: [
     { key: 'FEISHU_APP_ID', label: 'App ID', placeholder: 'cli_…' }, { key: 'FEISHU_APP_SECRET', label: 'App Secret', secret: true },
     { key: 'FEISHU_BOT_NAME', label: '机器人名称', placeholder: 'AI 交付助理' }, { key: 'FEISHU_BOT_OPEN_ID', label: '机器人 Open ID（可选）', placeholder: 'ou_…' },
   ] },
-  { key: 'tapd', title: 'TAPD', icon: <ProjectOutlined aria-hidden />, description: '接入项目工作项，为任务、周报和项目看板提供数据。', fields: [
+  { key: 'tapd', title: 'TAPD', icon: <ProjectOutlined aria-hidden />, description: '为按需启用的任务、周报和项目看板插件提供项目数据；填写凭据不会自动装配团队功能。', fields: [
     { key: 'TAPD_WORKSPACE_ID', label: '项目 Workspace ID', placeholder: '项目 ID' }, { key: 'TAPD_API_BASE', label: 'API 地址', placeholder: 'https://api.tapd.cn' },
     { key: 'TAPD_API_TOKEN', label: 'API Token', secret: true }, { key: 'TAPD_WORKITEM_TYPE_ID', label: '工作项类型 ID（可选）' },
   ] },
@@ -45,6 +45,7 @@ function ConnectionForm({ group, data, onSaved }: { group: typeof groups[number]
   return <section className="connection-panel">
     <div className="connection-title"><span className="icon-tile">{group.icon}</span><h2>{group.title}</h2><Tag>{(group.key === 'github' ? data.values.RELEASE_GITHUB_REPOSITORY : data.secrets[secret]) ? '已配置' : '未配置'}</Tag></div>
     <p className="muted">{group.description}</p>
+    {['feishu', 'tapd'].includes(group.key) && <details><summary>如何启用团队功能</summary><p className="muted">在后端目录使用已有团队组合启动。该配置替换默认个人组合；已有记录保留，需要混合能力时可在自己的配置中明确选择插件。</p><pre className="json-view">AGENT_PLUGINS_FILE=profiles/agents/team.yaml bun run dev</pre></details>}
     <Form form={form} layout="vertical" onFinish={save} initialValues={{ ...data.values, AI_PROVIDER: data.values.AI_PROVIDER === 'gemini' ? 'google' : data.values.AI_PROVIDER || 'openai' }}>
       <div className="connection-fields">{group.fields.map(field => <Form.Item key={field.key} name={field.key} label={field.label} extra={field.secret && data.secrets[field.key] ? '已保存，留空将保留当前密钥。' : undefined}>
         {field.options ? <Select options={field.options} /> : field.secret ? <Input.Password autoComplete="new-password" placeholder={data.secrets[field.key] ? '输入新密钥可替换' : '填写你的密钥'} /> : <Input placeholder={field.placeholder} autoComplete="off" />}

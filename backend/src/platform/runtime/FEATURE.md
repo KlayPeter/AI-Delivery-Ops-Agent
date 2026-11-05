@@ -23,7 +23,7 @@ flowchart TD
     R["Host 启动"] --> S["收敛上次进程遗留的运行中记录"]
     R --> Q["/healthz 进程存活"]
     R --> OAPI["/api/swagger API 文档"]
-    S --> P["Cordis 插件装配与配置恢复"]
+    S --> P["HTTP 默认个人 / 显式插件组合装配与恢复"]
     P --> MR["装配可释放消息贡献"]
     MR --> BC["requiredBots：仅要求已配置的入站连接"]
     BC --> Z["/readyz 数据库 + Agent Host + 必需连接就绪"]
@@ -172,7 +172,7 @@ CLI 可选 --state 保存 Run/Step/Tool/Artifact；默认仍为内存。知识�
 
 ## 插件 Web 与手动执行
 
-手动业务任务需要已装配插件声明所有权；未知名称为 400，已知但缺少所有者为 404，不创建执行器或产生业务副作用。日期、工作日、安全预览、sendToGroup 和原有审计语义保留。默认组合保留全部九项原有任务；空组合不暴露这些任务。
+手动业务任务需要已装配插件声明所有权；未知名称为 400，已知但缺少所有者为 404，不创建执行器或产生业务副作用。日期、工作日、安全预览、sendToGroup 和原有审计语义保留。显式团队组合保留全部九项原有任务，HTTP 默认个人组合不装配业务任务；空组合不暴露这些任务。
 
 插件 HTTP 与手动任务由 Host 跟踪，在途执行结束后才释放插件。声明路由加入 OpenAPI，代理不预先解析/消耗 Request body。站会读模型接口迁移到 Owner 目录，页面查询不创建 Agent Run；统计与历史汇总的规则由 StandupService 维护。
 
@@ -190,6 +190,10 @@ knowledge.collect 只固定当前成功采集 Run ID，经 knowledge.library.man
 ## MCP 接入与通用运行
 
 HTTP 默认加入独立 mcp.setup 接入助手，公开 HTTPS 匿名发现、审查勾选与 local.yaml 导出；不调用目录内工具或读取 Secret。保存并重启明确组合后，mcp.runner 按可信 allowedTools 转调已注册读取工具，实时 Schema 校验、同一 Scope/信号与共享两次 Tool 预算，记录 Agent/路由/上游三步。ctx.delivery.tools.list 只返回契约副本，ToolExecutionContext.budget 沿用既有预算，不给旧调用新增额度。移除插件释放页面/API/Agent/Tool，历史保留；无在线安装或 OS 沙箱。实现与测试见 [接入功能卡](../../connectors/mcp-workbench/FEATURE.md)。
+
+## HTTP 默认组合边界
+
+HTTP 仅默认加载个人知识、采集、资料库、验收与 MCP 接入助手（九插件/八 Agent）；SDK 团队默认不变，HTTP 团队通过既有可信文件显式选择。工作台根据实际 active Agent 和页面/手动任务贡献选择默认能力与导航，不将隐藏菜单作为 API 授权。默认没有站会/看板/周报插件接口或九项团队业务任务；切换保留成功历史，不自动重新启用旧插件。真实装配与保留历史验证见 backend/test/workspaceComposition.test.ts；首页数量由 featureIndex.test.ts 对照实际 HTTP 选择器检查。
 
 ## 用户能力
 

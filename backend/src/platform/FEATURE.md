@@ -28,7 +28,7 @@ Agent 平台把“一个模型调用”提升为可管理的执行单元。每�
 
 ```mermaid
 flowchart TD
-    UI[本机工作台] --> A
+    UI[个人默认 / 按需团队工作台] --> A
     UI --> LC[私有连接配置·重启生效]
     LC --> X
     A["飞书 / Scheduler / API"] --> R{"默认 Bot 明确 AI 新闻意图?"}
@@ -180,6 +180,10 @@ Agent Runtime 为每次实际 invoke 的 Agent Step 保存 execution 1.0：Agent
 ## MCP 接入与通用运行
 
 HTTP 默认加入独立 mcp.setup 接入助手，公开 HTTPS 匿名发现、审查勾选与 local.yaml 导出；不调用目录内工具或读取 Secret。保存并重启明确组合后，mcp.runner 按可信 allowedTools 转调已注册读取工具，实时 Schema 校验、同一 Scope/信号与共享两次 Tool 预算，记录 Agent/路由/上游三步。ctx.delivery.tools.list 只返回契约副本，ToolExecutionContext.budget 沿用既有预算，不给旧调用新增额度。移除插件释放页面/API/Agent/Tool，历史保留；无在线安装或 OS 沙箱。实现与测试见 [接入功能卡](../connectors/mcp-workbench/FEATURE.md)。
+
+## HTTP 默认组合边界
+
+HTTP 仅默认加载个人知识、采集、资料库、验收与 MCP 接入助手（九插件/八 Agent）；SDK 团队默认不变，HTTP 团队通过既有可信文件显式选择。工作台根据实际 active Agent 和页面/手动任务贡献选择默认能力与导航，不将隐藏菜单作为 API 授权。默认没有站会/看板/周报插件接口或九项团队业务任务；切换保留成功历史，不自动重新启用旧插件。真实装配与保留历史验证见 backend/test/workspaceComposition.test.ts；首页数量由 featureIndex.test.ts 对照实际 HTTP 选择器检查。
 
 ## 用户能力
 
