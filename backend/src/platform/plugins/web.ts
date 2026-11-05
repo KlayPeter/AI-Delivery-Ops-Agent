@@ -3,7 +3,7 @@ import { isLocalWorkspaceRequest } from '@/platform/workspace/connections';
 
 const pageSchema = z.object({
     path: z.string().regex(/^\/[a-z][a-z0-9-]*(?:\/[a-z][a-z0-9-]*)*$/).max(200),
-    label: z.string().trim().min(1).max(80), section: z.enum(['workspace', 'team']),
+    label: z.string().trim().min(1).max(80), section: z.enum(['workspace', 'team']), navigation: z.boolean().optional(),
     view: z.discriminatedUnion('kind', [
         z.object({ kind: z.literal('builtin'), id: z.string().regex(/^[a-z][a-z0-9-]*$/).max(80) }).strict(),
         z.object({ kind: z.literal('agent'), capability: z.string().trim().min(1).max(200) }).strict(),
@@ -19,7 +19,7 @@ export interface WebContribution {
     api?: { prefix: string; routes: readonly { method: string; path: string }[]; handle: ApiHandler };
 }
 // Existing bundled routes stay reserved until their owning plugins migrate them.
-const reservedPages = new Set(['/', '/runs', '/agents', '/plugins', '/connections', '/knowledge', '/weekly-reports', '/logs', '/debug', '/contexts', '/meeting-summaries', '/config']);
+const reservedPages = new Set(['/', '/runs', '/agents', '/plugins', '/connections', '/knowledge', '/logs', '/debug', '/contexts', '/config']);
 const reservedApis = ['/api/workspace', '/api/config', '/api/agents', '/api/agent-runs', '/api/bots', '/api/jobs', '/api/health', '/api/logs', '/api/contexts', '/api/feishu', '/api/swagger'];
 const contains = (prefix: string, path: string) => path === prefix || path.startsWith(prefix + '/');
 

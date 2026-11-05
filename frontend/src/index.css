@@ -34,13 +34,13 @@ button, summary { cursor: pointer; }
 .page-heading h1 { margin: 0; font-size: 27px; font-weight: 600; letter-spacing: -.035em; line-height: 1.35; }
 .page-heading p { margin: 9px 0 0; color: var(--muted); font-size: 14px; }
 .workspace-page h2 { font-size: 16px; line-height: 1.4; font-weight: 600; margin: 0; }
-.dashboard-page { max-width: none; }
-.dashboard-frame { height: calc(100dvh - 240px); min-height: 520px; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
-.dashboard-frame iframe { width: 100%; height: 100%; border: 0; display: block; }
-.dashboard-empty { padding: 60px 24px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
-.dashboard-empty p { max-width: 420px; color: var(--muted); font-size: 14px; }
-.dashboard-filters { display: grid; gap: 10px; margin-bottom: 24px; }
-.dashboard-filters label { font-size: 13px; color: var(--muted); }
+.artifact-page { max-width: none; }
+.artifact-frame { height: calc(100dvh - 240px); min-height: 520px; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.artifact-frame iframe { width: 100%; height: 100%; border: 0; display: block; }
+.artifact-empty { padding: 60px 24px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.artifact-empty p { max-width: 420px; color: var(--muted); font-size: 14px; }
+.history-filters { display: grid; gap: 10px; margin-bottom: 24px; }
+.history-filters label { font-size: 13px; color: var(--muted); }
 .muted { color: var(--muted); font-size: 13px; }
 .break-text { overflow-wrap: anywhere; }
 .workspace-page > .ant-alert { margin-bottom: 20px; }
@@ -68,7 +68,7 @@ button, summary { cursor: pointer; }
 .quick-actions strong { font-size: 14px; font-weight: 500; }
 .quick-actions small { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; }
 .section-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 16px; }
-.section-actions { display: flex; align-items: center; gap: 14px; font-size: 13px; }
+.section-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; font-size: 13px; }
 .runs-section .ant-table-wrapper { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); }
 .runs-section .ant-table-thead > tr > th { color: var(--muted); background: #fcfcfd; font-size: 12px; font-weight: 500; }
 .run-link { border: 0; background: none; color: var(--text); padding: 4px 0; text-align: left; display: flex; flex-direction: column; gap: 4px; }

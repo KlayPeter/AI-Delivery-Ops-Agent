@@ -34,16 +34,16 @@ export default function DashboardPage() {
     navigate({ pathname: '/dashboard', search: next.toString() }, { replace: true });
   };
 
-  return <div className="workspace-page dashboard-page">
+  return <div className="workspace-page artifact-page">
     <div className="page-heading"><div><h1>项目看板</h1><p>查看已保存的项目快照，按团队和月份筛选。</p></div>
       <div className="section-actions"><Button icon={<ReloadOutlined aria-hidden />} loading={isValidating} onClick={() => mutate()}>刷新</Button><Button icon={<HistoryOutlined aria-hidden />} onClick={() => setHistoryOpen(true)}>历史记录</Button></div>
     </div>
     {error ? <Alert type="error" showIcon title="看板加载失败" description={error.message} action={<Button onClick={() => mutate()}>重试</Button>} />
       : isLoading ? <Skeleton active />
-      : selected ? <div className="dashboard-frame"><iframe src={api.getDashboardUrl(selected)} title={`项目快照 ${parseDashboardFilename(selected).date || selected}`} sandbox="allow-scripts allow-popups" /></div>
-      : <div className="dashboard-empty"><Empty description={<><strong>{filename || dashboardId ? '未找到这份快照' : '暂无项目快照'}</strong><p>{filename || dashboardId ? '快照可能已被移走，可以从历史记录选择其他版本。' : '运行项目看板任务后，快照会保存在这里。也可以调整历史记录中的筛选条件。'}</p></>}><Link className="primary-link" to="/debug">打开业务任务</Link></Empty></div>}
+      : selected ? <div className="artifact-frame"><iframe src={api.getDashboardUrl(selected)} title={`项目快照 ${parseDashboardFilename(selected).date || selected}`} sandbox="allow-scripts allow-popups" /></div>
+      : <div className="artifact-empty"><Empty description={<><strong>{filename || dashboardId ? '未找到这份快照' : '暂无项目快照'}</strong><p>{filename || dashboardId ? '快照可能已被移走，可以从历史记录选择其他版本。' : '运行项目看板任务后，快照会保存在这里。也可以调整历史记录中的筛选条件。'}</p></>}><Link className="primary-link" to="/debug">打开业务任务</Link></Empty></div>}
     <Drawer title="历史快照" size={340} open={historyOpen} onClose={() => setHistoryOpen(false)}>
-      <div className="dashboard-filters">
+      <div className="history-filters">
         <label htmlFor="dashboard-group">团队</label><Select id="dashboard-group" value={groupId} onChange={value => updateFilters({ groupId: value === 'all' ? null : value })} options={[{ label: '全部团队', value: 'all' }, ...groups.map((item: any) => ({ label: item.name || item.chat_id, value: item.chat_id }))]} />
         <label htmlFor="dashboard-month">月份</label><DatePicker id="dashboard-month" picker="month" value={month && dayjs(month).isValid() ? dayjs(month) : null} onChange={value => updateFilters({ month: value ? value.format('YYYY-MM') : '' })} allowClear />
       </div>

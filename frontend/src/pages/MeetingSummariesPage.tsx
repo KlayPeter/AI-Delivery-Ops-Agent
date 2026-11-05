@@ -1,160 +1,44 @@
-import React, { useEffect, useState } from 'react';
-import { Table, Button, Card, Typography, Space, Tag, message, Modal } from 'antd';
-import { LinkOutlined, FileTextOutlined, CalendarOutlined, CheckCircleOutlined, SendOutlined, EyeOutlined } from '@ant-design/icons';
-import { api } from '@/api';
+import { useState } from 'react';
+import useSWR from 'swr';
+import { Alert, App as AntdApp, Button, Empty, Space, Table, Tag } from 'antd';
+import { EyeOutlined, ReloadOutlined, SendOutlined } from '@ant-design/icons';
+import { useSearchParams } from 'react-router-dom';
 import type { TableColumnsType } from 'antd';
+import { api } from '@/api';
 
-const { Title, Text } = Typography;
+type Summary = { id: string; created_at: string; group_name: string; theme: string; summary_file: string; timeline_file: string; email_sent: boolean };
+type Archive = { summaries: Summary[]; total: number; email: { ready: boolean; recipients: string[] } };
 
-const MeetingSummariesPage: React.FC = () => {
-  const [data, setData] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [sendingId, setSendingId] = useState<string | null>(null);
-
-  const fetchSummaries = async () => {
-    setLoading(true);
-    try {
-      const summaries = await api.fetchMeetingSummaries();
-      setData(summaries);
-    } catch (e: any) {
-      message.error("获取会议纪要列表失败: " + e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchSummaries();
-  }, []);
-
-  const handleView = (filepath: string) => {
-    const url = api.getMeetingSummaryFileUrl(filepath);
-    window.open(url, '_blank');
-  };
-
-  const handleSendEmail = (id: string) => {
-    Modal.confirm({
-      title: '确认发送',
-      content: '确定要将此会议纪要发送到邮箱吗？',
-      onOk: async () => {
-        setSendingId(id);
-        try {
-          await api.sendMeetingSummaryEmail(id);
-          message.success("发送成功！");
-          fetchSummaries(); // Refresh the list to update status
-        } catch (e: any) {
-          message.error("发送失败: " + e.message);
-        } finally {
-          setSendingId(null);
-        }
-      }
-    });
-  };
-
-  const columns: TableColumnsType<any> = [
-    {
-      title: '生成时间',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      align: 'center',
-      render: (text: string) => (
-        <Space>
-          <CalendarOutlined style={{ color: '#8c8c8c' }} />
-          <span>{new Date(text).toLocaleString()}</span>
-        </Space>
-      ),
-      width: 200,
+export default function MeetingSummariesPage() {
+  const { modal, message } = AntdApp.useApp();
+  const [params] = useSearchParams();
+  const [page, setPage] = useState(1), [sending, setSending] = useState<string>();
+  const groupId = params.get('groupId') || undefined;
+  const { data, error, isLoading, isValidating, mutate } = useSWR<Archive>(['meeting-summary-archive', groupId, page], () => api.fetchMeetingSummaries(groupId, (page - 1) * 15, 15));
+  const sendEmail = (record: Summary) => modal.confirm({
+    title: '发送会议纪要', content: `将“${record.theme || '未命名会议'}”的归档附件发送到：${data?.email.recipients.join('、') || '未配置收件人'}。`, okText: '确认发送', cancelText: '取消',
+    onOk: async () => {
+      setSending(record.id);
+      try {
+        const result = await api.sendMeetingSummaryEmail(record.id);
+        message.success(result.alreadySent ? '这份纪要已有发送标记' : '已提交邮件服务');
+        await mutate();
+      } catch (reason) { message.error(reason instanceof Error ? reason.message : '邮件操作失败'); }
+      finally { setSending(undefined); }
     },
-    {
-      title: '所属群聊',
-      dataIndex: 'group_name',
-      key: 'group_name',
-      align: 'center',
-      render: (text: string) => <Text strong>{text || '未知群聊'}</Text>,
-    },
-    {
-      title: '邮件分发',
-      dataIndex: 'email_sent',
-      key: 'email_sent',
-      align: 'center',
-      render: (sent: boolean, record: any) => (
-        sent
-          ? <Tag icon={<CheckCircleOutlined />} color="success">已发送</Tag>
-          : <Button
-              size="small"
-              type="primary"
-              ghost
-              icon={<SendOutlined />}
-              loading={sendingId === record.id}
-              onClick={() => handleSendEmail(record.id)}
-            >
-              发送邮件
-            </Button>
-      ),
-      width: 120,
-    },
-    {
-      title: '会议主题',
-      dataIndex: 'theme',
-      key: 'theme',
-      render: (theme: string) => theme ? <Text strong>{theme}</Text> : <Text type="secondary">无主题</Text>,
-    },
-    {
-      title: '会议总结',
-      dataIndex: 'summary_file',
-      key: 'summary_file',
-      align: 'center',
-      render: (filename: string) => filename ? (
-        <Button type="link" icon={<EyeOutlined />} onClick={() => handleView(filename)}>
-          查看会议总结
-        </Button>
-      ) : (
-        <Text type="secondary">无</Text>
-      ),
-    },
-    {
-      title: '时间线与洞察',
-      dataIndex: 'timeline_file',
-      key: 'timeline_file',
-      align: 'center',
-      render: (filename: string) => filename ? (
-        <Button type="link" icon={<EyeOutlined />} onClick={() => handleView(filename)}>
-          查看时间线
-        </Button>
-      ) : (
-        <Text type="secondary">无</Text>
-      ),
-    },
+  });
+  const view = (filename: string, label: string) => filename ? <Button type="link" icon={<EyeOutlined aria-hidden />} href={api.getMeetingSummaryFileUrl(filename)} target="_blank" rel="noopener noreferrer">{label}</Button> : <span className="muted">暂无附件</span>;
+  const columns: TableColumnsType<Summary> = [
+    { title: '主题', dataIndex: 'theme', render: value => value || '未命名会议', width: 200 },
+    { title: '团队', dataIndex: 'group_name', width: 160 },
+    { title: '归档时间', dataIndex: 'created_at', render: value => new Date(value).toLocaleString(), width: 190 },
+    { title: '归档附件', key: 'files', render: (_, record) => <Space wrap>{view(record.summary_file, '会议总结')}{view(record.timeline_file, '时间线')}</Space>, width: 260 },
+    { title: '邮件', key: 'email', render: (_, record) => record.email_sent ? <Tag>已标记发送</Tag> : <Button icon={<SendOutlined aria-hidden />} loading={sending === record.id} disabled={!data?.email.ready || !!sending} onClick={() => sendEmail(record)}>发送邮件</Button>, width: 150 },
   ];
-
-  return (
-    <div style={{ padding: "24px", flex: 1, overflow: "auto", backgroundColor: "#f5f5f5" }}>
-      <div style={{ maxWidth: 1400, margin: '0 auto', display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <div>
-          <Space align="center" style={{ marginBottom: 8 }}>
-            <FileTextOutlined style={{ fontSize: '24px', color: '#1890ff' }} />
-            <Title level={3} style={{ margin: 0 }}>会议纪要</Title>
-          </Space>
-          <Typography.Text type="secondary" style={{ display: 'block' }}>自动归档和管理来自群聊的各类会议纪要与总结报告</Typography.Text>
-        </div>
-        <Button type="primary" onClick={fetchSummaries} loading={loading}>
-          刷新列表
-        </Button>
-      </div>
-
-      <Card bordered={false} style={{ borderRadius: '8px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-        <Table
-          columns={columns}
-          dataSource={data}
-          rowKey="id"
-          loading={loading}
-          pagination={{ pageSize: 15 }}
-        />
-      </Card>
-      </div>
-    </div>
-  );
-};
-
-export default MeetingSummariesPage;
+  return <div className="workspace-page">
+    <div className="page-heading"><div><h1>会议纪要归档</h1><p>查看历史纪要及附件。会议自动生成暂未开放。</p></div><Button icon={<ReloadOutlined aria-hidden />} loading={isValidating} onClick={() => mutate()}>刷新</Button></div>
+    {error && <Alert type="error" title="纪要加载失败" description={error.message} action={<Button onClick={() => mutate()}>重试</Button>} />}
+    {data && !data.email.ready && <Alert type="info" title="邮件发送不可用" description="发件邮箱或收件人未配置，或当前使用模拟模式。" />}
+    <div className="runs-section"><Table<Summary> columns={columns} dataSource={data?.summaries || []} rowKey="id" loading={isLoading} scroll={{ x: 960 }} pagination={{ current: page, pageSize: 15, total: data?.total || 0, showSizeChanger: false, onChange: setPage }} locale={{ emptyText: <Empty description="暂无归档纪要" /> }} /></div>
+  </div>;
+}

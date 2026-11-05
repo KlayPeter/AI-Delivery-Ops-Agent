@@ -9,8 +9,6 @@ import ConfigPage from '@/pages/ConfigPage';
 import LogsPage from '@/pages/LogsPage';
 import DebugPage from '@/pages/DebugPage';
 import ContextsPage from '@/pages/ContextsPage';
-import MeetingSummariesPage from '@/pages/MeetingSummariesPage';
-import WeeklyReportsPage from '@/pages/WeeklyReportsPage';
 const WorkspacePage = lazy(() => import('@/pages/workspace/WorkspacePage'));
 const CatalogPage = lazy(() => import('@/pages/workspace/CatalogPage'));
 const ConnectionsPage = lazy(() => import('@/pages/workspace/ConnectionsPage'));
@@ -39,11 +37,9 @@ function App() {
             <Route path="plugins" element={<CatalogPage key="plugins" plugins />} />
             <Route path="connections" element={<ConnectionsPage />} />
             <Route path="knowledge" element={<KnowledgePage />} />
-            <Route path="weekly-reports" element={<WeeklyReportsPage />} />
             <Route path="logs" element={<LogsPage />} />
             <Route path="debug" element={<DebugPage />} />
             <Route path="contexts" element={<ContextsPage />} />
-            <Route path="meeting-summaries" element={<MeetingSummariesPage />} />
             <Route path="config" element={<ConfigPage />} />
             {/* 兼容已被推送到群里的包含具体 .html 文件名的旧版本长链接 */}
             <Route path="*" element={<PluginPage />} />

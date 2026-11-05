@@ -55,6 +55,9 @@ flowchart LR
     STAPI --> SS
     WEB --> PVAPI[看板文件与甘特计划 API]
     PVAPI --> TS
+    WEB --> REPORTS[周报与隐藏纪要 API]
+    REPORTS --> FILE[受限 HTML / Markdown 读取]
+    REPORTS --> MAIL[手动确认后提交配置邮件服务]
     FP --> MCP[可选本地 MCP 连接插件]
     MCP --> MG[显式白名单 / 标准 Schema / Tool Gateway]
     MG --> MS[已审查的 stdio 服务]
@@ -135,9 +138,9 @@ flowchart LR
 | `backend/src/knowledge/answer/**` | `personal-knowledge-answer`；共享引用/证据协议变化追加 `release-preparation`、`knowledge-change-impact`；Host/Tool 契约变化时追加平台文档 |
 | `backend/src/scripts/knowledge.ts` | `personal-markdown-knowledge`、`personal-web-knowledge`、`personal-knowledge-answer`、`knowledge-change-impact` |
 | `backend/src/platform/models/**` | `agent-platform`、`operations-observability`；同步受影响的模型调用功能 |
-| `domains/weeklyReport/**`、`native/weeklyReportAgent.ts`、`WeeklyReportHandler.ts` | `weekly-report` |
+| `domains/weeklyReport/**`、`native/weeklyReportAgent.ts`、`WeeklyReportHandler.ts`、`WeeklyReportsPage` | `weekly-report` |
 | Dashboard Service、Project Dashboard、`native/dashboardAgent.ts`、`native/project-dashboard/**`、`DashboardPage`、`HumanGanttPage`、`frontend/src/dashboardFiles.ts` | `project-visibility` |
-| Meeting Summary Handler、Service、邮件分发、`MeetingSummariesPage` | `meeting-summary` |
+| Meeting Summary Handler、`services/messageHandler/meeting-summary/**`、Service、邮件分发、`MeetingSummariesPage` | `meeting-summary` |
 | `core/config`、Scheduler、`jobs.ts`、群成员同步、`ConfigPage` | `configuration-scheduling`；同时更新被调度的业务功能 |
 | `backend/src/platform/scheduling/**` | `plugin-runtime`、`configuration-scheduling`、`operations-observability`；同步对应业务功能 |
 | `backend/src/platform/plugins/web.ts`、`backend/src/platform/workspace/jobsApi.ts`、`frontend/src/pages/DebugPage.tsx` | `plugin-runtime`、`local-agent-workspace`、`operations-observability`、`configuration-scheduling`；同步贡献对应业务 |

@@ -157,13 +157,13 @@ ctx.delivery.web.register({
 });
 ```
 
-页面只能使用站内静态路径；label 最长 80 字符，section 为 workspace/team。view.kind=agent 打开指定 Capability 的现有工作台；kind=builtin 使用已打包 renderer ID（当前迁移 standups、dashboard、human-gantt）。未知 renderer 显示恢复入口，不执行远程 HTML、JS 或 React 包。已保留的核心/旧页面不能覆盖，路径与贡献 ID 不得重复；Agent 导航跳转后保持当前项选中。
+页面只能使用站内静态路径；label 最长 80 字符，section 为 workspace/team。view.kind=agent 打开指定 Capability 的现有工作台；kind=builtin 使用已打包 renderer ID（当前提供 standups、dashboard、human-gantt、weekly-reports、meeting-summaries）。未知 renderer 显示恢复入口，不执行远程 HTML、JS 或 React 包。已保留的核心/旧页面不能覆盖，路径与贡献 ID 不得重复；Agent 导航跳转后保持当前项选中。
 
 API 声明 prefix、routes（method/path）与接收标准 Request、返回 Response 的 handle。每条声明必须位于所属前缀，前缀不可重叠或覆盖保留 API。应用在 Host 初始化后核对已有 API 命名空间，冲突时拒绝装配，不覆盖旧接口；随后装配声明路由，因此 OpenAPI 保留路径；请求体由所属 Fetch handler 解析，代理不会先消耗 body。`builtin.standup` 和 `backend/src/domains/standup/api.ts` 是真实例子。通过 Host.handlePluginRequest 进入本机来源校验与在途跟踪，停止时先等待请求，再释放资源。
 
 manualJobs 声明现有 Legacy Job 名称的所有者，不添加任意命令或自动生成执行器。原有九项任务分别由站会、任务、日报、看板插件声明；/api/jobs 同时核对标准任务名与已装配所有者，缺失时返回 404。预览、日期、工作日、投递与审计仍由原执行逻辑处理，Host 跟踪任务并在停机时等待。
 
-页面信息不是访问控制，也不能代替服务端数据范围校验。当前已迁移站会统计、项目看板与人力甘特图页面/API 和原有手动任务授权，其他业务页面/API 与基础服务仍待迁移；没有运行中热卸载。一个功能插件可注册多个唯一 Web 贡献来拥有多个 API 前缀，例如 builtin.dashboard 同时注册 /api/dashboards 与 /api/human-gantt；注册会统一回滚和释放。旧看板根查询和 HTML 链接通过同一页面注册表检查所有者。
+页面信息不是访问控制，也不能代替服务端数据范围校验。当前已迁移站会、看板、甘特、周报与隐藏纪要页面/API，以及原有手动任务授权，其他业务页面/API 与基础服务仍待迁移；navigation=false 仅隐藏菜单，直接路由仍依赖对应贡献；不代表授权或业务生成开关。没有运行中热卸载。一个功能插件可注册多个唯一 Web 贡献来拥有多个 API 前缀，例如 builtin.dashboard 同时注册 /api/dashboards 与 /api/human-gantt；注册会统一回滚和释放。旧看板根查询和 HTML 链接通过同一页面注册表检查所有者。
 
 ## 标准 JSON Schema
 

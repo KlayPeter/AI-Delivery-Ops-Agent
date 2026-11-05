@@ -24,9 +24,7 @@ import { ScheduledJobs } from './services/jobs';
 import { GroupMemberSyncService } from './services/groupMembers';
 import { CompanyMemberService } from './services/companyMembers';
 import dayjs from 'dayjs';
-import * as fs from 'fs';
 import * as path from 'path';
-import { isWeeklyReportPathAllowed } from './domains/weeklyReport/renderer';
 import { normalizeLogQuery } from './core/logQuery';
 import { livenessReport, readinessReport } from './core/health';
 import { externalApiHealthSnapshot } from './platform/observability/externalApiHealth';
@@ -284,92 +282,6 @@ const app = new Elysia()
             set.status = 500;
             return { error: '保存配置失败', details: e.message || String(e) };
         }
-    })
-    .get('/api/meeting-summaries', async ({ query }) => {
-        let skip = parseInt(query.skip as string) || 0;
-        let limit = parseInt(query.limit as string) || 50;
-        const records = await store.prisma.meetingSummaryRecord.findMany({
-            skip,
-            take: limit,
-            orderBy: { created_at: 'desc' }
-        });
-        for (const r of records) {
-            const group = config.groups.find(g => g.chat_id === r.group_id);
-            (r as any).group_name = group ? group.name : '其他群聊';
-        }
-        return { summaries: records };
-    })
-    .get('/api/meeting-summaries/file/*', async ({ params, set }) => {
-        const reqPath = decodeURIComponent((params as any)['*'] as string || '');
-        if (!reqPath || reqPath.includes('..') || reqPath.startsWith('/')) {
-            set.status = 403;
-            return { error: 'Invalid path' };
-        }
-        const filePath = path.join(config.data_path, 'summaries', reqPath);
-        if (!fs.existsSync(filePath)) {
-            set.status = 404;
-            return { error: 'File not found' };
-        }
-        set.headers['Content-Type'] = 'text/markdown; charset=utf-8';
-        return fs.readFileSync(filePath, 'utf-8');
-    })
-    .post('/api/meeting-summaries/:id/send-email', async ({ params, set }) => {
-        if (!config.email.enabled) {
-            set.status = 400;
-            return { error: '系统未配置发件邮箱，无法执行发送。请先完善邮件配置。' };
-        }
-        const records = await store.prisma.meetingSummaryRecord.findMany({
-            where: { id: params.id }
-        });
-        if (records.length === 0) {
-            set.status = 404;
-            return { error: 'Record not found' };
-        }
-        const record = records[0];
-
-        // Mock sending email
-        console.log(`[Mock] Sending email for meeting summary: ${record.id}`);
-
-        // Update database
-        await store.prisma.meetingSummaryRecord.update({
-            where: { id: params.id },
-            data: { email_sent: true }
-        });
-
-        return { success: true };
-    })
-    .get('/api/weekly-reports', async ({ query }) => {
-        const groupId = typeof query.groupId === 'string' ? query.groupId : undefined;
-        const reports = await store.listWeeklyReports(groupId);
-        return {
-            reports: reports
-                .filter((report: any) => report.status === 'succeeded')
-                .map((report: any) => ({
-                    id: report.id,
-                    group_id: report.group_id,
-                    group_name: report.facts?.group?.name || report.group_id,
-                    period_start: report.period_start,
-                    period_end: report.period_end,
-                    cutoff_at: report.cutoff_at,
-                    version: report.version,
-                    generated_at: report.generated_at,
-                    trigger_type: report.trigger_type,
-                })),
-        };
-    })
-    .get('/api/weekly-reports/:id', async ({ params: { id }, set }) => {
-        const report = await store.getWeeklyReport(String(id));
-        if (!report || report.status !== "succeeded" || !isWeeklyReportPathAllowed(config.data_path, report.html_path)) {
-            set.status = 404;
-            return { error: "not_found" };
-        }
-        if (!fs.existsSync(report.html_path)) {
-            set.status = 404;
-            return { error: "not_found" };
-        }
-        set.headers["Content-Type"] = "text/html; charset=utf-8";
-        set.headers["Cache-Control"] = "private, max-age=60";
-        return fs.readFileSync(report.html_path, "utf8");
     })
     .get('/api/logs', async ({ query, set }) => {
         let normalized;

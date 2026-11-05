@@ -5,6 +5,7 @@ import { WeeklyReportHandler } from '@/services/messageHandler/handlers/WeeklyRe
 import { zonedClock } from '@/core/scheduleTime';
 import { calendarPlan } from '@/platform/scheduling/calendar';
 import { StandupService } from '@/services/standupService';
+import { createWeeklyReportApi } from '@/domains/weeklyReport/api';
 
 export const weeklyReportPlugin: FeaturePlugin = {
     manifest: { apiVersion: '1.0', id: 'builtin.weekly-report', name: 'Weekly report', version: '1.0.0', description: 'Weekly reports with persisted delivery evidence.' },
@@ -27,5 +28,12 @@ export const weeklyReportPlugin: FeaturePlugin = {
         id: 'builtin.weekly-report', priority: 800, sources: ['group'], help: '生成本周/上周周报',
         handle: ({ ctx, message }) => WeeklyReportHandler.maybeHandle(ctx, message, 'group'),
     }],
-    apply(ctx) { registerWeeklyReportAgent(ctx.delivery.nativeAgents, () => pluginJobs(ctx.delivery.getContext)); },
+    apply(ctx) {
+        const api = createWeeklyReportApi(ctx.delivery.getContext);
+        ctx.delivery.web.register({ id: 'builtin.weekly-report',
+            pages: [{ path: '/weekly-reports', label: '周报', section: 'team', view: { kind: 'builtin', id: 'weekly-reports' } }],
+            api: { prefix: '/api/weekly-reports', routes: api.routes.map(route => ({ method: route.method, path: route.path })), handle: request => api.handle(request) },
+        });
+        registerWeeklyReportAgent(ctx.delivery.nativeAgents, () => pluginJobs(ctx.delivery.getContext));
+    },
 };

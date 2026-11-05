@@ -148,7 +148,7 @@ builtin.dashboard 显式声明 dashboard 的手动入口。Debug 页面和 /api/
 
 - 图片渲染失败时保留结构化快照并可降级为 HTML 或文本链接。
 - 外部 TAPD 不可用时必须标注数据时间，避免展示为实时真相。
-- 后台文件读取仅接受单段 HTML 文件名，参数不做二次解码；列表排除目录和符号链接，打开使用 O_NOFOLLOW 并检查普通文件。
+- 后台文件读取仅接受单段 HTML 文件名，参数不做二次解码；列表排除目录和符号链接，由共享 readWorkspaceArtifact 校验真实目录、lstat、O_NOFOLLOW 和打开后的普通文件类型；拒绝跨目录链接。
 - 甘特查询拒绝非法日期、反向区间和非布尔开关；计划正文先校验形状，再复用 TaskService 的参与者/角色/半天范围与审计规则。内部错误不返回数据库路径。
 - 这是本机可信工作区，employee_open_id 表示被编辑的计划参与者，不代表已经实现用户登录或多人权限认证。
 
@@ -158,6 +158,7 @@ builtin.dashboard 显式声明 dashboard 的手动入口。Debug 页面和 /api/
 
 - `backend/src/agents/plugins/dashboard.ts`：Agent、消息、调度、页面和两个 API 命名空间的独立装配。
 - `backend/src/agents/native/project-dashboard/api.ts`：历史文件读取与甘特 API，任务状态仍由 TaskService 拥有。
+- `backend/src/platform/workspace/artifactFiles.ts`：看板、周报与纪要共用的受限文件读取。
 
 - `backend/src/agents/native/dashboardAgent.ts`：Project Dashboard Agent。
 - `backend/src/services/projectDashboard.ts`：项目快照与历史。

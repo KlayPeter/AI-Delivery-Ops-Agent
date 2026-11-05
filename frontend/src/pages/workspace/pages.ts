@@ -2,7 +2,7 @@ import { dashboardFilenameFromPath } from '../../dashboardFiles';
 import { isLegacyDashboardSearch } from './input';
 
 export interface PluginPage {
-  path: string; label: string; section: 'workspace' | 'team';
+  path: string; label: string; section: 'workspace' | 'team'; navigation?: boolean;
   view: { kind: 'builtin'; id: string } | { kind: 'agent'; capability: string };
 }
 

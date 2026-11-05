@@ -7,6 +7,8 @@ import { findPluginPage, pluginAgentHref } from './pages';
 const StandupsPage = lazy(() => import('@/pages/StandupsPage'));
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
 const HumanGanttPage = lazy(() => import('@/pages/HumanGanttPage'));
+const WeeklyReportsPage = lazy(() => import('@/pages/WeeklyReportsPage'));
+const MeetingSummariesPage = lazy(() => import('@/pages/MeetingSummariesPage'));
 
 export default function PluginPage() {
   const { data, error, isLoading, mutate } = useWorkspace();
@@ -18,5 +20,7 @@ export default function PluginPage() {
   if (page?.view.kind === 'builtin' && page.view.id === 'standups') return <StandupsPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'dashboard') return <DashboardPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'human-gantt') return <HumanGanttPage />;
+  if (page?.view.kind === 'builtin' && page.view.id === 'weekly-reports') return <WeeklyReportsPage />;
+  if (page?.view.kind === 'builtin' && page.view.id === 'meeting-summaries') return <MeetingSummariesPage />;
   return <div className="workspace-page"><Empty description={page ? '当前界面版本尚不支持此插件页面' : '此页面不存在或对应插件未启用'}><Link className="primary-link" to="/plugins">查看已装配插件</Link></Empty></div>;
 }

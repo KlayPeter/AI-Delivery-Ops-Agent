@@ -30,6 +30,12 @@ test('agent entries keep their active navigation after opening the task composer
   assert.equal(activePluginPage([], '/', '?capability=example.mcp.read'), undefined);
 });
 
+test('hidden archive entries still resolve through the installed page registry', () => {
+  const page = { path: '/meeting-summaries', label: '会议纪要', navigation: false, section: 'team', view: { kind: 'builtin', id: 'meeting-summaries' } };
+  assert.equal(findPluginPage([page], '/meeting-summaries'), page);
+  assert.equal(findPluginPage([], '/meeting-summaries'), undefined);
+});
+
 test('agent page links stay inside the workspace and encode the capability', () => {
   assert.equal(pluginAgentHref('example.mcp.read'), '/?capability=example.mcp.read');
   const url = new URL(pluginAgentHref('example.run&next=https://foreign.example'), 'http://localhost');

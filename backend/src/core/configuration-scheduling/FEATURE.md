@@ -24,7 +24,7 @@ flowchart TD
     LF --> BOOT[重启注入环境配置]
     BOOT --> PH
     PC["可信插件配置 / 重启生效"] --> PH["Agent、Tool、Skill、消息与群调度装配"]
-    PH --> VIS[站会、看板与甘特 Web 入口按插件装配]
+    PH --> VIS[五类团队 Web 入口按插件装配；纪要仍隐藏]
     VIS --> E
     PH --> E
     A["Config Page / API"] --> B["Schema 校验与持久化"]

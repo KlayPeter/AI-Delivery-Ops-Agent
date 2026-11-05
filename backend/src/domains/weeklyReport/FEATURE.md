@@ -22,6 +22,9 @@ flowchart TD
     PL["Cordis: builtin.weekly-report"] --> A
     PL --> MR["插件消息路由与帮助"]
     PL --> GS["插件贡献：周报计划"]
+    PL --> API
+    API --> SAFE[本机检查、成功版本与受限 HTML 文件读取]
+    SAFE --> UI
     MR --> A
     U["@机器人生成本周/上周周报"] --> H["WeeklyReportHandler"]
     S["周五配置时间"] --> HC{"群日期策略与指定日期允许?"}
@@ -68,7 +71,7 @@ flowchart TD
 
 ## 核心规则
 
-运行时装配由 `builtin.weekly-report` 插件负责，拥有 周报 Native Agent、群消息与周报计划的装配和清理。移除插件关闭对应消息和群业务调度，历史数据保留；页面、业务 API、全局维护/成员同步与基础服务尚未全部迁为插件贡献。
+运行时装配由 `builtin.weekly-report` 插件负责，拥有 周报 Native Agent、群消息与周报计划的装配和清理。移除插件同时关闭消息、群调度、周报页面、列表与 HTML API；数据库记录和文件保留。全局维护/成员同步及基础服务的生命周期继续迁移。
 
 周报插件拥有周五、配置时区、站会资格及模块开关判定，沿用群日历覆盖和旧工作日例外；移除后不再触发周报计划。
 
@@ -87,7 +90,7 @@ flowchart TD
 11. **任务标题只链接可信 TAPD 地址。** 有 `http/https` `tapd_url` 时标题支持 hover、键盘 focus 和新标签页打开；缺少链接或协议不安全时只展示纯文本。
 12. **LLM 可选但降级必须透明。** 模型失败、空响应或非法 JSON 时自动使用确定性摘要，事实和报告仍可生成；`narrative_json` 保存降级标记、失败分类和脱敏错误，HTML 与群投递消息都明确说明内容未经过 AI 归纳。
 13. **HTML 默认不信任输入。** 群名、成员名、任务标题和站会内容全部转义；产物只写入 `data_path/weekly-reports`。
-14. **访问按记录解析。** API 先按不可猜测的报告 ID 读取数据库记录，再校验文件位于周报目录且扩展名为 `.html`，不接受任意文件名。
+14. **访问按记录解析。** API 先按报告 ID 读取成功记录，再通过共享 `readWorkspaceArtifact` 校验逻辑路径、真实目录边界、普通文件和 `.html` 后缀；拒绝叶子符号链接和跨目录链接，不接受客户端文件路径。
 15. **重复生成保留版本。** 同一群和周期每次成功生成递增版本，不覆盖旧文件；并发版本冲突最多重算并重试三次，失败尝试产生的 HTML 会被清理；消息和调度级重复由 Agent Trigger 幂等。
 16. **投递与生成分离。** Agent 返回加粗群名、统计周期和直达 HTML 周报的 Markdown Artifact，不在群消息中重复提交率或任务指标；若 AI 降级则额外加入一条明确说明。链接固定指向 `/api/weekly-reports/{reportId}`，优先使用 `runtime.public_base_url` 作为服务地址前缀，未配置时使用 `http://localhost:8090`；中台「周报」菜单仍可单独查看历史，但不是群消息跳转目标；Delivery Worker 发送到触发群，报告生成成功不等于飞书已经送达。
 17. **定时任务固定周五。** 群配置控制模块、开关、时间和时区；沿用原规则时不受 `workdays_only` 影响；选择新日历策略后遵守周报时区日期的触发/暂停规则，指定非周五不会额外生成周报。
@@ -98,7 +101,8 @@ flowchart TD
 - 在已配置群中 `@机器人 生成上周周报`。
 - 同时启用日报站会和周报模块后，在每周五指定时间自动收到直达 HTML 周报链接。
 - 打开链接优先查看成员产出、近期目标和任务统计，再查看群级任务与 TAPD 流转。
-- 在系统导航的「周报」中按群查看历史周报，并在页面内以贴合视口的滚动预览完整 HTML，不留下无意义空白区域。
+- 在插件贡献的「周报」页面按团队查看历史版本；统一浅色页头、历史抽屉、重试和空态。
+- `?reportId` 与 `?groupId` 保留选择；明确指定的版本缺失时显示未找到，不悄悄回退其他版本。
 
 ## 入口与触发
 
@@ -124,7 +128,7 @@ flowchart TD
 - LLM 不可用、限流、超时或返回非法内容：记录 `ai_weekly_report_failed`，使用确定性事实模板，不影响事实与 HTML 生成；HTML 和群消息都展示降级说明。
 - DB 保存失败：删除刚写出的孤立 HTML 后向上抛错。
 - 文件丢失、越界或记录无效：查看 API 返回 404。
-- 周报 API 当前依赖部署网络边界；如开放公网，应在路由前增加用户鉴权和群权限校验。
+- 周报 API 通过插件 Host 的本机 Host/Origin 边界，不是多人认证。缺少插件返回 404；内部读取错误不回显数据库或文件路径。
 
 ## 代码地图
 
@@ -141,10 +145,13 @@ flowchart TD
 - `backend/src/agents/native/weeklyReportAgent.ts`：Agent Manifest 与 Native Adapter。
 - `backend/src/services/messageHandler/handlers/WeeklyReportHandler.ts`：群命令入口。
 - `backend/src/core/scheduler.ts`、`frontend/src/components/config/GroupConfigList.tsx`：周五调度和配置。
-- `backend/src/index.ts`：周报列表与 HTML 查看 API。
+- `backend/src/domains/weeklyReport/api.ts`：插件拥有的周报列表与 HTML API。
+- `backend/src/platform/workspace/artifactFiles.ts`：与看板/纪要共用的产物读取边界。
 - `frontend/src/pages/WeeklyReportsPage.tsx`、`frontend/src/layouts/MainLayout.tsx`、`frontend/src/App.tsx`、`frontend/src/api.ts`：周报导航、历史选择与 HTML 预览。
 
 ### 主要测试
+
+- `backend/test/reportWeb.test.ts`：周报所有权、成功记录、群筛选、元数据、文件边界与 OpenAPI；配合现有周报业务回归。
 
 - `backend/test/schedulePlugins.test.ts`：移除插件后的群任务关闭、跨午夜日期、第三方调度和停机收敛。
 
@@ -158,6 +165,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 周报历史页面/API 迁入插件，统一记录页和精确版本选择，文件读取复用真实目录边界 | reportWeb、projectVisibilityApi、pluginWeb、全量回归、前端门禁与本地浏览器验收 |
 | 2026-11-05 | 同步本地连接表单与宿主环境配置优先级 | 工作台专项、后端回归、前端检查与本地浏览器验收 |
 | 2026-11-05 | 周报计划改为插件贡献，业务日期、幂等、重试和持久化契约保留 | 原调度与插件回归、后端 428 通过 / 1 TAPD 跳过、类型检查 |
 | 2026-11-05 | 将群聊周报指令和能力提示归属 `builtin.weekly-report`，移除后同步关闭消息入口；业务服务契约保留 | 消息插件及原业务回归、后端 422 通过 / 1 TAPD 跳过、类型检查 |

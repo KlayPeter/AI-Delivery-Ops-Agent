@@ -1,10 +1,10 @@
 import { Elysia } from 'elysia';
 import { z } from 'zod';
-import { constants } from 'node:fs';
-import { open, readdir } from 'node:fs/promises';
+import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { TaskService } from '@/services/taskService';
 import type { HandlerContext } from '@/services/messageHandler/types';
+import { readWorkspaceArtifact } from '@/platform/workspace/artifactFiles';
 
 const htmlName = (name: string) => name.length <= 255 && !/[\\/\p{Cc}]/u.test(name) && name.endsWith('.html');
 const querySchema = z.object({
@@ -35,17 +35,11 @@ export function createDashboardApi(getContext: () => HandlerContext) {
         })
         .get('/:filename', async ({ params: { filename }, set }) => {
             if (!htmlName(filename)) { set.status = 404; return { error: 'not_found' }; }
-            let file;
-            try {
-                file = await open(path.join(getContext().config.data_path, 'dashboards', filename), constants.O_RDONLY | constants.O_NOFOLLOW);
-                if (!(await file.stat()).isFile()) { set.status = 404; return { error: 'not_found' }; }
-                const content = await file.readFile('utf8');
-                set.headers['Content-Type'] = 'text/html; charset=utf-8';
-                return content;
-            } catch (error: any) {
-                if (['ENOENT', 'ENOTDIR', 'ELOOP'].includes(error.code)) { set.status = 404; return { error: 'not_found' }; }
-                throw error;
-            } finally { await file?.close(); }
+            const root = path.join(getContext().config.data_path, 'dashboards');
+            const content = await readWorkspaceArtifact(root, path.join(root, filename), '.html');
+            if (content === null) { set.status = 404; return { error: 'not_found' }; }
+            set.headers['Content-Type'] = 'text/html; charset=utf-8';
+            return content;
         });
 }
 

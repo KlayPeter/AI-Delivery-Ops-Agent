@@ -7,8 +7,8 @@ import { useWorkspace } from '@/pages/workspace/state';
 import { activePluginPage, type PluginPage } from '@/pages/workspace/pages';
 
 const link = (path: string, label: string) => <Link to={path}>{label}</Link>;
-const pluginIcons: Record<string, React.ReactNode> = { standups: <CheckSquareOutlined aria-hidden />, dashboard: <DashboardOutlined aria-hidden />, 'human-gantt': <ScheduleOutlined aria-hidden /> };
-const pluginLinks = (pages: PluginPage[], section: PluginPage['section']) => pages.filter(page => page.section === section).map(page => ({ key: page.path, icon: page.view.kind === 'builtin' ? pluginIcons[page.view.id] || <RobotOutlined aria-hidden /> : <RobotOutlined aria-hidden />, label: link(page.path, page.label) }));
+const pluginIcons: Record<string, React.ReactNode> = { standups: <CheckSquareOutlined aria-hidden />, dashboard: <DashboardOutlined aria-hidden />, 'human-gantt': <ScheduleOutlined aria-hidden />, 'weekly-reports': <FileTextOutlined aria-hidden />, 'meeting-summaries': <FileTextOutlined aria-hidden /> };
+const pluginLinks = (pages: PluginPage[], section: PluginPage['section']) => pages.filter(page => page.section === section && page.navigation !== false).map(page => ({ key: page.path, icon: page.view.kind === 'builtin' ? pluginIcons[page.view.id] || <RobotOutlined aria-hidden /> : <RobotOutlined aria-hidden />, label: link(page.path, page.label) }));
 const items = (pages: PluginPage[]) => [
   { key: '/', icon: <AppstoreOutlined aria-hidden />, label: link('/', '工作台') },
   { key: '/runs', icon: <HistoryOutlined aria-hidden />, label: link('/runs', '运行记录') },
@@ -19,7 +19,6 @@ const items = (pages: PluginPage[]) => [
   { type: 'divider' as const },
   { key: 'team', label: '团队交付', icon: <ScheduleOutlined aria-hidden />, children: [
     ...pluginLinks(pages, 'team'),
-    { key: '/weekly-reports', icon: <FileTextOutlined aria-hidden />, label: link('/weekly-reports', '周报') },
     { key: '/debug', icon: <CodeOutlined aria-hidden />, label: link('/debug', '业务任务') },
   ] },
   { key: 'manage', type: 'group' as const, label: '管理', children: [
@@ -29,7 +28,7 @@ const items = (pages: PluginPage[]) => [
     { key: '/contexts', icon: <DatabaseOutlined aria-hidden />, label: link('/contexts', '上下文') },
   ] },
 ];
-const titles: Record<string, string> = { '/': '工作台', '/runs': '运行记录', '/agents': 'Agent', '/knowledge': '知识库', '/plugins': '插件', '/connections': '连接与模型', '/config': '定时与团队配置', '/logs': '审计日志', '/contexts': '上下文', '/weekly-reports': '周报', '/debug': '业务任务' };
+const titles: Record<string, string> = { '/': '工作台', '/runs': '运行记录', '/agents': 'Agent', '/knowledge': '知识库', '/plugins': '插件', '/connections': '连接与模型', '/config': '定时与团队配置', '/logs': '审计日志', '/contexts': '上下文', '/debug': '业务任务' };
 
 export const MainLayout = () => {
   const location = useLocation();

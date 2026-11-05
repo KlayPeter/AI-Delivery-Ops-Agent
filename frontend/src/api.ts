@@ -95,10 +95,7 @@ export const api = {
   },
   syncGroupMembers: (chatId: string) => request(client.post(`/feishu/groups/${encodeURIComponent(chatId)}/members/sync`)),
   syncCompanyMembers: () => request(client.post(`/feishu/company-members/sync`)),
-  fetchMeetingSummaries: async (groupId?: string) => {
-    const data = await request(client.get(`/meeting-summaries${groupId ? '?groupId=' + encodeURIComponent(groupId) : ''}`));
-    return safeArray(data.summaries);
-  },
+  fetchMeetingSummaries: (groupId?: string, skip = 0, limit = 15) => request(client.get('/meeting-summaries', { params: { groupId, skip, limit } })),
   fetchMeetingSummaryContent: async (filepath: string) => {
     const data = await request(client.get(`/meeting-summaries/file/${filepath.split('/').map(encodeURIComponent).join('/')}`));
     return data;

@@ -33,6 +33,8 @@ flowchart TD
     A --> WOWN[插件声明的 Web 页面、API 与手动任务]
     WOWN --> PV[看板文件读取与甘特计划；缺少所有者返回 404]
     PV --> PA[TaskService 计划审计；保留历史数据]
+    WOWN --> EMAIL[纪要邮件：真实服务接受后记录标记与审计]
+    EMAIL --> UNCERTAIN[接受后保存失败显式返回；当前进程不重发]
     WOWN --> B["Trigger / Job Execution"]
     B --> C["Agent Run / 业务服务"]
     C --> SC[Agent / Tool / Skill 标准 JSON Schema 校验]

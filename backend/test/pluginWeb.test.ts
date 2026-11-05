@@ -76,6 +76,8 @@ test('team defaults declare exactly the existing manual jobs and an empty profil
             expect.objectContaining({ path: '/standups', view: { kind: 'builtin', id: 'standups' } }),
             expect.objectContaining({ path: '/dashboard', view: { kind: 'builtin', id: 'dashboard' } }),
             expect.objectContaining({ path: '/human-gantt', view: { kind: 'builtin', id: 'human-gantt' } }),
+            expect.objectContaining({ path: '/weekly-reports', view: { kind: 'builtin', id: 'weekly-reports' } }),
+            expect.objectContaining({ path: '/meeting-summaries', navigation: false }),
         ]));
         expect(empty.web.pages()).toEqual([]);
         let called = false;
