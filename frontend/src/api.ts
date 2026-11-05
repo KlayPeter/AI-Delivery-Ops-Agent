@@ -1,4 +1,5 @@
 import axios from "axios";
+import { rememberRunInput, setInputCapture } from './runInputs.mjs';
 
 const API_BASE = ((import.meta as any).env?.VITE_API_BASE || `http://${window.location.hostname}:8090/api`).replace(/\/$/, "");
 
@@ -41,7 +42,16 @@ const request = async (promise: Promise<any>) => {
 const safeArray = (value: any) => (Array.isArray(value) ? value : []);
 
 export const api = {
-  fetchWorkspace: () => request(client.get('/workspace/state')),
+  fetchWorkspace: async () => {
+    const result = await request(client.get('/workspace/state'));
+    setInputCapture(result.plugins?.some((plugin: { id: string }) => plugin.id === 'personal.recipes') === true);
+    return result;
+  },
+  fetchRecipes: () => request(client.get('/recipes')),
+  fetchRecipe: (id: string) => request(client.get(`/recipes/${encodeURIComponent(id)}`)),
+  saveRecipe: (input: Record<string, unknown>) => request(client.post('/recipes', input)),
+  launchRecipe: (id: string, input: Record<string, unknown>, triggerId: string) => request(client.post(`/recipes/${encodeURIComponent(id)}/run`, { input, triggerId })),
+  fetchRecipeReceipt: (runId: string) => request(client.get(`/recipes/launches/${encodeURIComponent(runId)}`)),
   fetchConnections: () => request(client.get('/workspace/connections')),
   fetchKnowledgeWorkspace: () => request(client.get('/knowledge-workspace')),
   fetchDocumentStatus: () => request(client.get('/documents/status')),
@@ -51,7 +61,11 @@ export const api = {
   exportMcpProfile: (input: Record<string, unknown>) => request(client.post('/mcp-setup/profile', input)),
   uploadDocument: (file: File) => request(client.post('/documents/uploads', file, { headers: { 'Content-Type': 'application/octet-stream', 'X-Document-Name': encodeURIComponent(file.name) } })),
   saveConnections: (values: Record<string, string | null>) => request(client.put('/workspace/connections', values)),
-  runAgent: (capability: string, input: Record<string, unknown>, triggerId: string) => request(client.post('/workspace/runs', { capability, input, triggerId })),
+  runAgent: async (capability: string, input: Record<string, unknown>, triggerId: string) => {
+    const result = await request(client.post('/workspace/runs', { capability, input, triggerId }));
+    rememberRunInput(result.runId, input);
+    return result;
+  },
   fetchRun: (runId: string) => request(client.get(`/workspace/runs/${encodeURIComponent(runId)}`)),
   fetchRunActions: (runId: string) => request(client.get(`/workspace/runs/${encodeURIComponent(runId)}/actions`)),
   runAction: (runId: string, actionId: string, triggerId: string) => request(client.post(`/workspace/runs/${encodeURIComponent(runId)}/actions/${encodeURIComponent(actionId)}`, { triggerId })),

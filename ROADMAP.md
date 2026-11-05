@@ -72,7 +72,9 @@ are deferred while the local product is being validated.
 - [x] Add a bounded personal research Model Loop with actual child-run evidence,
   human continuation, durable delegation limits and a completion gate. Summary
   semantics remain unverified; model protocol tests use local fixtures.
-- [ ] Turn verified runs into user-reviewed reusable recipes.
+- [x] Turn successful runs with a single execution receipt and matching original input
+  into user-reviewed reusable recipes; recheck the selected contract at execution,
+  retain provenance, and state that model/tool/environment replay is not provided.
 - [ ] Propose knowledge write-back as reviewable patches with source-version conflict checks.
 - [ ] Replay redacted fixtures to compare plugin and model versions without live writes.
 - [ ] Validate onboarding and repeated use with independent maintainers or teams.

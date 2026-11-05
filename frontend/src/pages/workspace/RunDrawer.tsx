@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import useSWR from 'swr';
+import { Link } from 'react-router-dom';
 import { Alert, Button, Collapse, Drawer, Empty, Input, Spin, Tabs, Tag, Timeline, Typography } from 'antd';
 import ReactMarkdown from 'react-markdown';
 import { api } from '@/api';
@@ -52,6 +53,8 @@ function ResultContent({ artifact, onSelectRun }: { artifact: { id: string; type
 export default function RunDrawer({ runId, onClose, onSelectRun }: { runId: string | null; onClose: () => void; onSelectRun: (id: string) => void }) {
   const { data: workspace, mutate } = useWorkspace();
   const { data, error, isLoading, mutate: refresh } = useSWR<RunDetail>(runId ? ['run', runId] : null, () => api.fetchRun(runId!), { refreshInterval: details => details && ['running', 'queued', 'waiting_human'].includes(details.run.status) ? 2000 : 0 });
+  const recipesAvailable = workspace?.pages.some(page => page.path === '/recipes');
+  const { data: provenance } = useSWR<{ receipt: { recipeName: string; sourceRunId: string; parametersChanged: boolean } | null }>(runId && recipesAvailable ? ['recipe-receipt', runId] : null, () => api.fetchRecipeReceipt(runId!));
   const [reply, setReply] = useState('');
   const [resuming, setResuming] = useState(false);
   const [resumeError, setResumeError] = useState('');
@@ -64,6 +67,8 @@ export default function RunDrawer({ runId, onClose, onSelectRun }: { runId: stri
   return <Drawer title={data ? capabilityName(data.run.capability, workspace?.agents.find(agent => agent.capabilities.includes(data.run.capability))?.name) : '运行详情'} open={Boolean(runId)} onClose={onClose} size="large" className="run-drawer">
     {isLoading ? <Spin /> : error ? <Alert type="error" title="加载失败" description={error.message} /> : data ? <>
       <div className="run-meta"><RunStatus status={data.run.status} /><Typography.Text copyable className="muted">{data.run.id}</Typography.Text></div>
+      {recipesAvailable && data.run.status === 'succeeded' && !data.run.parentRunId && <p><Link to={`/recipes?runId=${encodeURIComponent(data.run.id)}`} onClick={onClose}>保存为任务配方</Link></p>}
+      {provenance?.receipt && <Alert type="info" showIcon title={`来自「${provenance.receipt.recipeName}」配方${provenance.receipt.parametersChanged ? ' · 本次参数已修改' : ''}`} action={<Button onClick={() => onSelectRun(provenance.receipt!.sourceRunId)}>查看来源运行</Button>} />}
       {data.run.error && <Alert type="error" showIcon title="本次执行未完成" description={data.run.error.message} />}
       {data.run.status === 'succeeded' && <RunActions runId={data.run.id} onSelectRun={onSelectRun} />}
       {data.run.status === 'waiting_human' && <div className="resume-form">

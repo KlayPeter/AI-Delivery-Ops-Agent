@@ -45,7 +45,7 @@ await host.stop();
 AGENT_PLUGINS_FILE=profiles/agents/team.yaml bun run dev
 ```
 
-团队 SDK 未指定插件时仍为九个功能插件、七个 Agent；HTTP 工作台默认只装配选定知识来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收与 MCP 接入助手，共十个插件、九个 Agent；配置 GitHub 发布组合后为 12 个插件、10 个 Agent。HTTP 不再隐式装配团队能力；使用 profiles/agents/team.yaml 可显式选择原九个团队插件。会议纪要和外部 AI Hot 调度插件没有独立 Agent。会议纪要仍受原有模块开关控制，外部 AI Hot 能力仍需另行安装。示例还包括 `profiles/agents/native-demo.yaml`、`profiles/agents/empty.yaml` 和 `backend/examples/plugins.collectors.yaml`，分别选择 Echo 模板、零业务插件和采集/资料库三个插件。显式插件文件完全决定组合；未装配的插件页面和 API 不开放，基础服务仍由应用拥有。
+团队 SDK 未指定插件时仍为九个功能插件、七个 Agent；HTTP 工作台默认只装配选定知识来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收、MCP 接入助手、个人研究及任务配方，共十一个插件、九个 Agent；配置 GitHub 发布组合后为 13 个插件、10 个 Agent。HTTP 不再隐式装配团队能力；使用 profiles/agents/team.yaml 可显式选择原九个团队插件。会议纪要和外部 AI Hot 调度插件没有独立 Agent。会议纪要仍受原有模块开关控制，外部 AI Hot 能力仍需另行安装。示例还包括 `profiles/agents/native-demo.yaml`、`profiles/agents/empty.yaml` 和 `backend/examples/plugins.collectors.yaml`，分别选择 Echo 模板、零业务插件和采集/资料库三个插件。显式插件文件完全决定组合；未装配的插件页面和 API 不开放，基础服务仍由应用拥有。
 
 ```yaml
 apiVersion: '1.0'
@@ -159,7 +159,7 @@ ctx.delivery.web.register({
 });
 ```
 
-页面只能使用站内静态路径；label 最长 80 字符，section 为 workspace/team。view.kind=agent 打开指定 Capability 的现有工作台；kind=builtin 使用已打包 renderer ID（包括团队页面，以及 knowledge、release-preparation、web-capture、documents、knowledge-library、plugin-checks、mcp-setup、mcp-runner、personal-research）。builtin view 可声明可选的 capability，让 Agent 卡片和任务选择进入所属结构化表单；网页收集和文档导入是实际例子。未知 renderer 显示恢复入口，不执行远程 HTML、JS 或 React 包。已保留的核心/旧页面不能覆盖，路径与贡献 ID 不得重复；Agent 导航跳转后保持当前项选中。
+页面只能使用站内静态路径；label 最长 80 字符，section 为 workspace/team。view.kind=agent 打开指定 Capability 的现有工作台；kind=builtin 使用已打包 renderer ID（包括团队页面，以及 knowledge、release-preparation、web-capture、documents、knowledge-library、plugin-checks、mcp-setup、mcp-runner、personal-research、run-recipes）。builtin view 可声明可选的 capability，让 Agent 卡片和任务选择进入所属结构化表单；网页收集和文档导入是实际例子。未知 renderer 显示恢复入口，不执行远程 HTML、JS 或 React 包。已保留的核心/旧页面不能覆盖，路径与贡献 ID 不得重复；Agent 导航跳转后保持当前项选中。
 
 API 声明 prefix、routes（method/path）与接收标准 Request、返回 Response 的 handle。每条声明必须位于所属前缀，前缀不可重叠或覆盖保留 API。应用在 Host 初始化后核对已有 API 命名空间，冲突时拒绝装配，不覆盖旧接口；随后装配声明路由，因此 OpenAPI 保留路径；请求体由所属 Fetch handler 解析，代理不会先消耗 body。`builtin.standup` 和 `backend/src/domains/standup/api.ts` 是真实例子。通过 Host.handlePluginRequest 进入本机来源校验与在途跟踪，停止时先等待请求，再释放资源。
 
@@ -258,3 +258,13 @@ selector: { type: 'object', required: ['metadata'], properties: {
 Agent 委派上限从同一 Run 的 delegate: Agent 步骤恢复，失败和继续均计数，
 暂停不重置额度；未提供 RunStore 的裸 Adapter 仅能在当前调用计数。
 不要把保存的资料索引、结构验收或引用存在核验描述成模型语义正确的证明。
+
+## 本机任务复用
+
+personal.recipes 的完整边界与最小组合见 [任务配方](TASK_RECIPES.md)。它是确定性控制面功能，无独立 Agent。可信 capabilities 配置决定可复用范围，能力名或 MCP 注解不是只读证明，作者必须审查实际工具、副作用和权限；默认不开放团队写入或一次性文档输入。
+
+PluginHostServices 增加可选 runLocal(capability, input, triggerId, expected?)，返回 runId/status/error；expected 为 { installationId, manifestHash }。服务固定本机 Scope 和 none 回复策略，经过原 Host/Trigger/Runtime；Host 尚未就绪或停止则拒绝，不能在 apply 阶段等待执行。插件 Request 经 Host 跟踪生命周期，不提供任意远程页面执行。
+
+Host 将 expected 放入可信上下文 reserved expectedExecution，Runtime 在实际解析根 Agent 后再次核对；普通客户端 input 不能写该上下文。子委派与人工继续保持既有协议，不能据此声称环境被冻结。Manifest 指纹不是 Tool/模型/配置的完整代码快照。配方使用既有 execution 1.0 的单次身份与输入指纹，多轮或旧记录不补造凭证。
+
+配方来源回执归配方插件，不能向其他 Agent 保存 Manifest 未允许的 Artifact。候选输入仅在当前页面内存，明确审查保存后才持久化完整参数；它不是自动 Secret 脱敏或共享市场。

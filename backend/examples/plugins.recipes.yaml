@@ -1,0 +1,7 @@
+apiVersion: '1.0'
+plugins:
+  - module: ../src/knowledge/markdown/plugin.ts
+    config:
+      root: ./examples/knowledge-vault
+      sourceId: recipe-demo
+  - module: ../src/recipes/plugin.ts

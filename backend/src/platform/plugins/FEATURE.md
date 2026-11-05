@@ -65,6 +65,8 @@ flowchart TD
     QCR --> QREP[结构断言、执行版本与独立报告]
     MCPSETUP[匿名 MCP 发现与审查导出] --> MCPRUN[重启后的可信白名单运行；共享预算与证据]
     MCPRUN --> E
+    REC[任务配方：原参数与版本审查] --> RECRUN[固定本机新运行；Runtime 核对实际契约]
+    RECRUN --> RECEIPT[独立来源回执，原记录保留]
 ```
 
 ## 能力边界
@@ -83,7 +85,7 @@ flowchart TD
 
 ## HTTP 工作台组合
 
-团队 SDK 默认仍为九个插件、七个 Agent；HTTP 通过 workspace/composition.ts 默认只加载个人来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收、MCP 接入助手及个人研究，共十个插件、九个 Agent。GitHub 配置后增加连接和发布插件，为 12 个插件、10 个 Agent。原团队组合用 profiles/agents/team.yaml 显式选择，显式文件完全覆盖默认，不隐式叠加个人能力；历史数据保留。页面从真实已装配贡献显示，团队分区仅在可见团队页面或手动任务存在时出现；默认没有团队业务 API/手动任务。来源设置仍在默认个人组合中保存并重启生效。
+团队 SDK 默认仍为九个插件、七个 Agent；HTTP 通过 workspace/composition.ts 默认只加载个人来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收、MCP 接入助手、个人研究及任务配方，共十一个插件、九个 Agent。GitHub 配置后增加连接和发布插件，为 13 个插件、10 个 Agent。原团队组合用 profiles/agents/team.yaml 显式选择，显式文件完全覆盖默认，不隐式叠加个人能力；历史数据保留。页面从真实已装配贡献显示，团队分区仅在可见团队页面或手动任务存在时出现；默认没有团队业务 API/手动任务。来源设置仍在默认个人组合中保存并重启生效。
 
 ## 核心规则
 
@@ -252,3 +254,13 @@ checks 的产物断言增加可选 selector（完整 Artifact 上的标准 JSON 
 | 2026-11-05 | 将确定性消息、引用上下文、免 @ 回复和帮助归属功能插件；默认新增无 Agent 的会议纪要插件；停机等待在途消息 | 消息插件与现有路由回归、后端 422 通过 / 1 TAPD 跳过、类型检查 |
 | 2026-11-05 | 增加可信 YAML Agent 插件选择与本地/已安装包加载；未启用模块不导入，消息 AI/新闻分流检查实际 Capability | 配置加载、插件/Host 测试与后端全量回归 |
 | 2026-11-05 | 引入 Cordis 4.1.0 与版本化插件协议，拆出七个 Agent 插件，提供贡献回滚、释放和在途停止 | 插件与 Host 测试、后端类型及全量回归 |
+
+## 任务配方与本机执行服务
+
+personal.recipes 独立拥有任务配方页面/API 与私有 KV，默认个人组合增加一个插件但不增加 Agent。保存时先核对成功根 Run 的 Scope、单次 execution 1.0、原参数指纹及当前安装/Manifest；多轮人工补充或旧凭证不补造。使用前审查本次参数，经可选 PluginHostServices.runLocal 进入固定默认 workspace/bot、manual Trigger 和 none 回复策略，继续受实际 Agent Schema、Scope、预算和运行记录约束。该服务在 Host 未就绪/停止时拒绝，不可在 apply 阶段等待调用；原生插件仍是可信宿主代码。
+
+运行参数可修改，原配方不覆盖；请求 UUID 持久绑定配方/参数/契约。Runtime 在真正解析根执行后核对可信 expectedExecution 的安装及 Manifest 指纹，拒绝预检查后契约变化，不接受客户端 input 扩权。子委派及人工继续保持既有协议；指纹不冻结模型、知识、Tool 实现或全部环境。旧调用不带该上下文，语义保持。
+
+前端仅在装配配方时于页面内存保留有界候选输入，刷新/移除清空；明确保存才写本机完整参数。来源回执在插件 KV，避免向其他 Agent 注入越出 Manifest 的 Artifact；写回执失败返回真实 Run ID 与警告。RunDrawer 展示配方来源和参数变化，可回到原始结果；移除插件关闭入口但保留记录。
+
+实现/规则见 [任务配方功能卡](../../recipes/FEATURE.md)，验证：backend/test/runRecipes.test.ts、frontend/src/runInputs.test.mjs、既有 Runtime/插件回归和桌面/375px 浏览器验收；本批不验证真实模型质量。

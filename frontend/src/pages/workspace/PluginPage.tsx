@@ -18,6 +18,7 @@ const ChecksPage = lazy(() => import('./ChecksPage'));
 const McpSetupPage = lazy(() => import('./McpSetupPage'));
 const McpRunnerPage = lazy(() => import('./McpRunnerPage'));
 const ResearchPage = lazy(() => import('./ResearchPage'));
+const RecipesPage = lazy(() => import('./RecipesPage'));
 
 export default function PluginPage() {
   const { data, error, isLoading, mutate } = useWorkspace();
@@ -40,5 +41,6 @@ export default function PluginPage() {
   if (page?.view.kind === 'builtin' && page.view.id === 'mcp-setup') return <McpSetupPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'mcp-runner') return <McpRunnerPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'personal-research') return <ResearchPage />;
+  if (page?.view.kind === 'builtin' && page.view.id === 'run-recipes') return <RecipesPage />;
   return <div className="workspace-page"><Empty description={page ? '当前界面版本尚不支持此插件页面' : '此页面不存在或对应插件未启用'}><Link className="primary-link" to="/plugins">查看已装配插件</Link></Empty></div>;
 }

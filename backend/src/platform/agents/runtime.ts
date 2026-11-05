@@ -31,6 +31,10 @@ export class AgentRuntime {
     async execute<T>(trigger: TriggerEnvelope, capability: string, input: T): Promise<AgentExecutionOutcome> {
         this.requireBotScope(trigger);
         const resolved = this.registry.resolve(trigger.scope.workspaceId, trigger.scope.botInstanceId, capability);
+        const expected = trigger.trustedContext?.expectedExecution as { installationId?: unknown; manifestHash?: unknown } | undefined;
+        if (expected !== undefined && (!expected || expected.installationId !== resolved.installation.id || expected.manifestHash !== jsonFingerprint(resolved.manifest))) {
+            throw Object.assign(new Error('Agent 版本、契约或绑定已变化，未执行配方任务'), { code: 'AGENT_CONTRACT_CHANGED', retryable: false });
+        }
         const now = new Date();
         const runId = randomUUID();
         const scope = createExecutionScope(trigger.scope, resolved.installation.id, { correlationId: runId });

@@ -26,7 +26,7 @@ pnpm dev --host 127.0.0.1
 
 打开 [本地界面](http://localhost:15173/)。[就绪检查](http://localhost:8090/readyz) 返回 `status: "ready"` 表示数据库、Agent Host 和已配置的入站机器人已就绪；未配置飞书时 `required: 0` 是正常状态。
 
-首页为个人 Agent 工作台，默认十个插件、九个 Agent，不自动装配团队业务。个人知识使用仓库中的虚构示例，可在「知识库」直接检索，无需任何密钥。「连接与模型」可填写飞书、模型与 TAPD；「知识库 → 配置来源」可选择自己的目录或公开链接。配置保存在数据目录下的 connections.json（0600、本机明文），密钥不回显，重启后端后生效。工作台保存值覆盖同名环境值，模型与 TAPD 连接环境值优先于旧 config.json。
+首页为个人 Agent 工作台，默认十一个插件、九个 Agent，不自动装配团队业务。个人知识使用仓库中的虚构示例，可在「知识库」直接检索，无需任何密钥。「连接与模型」可填写飞书、模型与 TAPD；「知识库 → 配置来源」可选择自己的目录或公开链接。配置保存在数据目录下的 connections.json（0600、本机明文），密钥不回显，重启后端后生效。工作台保存值覆盖同名环境值，模型与 TAPD 连接环境值优先于旧 config.json。
 
 首次可在「知识库」检索 **API 迁移说明**，查看虚构 Release.md 的真实原文和版本。成功的知识回答详情可点击「检查引用变化」，生成独立检查记录；「刷新状态」只读取上次评估，显示检查时间，不自动扫描来源。原回答与引文保留，知识变化会提示复核。当前装配数量见[首页组合表](../README.md#能力与插件)，由回归测试对照实际插件声明校验。
 
@@ -67,3 +67,5 @@ AGENT_PLUGINS_FILE=profiles/agents/team.yaml bun run dev
 可选择 [Context7 社区插件](COMMUNITY_PLUGINS.md)，无需宿主模型即可查开发文档；其官方标准 Skill 也会导入，模型研究需自己的模型配置。该组合显式选择，不自动叠加默认团队/个人插件。
 
 已初始化的 backend 可用 AGENT_PLUGINS_FILE=examples/plugins.context7-http.yaml bun run dev 直接连接官方 HTTPS MCP，无需安装上游本地包；查询会发给 Context7。凭据、固定地址、DNS/TLS 与流预算见 [MCP 工具](MCP_TOOLS.md)。
+
+任务成功后可在运行详情保存为[任务配方](TASK_RECIPES.md)，核对原参数与执行版本；下次审查本次参数后创建新运行。最小无模型组合：在 backend 执行 `AGENT_PLUGINS_FILE=examples/plugins.recipes.yaml bun run dev`。

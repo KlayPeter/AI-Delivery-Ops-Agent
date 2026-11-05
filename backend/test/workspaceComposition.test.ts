@@ -30,7 +30,7 @@ const createHost = async (store = new InMemoryPersistentKeyValueStore(), file = 
 
 test('HTTP default loads personal plugins without implicit team agents, routes or manual jobs', async () => {
     const selected = await loadWorkspacePlugins(directory, '');
-    expect(selected.plugins).toHaveLength(10);
+    expect(selected.plugins).toHaveLength(11);
     expect(selected.plugins.some(plugin => plugin.manifest.id.startsWith('builtin.'))).toBe(false);
     const host = await createHost();
     try {
