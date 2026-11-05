@@ -90,7 +90,8 @@ async function main() {
         const session = randomUUID();
         let announce!: (port: number) => void;
         const ready = new Promise<number>(resolve => { announce = resolve; });
-        const server = launch('启动本地后端', [bun, 'run', 'start'], backend, { ...process.env, HOST: '127.0.0.1', LOCAL_DEV_SESSION: session }, line => {
+        // Run the entry directly so package-script wrappers cannot forward a second stop signal.
+        const server = launch('启动本地后端', [bun, 'src/index.ts'], backend, { ...process.env, HOST: '127.0.0.1', LOCAL_DEV_SESSION: session }, line => {
             const port = readyPort(line, session); if (port) announce(port);
         });
         const timeout = new Promise<never>((_resolve, reject) => { timer = setTimeout(() => reject(new Error('后端在 60 秒内未完成启动；请检查日志、端口与配置。')), 60_000); });

@@ -35,11 +35,10 @@ test('initialization creates private configuration and preserves an existing fil
 
 async function fixture(extra: Record<string, string> = {}) {
     const directory = await temporary();
-    for (const subdirectory of ['scripts/local', 'backend/node_modules/@prisma/client', 'frontend/node_modules/vite', 'bin']) await mkdir(path.join(directory, subdirectory), { recursive: true });
+    for (const subdirectory of ['scripts/local', 'backend/src', 'backend/node_modules/@prisma/client', 'frontend/node_modules/vite', 'bin']) await mkdir(path.join(directory, subdirectory), { recursive: true });
     await copyFile(path.resolve(import.meta.dir, '../../scripts/local/launcher.ts'), path.join(directory, 'scripts/local/launcher.ts'));
     for (const file of ['backend/node_modules/@prisma/client/package.json', 'frontend/node_modules/vite/package.json']) await writeFile(path.join(directory, file), '{}');
-    await writeFile(path.join(directory, 'backend/package.json'), JSON.stringify({ scripts: { start: 'bun run server.ts' } }));
-    await writeFile(path.join(directory, 'backend/server.ts'), `
+    await writeFile(path.join(directory, 'backend/src/index.ts'), `
 import { writeFileSync } from 'node:fs';
 writeFileSync('../backend.pid', String(process.pid));
 if (process.env.BACKEND_FAIL) process.exit(7);

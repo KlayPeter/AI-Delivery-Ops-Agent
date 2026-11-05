@@ -47,7 +47,7 @@ flowchart TD
 
 1. 根 package.json 只提供两个脚本，不声明 workspace 或依赖，保留后端 Bun 和前端 pnpm 锁。
 2. --setup 以 wx/0600 创建缺少的 backend/.env。锁定安装后调用已安装的 Prisma generate 和既有 bun run db:push，不使用 accept-data-loss。
-3. 本地启动前检查必要依赖，缺少时给出初始化提示。使用 backend 的 start，固定 HOST=127.0.0.1；保留 PORT、DATA_DIR 与插件选择。
+3. 本地启动前检查必要依赖，缺少时给出初始化提示。直接执行 backend/src/index.ts，避免包脚本包装层重复转发停止信号；固定 HOST=127.0.0.1；保留 PORT、DATA_DIR 与插件选择。
 4. 仅监听成功后，后端在 LOCAL_DEV_SESSION 存在时输出 JSON 标记。前端启动要求 event/session/hostname 匹配、port 为 1–65535 整数；忽略其他日志和超过 8 KiB 的行。60 秒未确认则失败清理。
 5. VITE_API_BASE 显式覆盖为本次后端实际端口，Vite 同样绑定回环；前端实际页面端口由 Vite 输出。
 6. 任一服务结束均停止另一端；异常退出返回非零。SIGINT/SIGTERM 是正常停止。POSIX 为独立进程组，先 SIGTERM 等待最多 10 秒，再强制停止未结束组，不查杀其他端口。中断安装步骤同样受清理管理。
@@ -88,4 +88,5 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-06 | 后端改为直接启动，减少停止信号包装层 | 生命周期专项与 Linux CI |
 | 2026-11-06 | 新增根初始化与联合启动，保留原开发脚本 | 生命周期专项、类型/回归与干净副本实际体验 |
