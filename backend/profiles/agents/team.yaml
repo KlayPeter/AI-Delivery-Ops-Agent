@@ -1,0 +1,9 @@
+apiVersion: '1.0'
+plugins:
+  - module: builtin.ai-news
+  - module: builtin.daily-summary
+  - module: builtin.dashboard
+  - module: builtin.weekly-report
+  - module: builtin.task
+  - module: builtin.standup
+  - module: builtin.orchestrator

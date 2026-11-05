@@ -20,7 +20,8 @@ last_reviewed: 2026-11-05
 
 ```mermaid
 flowchart TD
-    A[应用选择插件与配置] --> B[检查 API 版本、ID、依赖与循环]
+    Y[AGENT_PLUGINS_FILE / 应用默认组合] --> A[应用选择插件与配置]
+    A --> B[检查 API 版本、ID、依赖与循环]
     B --> C[Cordis 按依赖顺序装配]
     C --> D[注册 Agent 定义、安装、绑定与自有 Skill]
     D --> E[apply 注册受作用域管理的 Tool 和 Adapter]
@@ -106,6 +107,8 @@ flowchart TD
 
 ### 主要实现
 
+- `backend/src/platform/plugins/configuration.ts`、`backend/profiles/agents/`：可信配置加载与 Agent 组合示例。
+
 - `backend/src/platform/plugins/contracts.ts`、`runtime.ts`：插件协议、依赖检查与 Cordis 生命周期。
 - `backend/src/agents/plugins/`：七个业务 Agent 插件及默认组合。
 - `backend/src/agents/host.ts`：保持原应用能力的组合工厂。
@@ -116,6 +119,8 @@ flowchart TD
 
 ### 主要测试
 
+- `backend/test/pluginConfiguration.test.ts`：配置 Schema、依赖顺序、真实模板、禁用模块不导入与远程 URL 拒绝。
+
 - `backend/test/pluginRuntime.test.ts`：依赖、版本、配置、Skill、失败回滚、恢复事件与资源释放。
 - `backend/test/agentHost.test.ts`：默认兼容、空插件、第三方执行、在途停止、绑定保留与新闻 Bot。
 - `backend/test/agentControlPlane.test.ts`：持久化控制面兼容。
@@ -125,4 +130,5 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 增加可信 YAML Agent 插件选择与本地/已安装包加载；未启用模块不导入，消息 AI/新闻分流检查实际 Capability | 配置加载、插件/Host 测试与后端全量回归 |
 | 2026-11-05 | 引入 Cordis 4.1.0 与版本化插件协议，拆出七个 Agent 插件，提供贡献回滚、释放和在途停止 | 插件与 Host 测试、后端类型及全量回归 |

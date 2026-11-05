@@ -210,6 +210,16 @@ export class AgentHost {
         return Boolean(ai?.api_key && ai?.model);
     }
 
+    canDispatch(capability: string, workspaceId = DEFAULT_WORKSPACE_ID, botInstanceId = DEFAULT_BOT_INSTANCE_ID): boolean {
+        if (!this.initialized || this.stopped) return false;
+        try {
+            this.registry.resolve(workspaceId, botInstanceId, capability);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
     async handleMessage(message: SourceMessage, source: 'group' | 'private', replyContext?: unknown): Promise<AgentConversationOutcome> {
         return this.dispatchMessage(message, source, replyContext);
     }

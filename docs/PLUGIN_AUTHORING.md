@@ -33,6 +33,31 @@ await host.stop();
 
 `getContext` 提供当前应用的 `HandlerContext`。现阶段插件 SDK 仍依赖已有应用服务，不是已发布的通用 npm SDK。应用默认组合使用 `createDeliveryOpsHost`，保留七个业务 Agent；直接构造 `AgentHost` 默认不装配业务功能。
 
+## 用配置文件选择 Agent 插件
+
+从 `backend` 目录启动时，可设置：
+
+```bash
+AGENT_PLUGINS_FILE=profiles/agents/team.yaml bun run dev
+```
+
+未设置变量时保留原七个 Agent。示例还包括 `profiles/agents/native-demo.yaml` 和 `profiles/agents/empty.yaml`，分别选择 Echo 模板和零业务 Agent。这些是 Agent 层配置，尚不关闭原 Web、飞书连接、确定性 Handler 或业务定时任务，也不等同完整的最小产品部署配置档。
+
+```yaml
+apiVersion: '1.0'
+plugins:
+  - module: builtin.task
+  - module: ./plugins/my-feature/index.ts
+    config:
+      environment: test
+  - module: ./plugins/temporarily-disabled/index.ts
+    enabled: false
+```
+
+`module` 可以是内置插件 ID、本地文件路径或已安装的 npm 包。相对文件路径以 YAML 文件所在目录解析；外部模块导出 `default FeaturePlugin`，或具名导出 `manifest` 与 `apply`。配置按声明的依赖排序，YAML 行顺序不决定初始化顺序。未启用的模块不导入；依赖仍然要求显式选择，缺失时拒绝启动。
+
+配置文件属于部署者的受信任代码装配入口，修改后重启生效。模块导入会执行其顶层代码，因此只选择已审查的本地文件或依赖；HTTP、Git 和其他 URL 不直接执行，也不会自动安装包。新插件的 Secret 仍应使用引用。
+
 ## 声明字段
 
 | 字段 | 规则 |

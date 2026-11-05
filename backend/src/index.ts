@@ -1,4 +1,7 @@
 import { createDeliveryOpsHost } from './agents/host';
+import { deliveryTeamPlugins } from './agents/plugins/builtins';
+import { loadPluginConfiguration } from './platform/plugins/configuration';
+import { DELIVERY_OPS_CAPABILITY } from './agents/orchestrator/deliveryOpsAgent';
 import { Elysia } from 'elysia';
 import { cors } from '@elysiajs/cors';
 import { AppConfig, loadConfig } from './core/config';
@@ -83,7 +86,7 @@ async function reloadConfig(): Promise<void> {
         projectDashboard,
         intentParser,
         agentOrchestrator: {
-            isAvailable: () => agentHost?.isModelAvailable() === true,
+            isAvailable: () => agentHost?.isModelAvailable() === true && agentHost.canDispatch(DELIVERY_OPS_CAPABILITY),
             handle: (message, source, replyContext) => agentHost!.handleMessage(message, source, replyContext),
             resume: (runId, message, source) => agentHost!.resumeMessage(runId, message, source),
         },
@@ -101,7 +104,13 @@ let intentParser = new MessageIntentParser(llm);
 
 await reloadConfig();
 
-agentHost = createDeliveryOpsHost(() => (handler as any).ctx);
+const pluginSelection = process.env.AGENT_PLUGINS_FILE
+    ? await loadPluginConfiguration(process.env.AGENT_PLUGINS_FILE, deliveryTeamPlugins)
+    : undefined;
+agentHost = createDeliveryOpsHost(() => (handler as any).ctx, 1000, undefined, [], pluginSelection ? {
+    plugins: pluginSelection.plugins,
+    pluginConfig: pluginSelection.config,
+} : {});
 await agentHost.initialize();
 await agentHost.start();
 
@@ -115,7 +124,7 @@ const botIngress = new FeishuBotMessageIngress(
         const aiNews = config.ai_news;
         const usesDefaultBot = !aiNews.app_id.trim()
             || aiNews.app_id.trim() === config.feishu.app_id.trim();
-        return aiNews.enabled && usesDefaultBot && routeAiNewsIntent(message)
+        return agentHost!.canDispatch(AI_NEWS_RADAR_CAPABILITY) && aiNews.enabled && usesDefaultBot && routeAiNewsIntent(message)
             ? { capability: AI_NEWS_RADAR_CAPABILITY }
             : null;
     },

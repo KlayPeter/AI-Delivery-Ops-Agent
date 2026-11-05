@@ -157,6 +157,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 增加可信 YAML Agent 插件选择与本地/已安装包加载；未启用模块不导入，消息 AI/新闻分流检查实际 Capability | 配置加载、插件/Host 测试与后端全量回归 |
 | 2026-11-05 | 将新闻 Native Agent 与恢复后的 Bot 配置装配移入 `builtin.ai-news`，保留业务与持久化契约 | 插件/Host 测试、后端全量回归 |
 | 2026-11-05 | 同步公开版外部 API 预算、幂等投递和报告降级基础设施，业务开关与能力入口保持原语义 | 后端全量回归、类型检查 |
 | 2026-07-29 | 默认提升到 15 条，增加同会话 cursor 续页、任意关键词、来源筛选、多源 AI 信号和卡片尾部操作提示；Provider 迁移至 AI HOT v1 | `aiNewsRadar.test.ts`、`routedFeishuDelivery.test.ts`、`config.test.ts`、后端全量回归 |

@@ -31,12 +31,16 @@ function context(store: InMemoryPersistentKeyValueStore): any {
 describe('AgentHost lifecycle', () => {
     test('executes the documented plugin template without model or Feishu credentials', async () => {
         const host = new AgentHost(() => context(new InMemoryPersistentKeyValueStore()), 10, undefined, [], { plugins: [echoPlugin] });
+        expect(host.canDispatch('example.echo')).toBe(false);
         const scope = createTriggerScope({ workspaceId: 'workspace-default', botInstanceId: 'bot-default', triggerType: 'manual', triggerId: 'template-example' });
         const trigger = createTriggerEnvelope({ occurredAt: new Date().toISOString(), scope, payload: { text: 'plugin works' }, replyPolicy: { mode: 'none' } });
         const result = await host.dispatch(trigger, 'example.echo', { text: 'plugin works' });
+        expect(host.canDispatch('example.echo')).toBe(true);
+        expect(host.canDispatch('example.echo', 'another-workspace')).toBe(false);
         expect(result.execution?.artifacts[0]?.content).toBe('plugin works');
         expect((await host.dispatch(trigger, 'example.echo', { text: 'plugin works' })).status).toBe('duplicate');
         await host.stop();
+        expect(host.canDispatch('example.echo')).toBe(false);
     });
 
     test('starts without business plugins and leaves no implicit tools, skills or Agents', async () => {
