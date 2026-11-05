@@ -21,15 +21,12 @@ import { InProcessScheduler } from './core/scheduler';
 import { ScheduledAgentDispatcher } from './platform/bootstrap/scheduledAgentDispatcher';
 import { AgentHost } from './platform/bootstrap/agentHost';
 import { ScheduledJobs } from './services/jobs';
-import { executeManualJob, MANUAL_JOB_NAMES, parseManualJobDay, UnsupportedJobPreviewError } from './services/jobExecution';
 import { GroupMemberSyncService } from './services/groupMembers';
 import { CompanyMemberService } from './services/companyMembers';
 import { TaskService } from './services/taskService';
-import { StandupService } from './services/standupService';
 import dayjs from 'dayjs';
 import * as fs from 'fs';
 import * as path from 'path';
-import { isWorkday } from 'chinese-days';
 import { isWeeklyReportPathAllowed } from './domains/weeklyReport/renderer';
 import { normalizeLogQuery } from './core/logQuery';
 import { livenessReport, readinessReport } from './core/health';
@@ -43,7 +40,8 @@ import { AI_NEWS_RADAR_CAPABILITY } from './agents/native/ai-news-radar/aiNewsRa
 import { createAiNewsIntentRouter } from './agents/native/ai-news-radar/intent';
 import { isLocalWorkspaceRequest, LocalConnections } from './platform/workspace/connections';
 import { workspaceKnowledge } from './platform/workspace/knowledge';
-import { createWorkspaceApi } from './platform/workspace/api';
+import { createWorkspaceApi, createPluginApi } from './platform/workspace/api';
+import { createManualJobsApi } from './platform/workspace/jobsApi';
 
 const localConnections = new LocalConnections(path.join(loadConfig().data_path, 'connections.json'));
 await localConnections.initialize();
@@ -515,112 +513,6 @@ const app = new Elysia()
             pageSize
         };
     })
-    .get('/api/standups', async ({ query }) => {
-        const targetDate = query.date as string || dayjs().format('YYYY-MM-DD');
-        const groupId = query.groupId as string || '';
-
-        if (String(query.type || 'normal') === 'task') {
-            const taskGroups = config.groups.filter((group: any) => !groupId || group.chat_id === groupId);
-            const tasks = (await Promise.all(taskGroups.map((group: any) => StandupService.listTaskCommitments(store, targetDate, group)))).flat();
-            const reported = tasks.filter((task: any) => task.reported).length;
-            const completed = tasks.filter((task: any) => task.status === 'completed').length;
-            return {
-                type: 'task',
-                date: targetDate,
-                stats: {
-                    total: tasks.length,
-                    reported,
-                    unreported: tasks.length - reported,
-                    completed,
-                },
-                tasks,
-            };
-        }
-
-        const allMembersDict: Record<string, any> = {};
-        const memberGroupCount: Record<string, number> = {};
-        for (const g of config.groups) {
-            for (const m of g.members) {
-                memberGroupCount[m.open_id] = (memberGroupCount[m.open_id] || 0) + 1;
-            }
-        }
-        for (const g of config.groups) {
-            if (groupId && g.chat_id !== groupId) continue;
-            for (const m of g.members) {
-                allMembersDict[m.open_id] = m;
-            }
-        }
-
-        const submittedStandups = await store.listStandups(targetDate, groupId || null);
-        if (groupId) {
-            const legacyStandups = await store.listStandups(targetDate, null);
-            for (const s of legacyStandups) {
-                if (!s.source_group_id && allMembersDict[s.open_id] && memberGroupCount[s.open_id] === 1) {
-                    submittedStandups.push(s);
-                }
-            }
-        }
-        const submittedMap: Record<string, any> = {};
-        for (const s of submittedStandups) {
-            // Need to match group open ids
-            if (allMembersDict[s.open_id]) {
-                submittedMap[s.open_id] = s;
-            }
-        }
-
-        const membersData = [];
-        let activeMembersCount = 0;
-
-        for (const m of Object.values(allMembersDict)) {
-            if (m.is_active === false) continue;
-            activeMembersCount++;
-            membersData.push({
-                open_id: m.open_id,
-                name: m.name,
-                submitted: !!submittedMap[m.open_id],
-                standup_content: submittedMap[m.open_id] || null
-            });
-        }
-
-        return {
-            type: 'normal',
-            date: targetDate,
-            stats: {
-                total: activeMembersCount,
-                submitted: Object.keys(submittedMap).length,
-                missing: activeMembersCount - Object.keys(submittedMap).length
-            },
-            members: membersData
-        };
-    })
-    .get('/api/standups/summary', async ({ query, set }) => {
-        const targetDate = query.date as string || dayjs().format('YYYY-MM-DD');
-        const groupId = query.groupId as string;
-        if (!groupId) {
-            set.status = 400;
-            return { error: 'groupId is required' };
-        }
-
-        const record = await store.prisma.auditLog.findFirst({
-            where: {
-                event_type: "ai_standup_summary_generated",
-                timestamp: { startsWith: targetDate },
-                payload: { contains: groupId }
-            },
-            orderBy: { id: 'desc' }
-        });
-
-        if (!record) {
-            return { summary: null };
-        }
-
-        try {
-            const payload = JSON.parse(record.payload);
-            return { summary: payload.summary || null };
-        } catch (e) {
-            return { summary: null };
-        }
-    })
     .get('/api/feishu/groups', async ({ set }) => {
         try {
             const groups = await feishu.listGroups();
@@ -703,53 +595,9 @@ const app = new Elysia()
             return { error: '获取公司成员失败', details: e.message || String(e) };
         }
     })
-    .post('/api/jobs/:jobName', async ({ params: { jobName }, body, set }) => {
-        if (!MANUAL_JOB_NAMES.has(jobName)) {
-            set.status = 400;
-            return { error: '无效的任务名称' };
-        }
+    .use(createManualJobsApi(agentHost!, () => ({ config, store }), sendToGroup => new ScheduledJobs(config, store, feishu, dashboard, tapd, llm, { sendToGroup })));
 
-        const payload: any = body || {};
-        const groupId = payload.groupId || '';
-        const groupConfig = config.groups.find(g => g.chat_id === groupId);
-        if (!groupId || !groupConfig) {
-            set.status = 400;
-            return { error: '无效的群聊 ID' };
-        }
-        const dryRun = payload.dryRun === true;
-        const sendToGroup = payload.sendToGroup === true;
-        let day: Date;
-        try {
-            day = parseManualJobDay(payload.day ?? payload.date);
-        } catch (e: any) {
-            set.status = 400;
-            return { error: e.message || String(e) };
-        }
-
-        const workdaysOnly = groupConfig.schedule.workdays_only;
-
-        if (workdaysOnly && !isWorkday(day)) {
-            store.appendAuditLog("job_skipped_holiday", { job_name: jobName, date: dayjs(day).format('YYYY-MM-DD') }).catch(console.error);
-            return { ok: true, skipped: true, reason: 'holiday_or_weekend' };
-        }
-
-        const jobs = new ScheduledJobs(config, store, feishu, dashboard, tapd, llm, { sendToGroup });
-        try {
-            const result = await executeManualJob(jobs, jobName, groupId, day, dryRun);
-            const eventType = dryRun ? "job_preview_completed" : "job_completed";
-            store.appendAuditLog(eventType, {
-                job_name: jobName,
-                trigger: "manual",
-                date: dayjs(day).format('YYYY-MM-DD'),
-                send_to_group: sendToGroup,
-                result,
-            }).catch(console.error);
-            return { ok: true, dryRun, sendToGroup, result };
-        } catch (e: any) {
-            set.status = e instanceof UnsupportedJobPreviewError ? 400 : 500;
-            return { error: `任务 ${jobName} 执行失败`, stderr: e.message || String(e) };
-        }
-    })
+app.use(createPluginApi(agentHost!, app.routes))
     .listen({
         hostname: process.env.HOST || '127.0.0.1',
         port: process.env.PORT ? parseInt(process.env.PORT) : 8090,

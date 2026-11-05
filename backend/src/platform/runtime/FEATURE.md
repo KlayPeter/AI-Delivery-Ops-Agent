@@ -30,7 +30,8 @@ flowchart TD
     P --> SJ[装配群业务计划与轮询]
     SJ --> Z
     S --> A["消息 / Scheduler / API"]
-    A --> B["Trigger / Job Execution"]
+    A --> WOWN[插件声明的 Web 页面、API 与手动任务]
+    WOWN --> B["Trigger / Job Execution"]
     B --> C["Agent Run / 业务服务"]
     C --> SC[Agent / Tool / Skill 标准 JSON Schema 校验]
     SC --> TC{"Tool 调用前已取消?"}
@@ -132,6 +133,12 @@ CLI 可选 --state 保存 Run/Step/Tool/Artifact；默认仍为内存。知识�
 
 可选 stdio 连接工具同样经过 Tool Gateway 并产生 Tool Step；示例 Agent 形成正常 Run 和 Artifact，不以协议握手成功冒充业务成功。isError、结构化输出错误、超限、进程退出和超时不生成成功产物；取消通知不证明服务内部已停止。Host 等待在途 Run 后清理服务。Agent/Tool/Skill 共用标准 JSON Schema 校验，新增联合类型、引用、额外字段和边界约束；非法 Schema 失败关闭，校验错误文案随标准实现更新。
 
+## 插件 Web 与手动执行
+
+手动业务任务需要已装配插件声明所有权；未知名称为 400，已知但缺少所有者为 404，不创建执行器或产生业务副作用。日期、工作日、安全预览、sendToGroup 和原有审计语义保留。默认组合保留全部九项原有任务；空组合不暴露这些任务。
+
+插件 HTTP 与手动任务由 Host 跟踪，在途执行结束后才释放插件。声明路由加入 OpenAPI，代理不预先解析/消耗 Request body。站会读模型接口迁移到 Owner 目录，页面查询不创建 Agent Run；统计与历史汇总的规则由 StandupService 维护。
+
 ## 用户能力
 
 - 查看审计日志、消息上下文、Agent Run、Step、Artifact 和投递状态。
@@ -196,6 +203,9 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 ### 主要实现
 
+- `backend/src/platform/plugins/web.ts`、`backend/src/platform/workspace/jobsApi.ts`：声明路由、生命周期与手动授权。
+- `frontend/src/pages/workspace/PluginPage.tsx`、`pages.ts`：页面解析、恢复入口与 Agent 导航。
+
 - `backend/src/connectors/mcp/plugin.ts`、`backend/examples/plugins/mcp-reader.ts`：第三方工具接入与真实执行证据示例。
 - `backend/src/platform/agents/schema.ts`：标准契约校验。
 
@@ -228,6 +238,9 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 ### 主要测试
 
+- `backend/test/pluginWeb.test.ts`、`backend/test/standupApi.test.ts`：停用拒绝、读取边界、OpenAPI 和在途收敛。
+- `frontend/src/pages/workspace/pages.test.mjs`：路径解析、内部 Agent 链接与选中状态。
+
 - `backend/test/jsonSchema.test.ts`、`backend/test/mcpConnector.test.ts`：Schema、错误/取消与外部进程退出，不产生假成功。
 
 - `backend/test/runActions.test.ts`、`backend/test/workspaceActions.test.ts`：状态不创建 Run、原证据不变、Scope/幂等与停机等待。
@@ -255,6 +268,7 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 插件页面与手动任务只显示已启用贡献；停机等待、原有审计与预览规则保留 | 插件 Web/站会 API 专项、后端回归、前端检查及默认/空配置/MCP 浏览器验收 |
 | 2026-11-05 | MCP 工具复用 Run/Step 证据，标准 Schema 校验拒绝额外参数与不兼容输出 | MCP/Schema 专项、后端全量回归与官方文件服务实际读取/越界拒绝 |
 | 2026-11-05 | 新增插件动作的独立执行与只读状态；知识引用评估在工作台保留原始证据 | 插件动作/API 专项、后端回归、前端检查与桌面/375px 浏览器验收 |
 | 2026-11-05 | 修复已有 CLI 状态文件的文件检查释放 POSIX 会话锁，重复拒绝不能放行其他进程 | 本地状态与知识复核专项、类型检查、后端回归 |

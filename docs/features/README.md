@@ -49,6 +49,10 @@ flowchart LR
     RA --> KI
     AS --> PANEL[带检查时间的通用文本面板]
     PANEL --> UI
+    FP --> WEB[插件页面、API 与手动任务声明]
+    WEB --> UI
+    WEB --> STAPI[站会统计与历史汇总 API]
+    STAPI --> SS
     FP --> MCP[可选本地 MCP 连接插件]
     MCP --> MG[显式白名单 / 标准 Schema / Tool Gateway]
     MG --> MS[已审查的 stdio 服务]
@@ -76,7 +80,7 @@ flowchart LR
 | `personal-knowledge-answer` | 个人知识 RAG 回答、原文引用核验与不足表达；本地 CLI | active | `native.knowledge-answer`；显式安装，默认团队不启用 | [查看](../../backend/src/knowledge/answer/FEATURE.md) |
 | `meeting-summary` | 会议纪要生成、归档、查看与邮件分发 | dormant | 无 | [查看](../../backend/src/services/messageHandler/meeting-summary/FEATURE.md) |
 | `configuration-scheduling` | 群组、成员、通讯录、模块开关与定时任务 | active | 无 | [查看](../../backend/src/core/configuration-scheduling/FEATURE.md) |
-| `plugin-runtime` | Cordis 功能插件、消息/群调度/运行动作贡献、依赖与资源生命周期 | active | 无独立业务 Agent | [查看](../../backend/src/platform/plugins/FEATURE.md) |
+| `plugin-runtime` | Cordis 功能插件、消息/群调度/运行动作/Web 贡献、依赖与资源生命周期 | active | 无独立业务 Agent | [查看](../../backend/src/platform/plugins/FEATURE.md) |
 | `agent-platform` | Agent、Tool、Skill、会话、外部 Agent 与多机器人控制面 | active | Agent Host 及全部 Agent | [查看](../../backend/src/platform/FEATURE.md) |
 | `operations-observability` | 审计日志、上下文、手动触发、Run 与可靠投递 | active | 无独立业务 Agent | [查看](../../backend/src/platform/runtime/FEATURE.md) |
 
@@ -134,6 +138,7 @@ flowchart LR
 | Meeting Summary Handler、Service、邮件分发、`MeetingSummariesPage` | `meeting-summary` |
 | `core/config`、Scheduler、`jobs.ts`、群成员同步、`ConfigPage` | `configuration-scheduling`；同时更新被调度的业务功能 |
 | `backend/src/platform/scheduling/**` | `plugin-runtime`、`configuration-scheduling`、`operations-observability`；同步对应业务功能 |
+| `backend/src/platform/plugins/web.ts`、`backend/src/platform/workspace/jobsApi.ts`、`frontend/src/pages/DebugPage.tsx` | `plugin-runtime`、`local-agent-workspace`、`operations-observability`、`configuration-scheduling`；同步贡献对应业务 |
 | `backend/src/platform/plugins/**`、`backend/src/agents/plugins/**` | `plugin-runtime`、`agent-platform`；同步对应业务功能 |
 | `backend/src/platform/agents/**`、`tools/**`、`skills/**`、`bots/**`、Agent 定义 | `agent-platform`；同时更新受影响的业务功能 |
 | Outbox、Delivery Worker、Run/Step/Artifact、审计、上下文、Debug/Logs 页面 | `operations-observability`；同时更新产生产物的业务功能 |

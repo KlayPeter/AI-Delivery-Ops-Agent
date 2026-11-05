@@ -1,4 +1,5 @@
 import { PluginRuntime } from '@/platform/plugins/runtime';
+import { PluginWebRegistry } from '@/platform/plugins/web';
 import { RunActionRegistry, statusPanelSchema, type StatusPanel } from '@/platform/plugins/runActions';
 import type { FeaturePlugin } from '@/platform/plugins/contracts';
 import type { SourceMessage } from '@/models/types';
@@ -78,6 +79,7 @@ export class AgentHost {
     readonly messageRoutes: MessageRouteRegistry;
     readonly schedules: ScheduleRegistry;
     readonly runActions = new RunActionRegistry();
+    readonly web = new PluginWebRegistry();
     readonly registry = new AgentRegistry();
     readonly nativeAdapter = new NativeAgentAdapter();
     readonly bots = new BotRegistry();
@@ -405,6 +407,22 @@ export class AgentHost {
         return (this.options.plugins || []).map(plugin => ({ ...plugin.manifest, agents: (plugin.agents || []).map(agent => agent.manifest.id) }));
     }
 
+    async handlePluginRequest(request: Request): Promise<Response> {
+        try {
+            await this.initialize();
+            return await this.track(() => this.web.handle(request));
+        } catch (error) {
+            if (this.stopped) return Response.json({ error: 'Agent Host 已停止' }, { status: 503 });
+            throw error;
+        }
+    }
+
+    async executePluginJob<T>(name: string, run: () => Promise<T>): Promise<T> {
+        await this.initialize();
+        if (!this.web.manualJobs().includes(name)) throw Object.assign(new Error('当前插件未启用此手动任务'), { code: 'PLUGIN_JOB_DISABLED' });
+        return this.track(run);
+    }
+
     async runLocal(capability: string, input: unknown, triggerId: string) {
         const scope = createTriggerScope({ workspaceId: DEFAULT_WORKSPACE_ID, botInstanceId: DEFAULT_BOT_INSTANCE_ID, triggerType: 'manual', triggerId });
         return this.dispatch(createTriggerEnvelope({ scope, occurredAt: new Date().toISOString(), payload: input, replyPolicy: { mode: 'none' } }), capability, input);
@@ -500,6 +518,7 @@ export class AgentHost {
             messageRoutes: this.messageRoutes,
             schedules: this.schedules,
             runActions: this.runActions,
+            web: this.web,
             orchestrator,
             toolGateway: this.toolGateway,
             bots: this.bots,

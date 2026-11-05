@@ -25,7 +25,8 @@ flowchart TD
     E --> S[官方 SDK：stdio 握手与有界工具发现]
     S --> V[检查选中工具、Schema 与任务模式]
     V --> R[注册 mcp.server.alias Tool]
-    A[声明工具权限的任务 Agent] --> G[Tool Gateway：Schema、权限与预算]
+    NAV[读取示例插件贡献的页面入口] --> A[声明工具权限的任务 Agent]
+    A --> G[Tool Gateway：Schema、权限与预算]
     R --> G
     G --> B[个人手动 Scope、输入字节与取消检查]
     B --> CALL[固定工具 tools/call，不接受运行输入更换命令]
@@ -60,6 +61,10 @@ flowchart TD
 7. 运行输入不能选择服务命令、环境或未注册工具。输入最多 32KiB，输出默认 256KiB，配置范围 1KiB–1MiB；所选原始 outputSchema 交给 SDK 校验，不接受 isError=true 为成功。
 8. 取消传入 SDK；超时不自动重试，不重新启动进程。取消通知不证明服务内部操作已经停止。连接断开后调用明确失败，需重启 Host 恢复连接。
 9. Cordis 失败回滚与停止释放工具和子进程；SDK 握手失败可能先发起异步 close，插件复用同一次关闭 Promise，确保停止实际等待清理。Host 先等待在途 Run，再关闭进程。历史产物不随卸载删除。
+
+## 示例页面入口
+
+example.mcp-reader 通过 ctx.delivery.web.register 贡献 /mcp-reader 导航，跳到指定 Capability 的工作台，不修改前端业务列表。移除读取示例插件后该入口消失；连接插件自身仍只提供 Tool。界面不加载上游 UI 代码，读取流程仍由同一 Manifest、Tool Gateway 和来源范围约束。
 
 ## 用户能力
 
@@ -115,6 +120,9 @@ flowchart TD
 
 ### 主要测试
 
+- `backend/test/pluginWeb.test.ts`、`frontend/src/pages/workspace/pages.test.mjs`：第三方页面声明、内部跳转与生命周期。
+- 浏览器验收：官方文件服务与虚构资料，通过动态导航发起读取、查看成功产物与两个执行步骤；桌面与 375px 导航。
+
 - `backend/test/mcpConnector.test.ts`、`backend/test/helpers/mcpServer.ts`：真实 stdio 子进程、分页、白名单、错误、超限、取消、停止与环境隔离。
 - `backend/test/jsonSchema.test.ts`：标准约束、引用、联合类型、同 ID 契约隔离与失败关闭。
 - `backend/test/toolSkillRuntime.test.ts`：现有 Tool/Skill 权限、幂等与预算回归。
@@ -124,4 +132,5 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 读取示例插件自行贡献导航，复用现有工作台渲染与任务执行 | 插件 Web/站会 API 专项、后端回归、前端检查及默认/空配置/MCP 浏览器验收 |
 | 2026-11-05 | 新增独立本地 MCP 连接插件、标准 Schema 校验与文件读取示例 | stdio 专项、后端回归、官方文件服务真实调用与越界拒绝 |

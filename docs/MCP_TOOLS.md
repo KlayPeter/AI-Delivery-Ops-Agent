@@ -35,9 +35,9 @@ args:
 AGENT_PLUGINS_FILE=profiles/agents/mcp-filesystem.local.yaml bun run dev
 ```
 
-前端仍按本地说明启动。在工作台选择 example.mcp.read，任务内容填写演示 Vault 内一份文件的绝对路径，例如 /actual/selected-vault/Release.md，开始执行。结果保存为纯文本，并有 Agent 与 Tool 两个步骤，模型调用次数为零。目录外路径由官方文件服务拒绝，不能返回成功产物。
+前端仍按本地说明启动。前端会出现插件贡献的「MCP 文件读取」导航；点击后打开指定能力的工作台。也可以手动选择 example.mcp.read，任务内容填写演示 Vault 内一份文件的绝对路径，例如 /actual/selected-vault/Release.md，开始执行。结果保存为纯文本，并有 Agent 与 Tool 两个步骤，模型调用次数为零。目录外路径由官方文件服务拒绝，不能返回成功产物。
 
-所选配置仅包含 MCP 连接与读取示例，不额外装配团队或知识问答插件。移除这两项并重启后不再显示该能力；既有运行记录保留。
+所选配置仅包含 MCP 连接与读取示例，不额外装配团队或知识问答插件。移除这两项并重启后不再显示该能力与导航入口；既有运行记录保留。
 
 ## 工具规范
 

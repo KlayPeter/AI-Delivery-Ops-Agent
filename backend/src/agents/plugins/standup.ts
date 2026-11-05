@@ -7,6 +7,7 @@ import { isScheduleDateEnabled } from '@/core/scheduleCalendar';
 import { localTimePlan } from '@/platform/scheduling/calendar';
 import type { GroupScheduleContext } from '@/platform/scheduling/registry';
 import { scheduledPluginJobs } from './jobs';
+import { createStandupApi } from '@/domains/standup/api';
 
 const standupContexts = new Set(['standup_prompt', 'standup_receipt', 'task_standup_template', 'standup_commitment_prompt']);
 const unmentionedContexts = new Set(['task_standup_template', 'standup_commitment_prompt']);
@@ -87,6 +88,11 @@ export const standupPlugin: FeaturePlugin = {
         },
     ],
     apply(ctx) {
+        const api = createStandupApi(ctx.delivery.getContext);
+        ctx.delivery.web.register({ id: 'builtin.standup', pages: [{ path: '/standups', label: '站会统计', section: 'team', view: { kind: 'builtin', id: 'standups' } }],
+            manualJobs: ['standup-push', 'task-standup-template', 'standup-remind', 'standup-second-remind', 'standup-summary', 'standup-supplement-summary'],
+            api: { prefix: '/api/standups', routes: api.routes.map(route => ({ method: route.method, path: route.path })), handle: request => api.handle(request) },
+        });
         registerStandupTools(ctx.delivery.tools, ctx.delivery.getContext);
         registerStandupAgent(ctx.delivery.modelAgents);
     },

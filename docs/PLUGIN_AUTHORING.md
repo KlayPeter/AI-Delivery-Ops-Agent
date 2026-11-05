@@ -80,7 +80,7 @@ plugins:
 
 ## 注册与清理
 
-通过 `ctx.delivery.nativeAgents.register`、`modelAgents.register`、`tools.register`、`skills.register`、`messageRoutes.register`、`schedules.register`、`runActions.register` 注册。它们自动将 disposer 加入当前 Cordis 插件作用域；启动失败或 Host 停止时释放。静态消息和调度优先声明在对应数组，依赖配置的贡献也可在 `apply` 中注册。
+通过 `ctx.delivery.nativeAgents.register`、`modelAgents.register`、`tools.register`、`skills.register`、`messageRoutes.register`、`schedules.register`、`runActions.register`、`web.register` 注册。它们自动将 disposer 加入当前 Cordis 插件作用域；启动失败或 Host 停止时释放。静态消息和调度优先声明在对应数组，依赖配置的贡献也可在 `apply` 中注册。
 
 连接、监听器和计时器使用 `ctx.effect` / `ctx.on`。插件需要在持久化控制面恢复后协调配置时，监听 `delivery/restored`；该回调失败同样使 Host 启动失败并释放插件。
 
@@ -144,6 +144,26 @@ StatusPanel 1.0 只呈现文本：tone 为 neutral/success/warning/error，title
 模型可调用的动作必须通过受治理 Tool。写操作调用领域服务，不能让模型直接拼接数据库写入或扩大权限。Secret 使用引用，不放入 Prompt、产物或插件源码。
 
 已有外部服务可继续通过 HTTP Agent Manifest、网络 allowlist、Secret 引用和超时契约接入。已提供[本地 MCP stdio 工具连接插件](MCP_TOOLS.md)，通过显式工具选择与现有 Tool Gateway 接入；当前仅支持经审查的读取工具。远程 MCP/接入助手与隔离的 CLI 适配属于后续节点。采用 Cordis 不代表现有 DeepSeek Harness 插件可以直接使用；必须适配它所依赖的服务。
+
+## 页面、API 与原有手动任务
+
+`ctx.delivery.web.register` 在当前 Cordis 作用域声明 WebContribution。类型见 `backend/src/platform/plugins/web.ts`。一个贡献有唯一 id，可包含 pages、api 与 manualJobs，失败或停止时一起释放。
+
+```ts
+ctx.delivery.web.register({
+  id: 'example.reader',
+  pages: [{ path: '/my-reader', label: '我的读取工具', section: 'workspace',
+    view: { kind: 'agent', capability: 'example.read' } }],
+});
+```
+
+页面只能使用站内静态路径；label 最长 80 字符，section 为 workspace/team。view.kind=agent 打开指定 Capability 的现有工作台；kind=builtin 使用已打包 renderer ID（当前迁移站会 standups）。未知 renderer 显示恢复入口，不执行远程 HTML、JS 或 React 包。已保留的核心/旧页面不能覆盖，路径与贡献 ID 不得重复；Agent 导航跳转后保持当前项选中。
+
+API 声明 prefix、routes（method/path）与接收标准 Request、返回 Response 的 handle。每条声明必须位于所属前缀，前缀不可重叠或覆盖保留 API。应用在 Host 初始化后核对已有 API 命名空间，冲突时拒绝装配，不覆盖旧接口；随后装配声明路由，因此 OpenAPI 保留路径；请求体由所属 Fetch handler 解析，代理不会先消耗 body。`builtin.standup` 和 `backend/src/domains/standup/api.ts` 是真实例子。通过 Host.handlePluginRequest 进入本机来源校验与在途跟踪，停止时先等待请求，再释放资源。
+
+manualJobs 声明现有 Legacy Job 名称的所有者，不添加任意命令或自动生成执行器。原有九项任务分别由站会、任务、日报、看板插件声明；/api/jobs 同时核对标准任务名与已装配所有者，缺失时返回 404。预览、日期、工作日、投递与审计仍由原执行逻辑处理，Host 跟踪任务并在停机时等待。
+
+页面信息不是访问控制，也不能代替服务端数据范围校验。当前已迁移站会统计页面/API 和原有手动任务授权，其他业务页面/API 与基础服务仍待迁移；没有运行中热卸载。
 
 ## 标准 JSON Schema
 

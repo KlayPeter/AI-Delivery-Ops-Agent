@@ -12,6 +12,42 @@ interface StandupAiParseResult {
 }
 
 export class StandupService {
+    static async statistics(config: any, store: any, date: string, groupId = '', type = 'normal') {
+        const groups = config.groups.filter((group: any) => !groupId || group.chat_id === groupId);
+        if (type === 'task') {
+            const tasks = (await Promise.all(groups.map((group: any) => this.listTaskCommitments(store, date, group)))).flat();
+            const reported = tasks.filter(task => task.reported).length;
+            return { type: 'task', date, stats: { total: tasks.length, reported, unreported: tasks.length - reported, completed: tasks.filter(task => task.status === 'completed').length }, tasks };
+        }
+        const members = new Map<string, any>(), submitted = new Map<string, any>();
+        for (const group of groups) {
+            const active = new Set<string>();
+            for (const member of group.members) if (member.open_id && member.is_active !== false) { members.set(member.open_id, member); active.add(member.open_id); }
+            for (const standup of await this.listGroupSubmissions(config, store, date, group)) if (active.has(standup.open_id)) submitted.set(standup.open_id, standup);
+        }
+        return { type: 'normal', date, stats: { total: members.size, submitted: submitted.size, missing: members.size - submitted.size },
+            members: [...members.values()].map(member => ({ open_id: member.open_id, name: member.name, submitted: submitted.has(member.open_id), standup_content: submitted.get(member.open_id) || null })),
+        };
+    }
+
+    static async latestSummary(store: any, date: string, groupId: string): Promise<string | null> {
+        let before: number | undefined;
+        while (true) {
+            const records = await store.prisma.auditLog.findMany({ where: {
+                event_type: 'ai_standup_summary_generated', ...(before === undefined ? {} : { id: { lt: before } }),
+                AND: [{ payload: { contains: JSON.stringify(groupId) } }, { payload: { contains: JSON.stringify(date) } }],
+            }, orderBy: { id: 'desc' }, take: 100 });
+            for (const record of records) {
+                try {
+                    const payload = JSON.parse(record.payload);
+                    if (payload.group_id === groupId && payload.date === date && typeof payload.summary === 'string') return payload.summary || null;
+                } catch {}
+            }
+            if (records.length < 100) return null;
+            before = records[records.length - 1].id;
+        }
+    }
+
     static isGroupEnabled(group: any): boolean {
         const schedule = group?.schedule || {};
         return schedule.module_standup_enabled !== false

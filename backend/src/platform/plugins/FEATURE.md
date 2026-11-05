@@ -29,6 +29,8 @@ flowchart TD
     MR --> E
     D --> SJ[注册插件拥有的群业务计划与轮询]
     SJ --> E
+    D --> WEB[注册页面、API 与原有手动任务授权]
+    WEB --> E
     D --> RA[注册成功 Run 的后续动作与文本状态]
     RA --> E
     D --> MCP[可选 connector.mcp：发现并注册所选 stdio 工具]
@@ -85,6 +87,12 @@ flowchart TD
 
 connector.mcp 通过现有 FeaturePlugin/Config/effect 接入，无需修改 Host 或默认组合。它启动已审查的本地服务、发现工具并只注册显式选中项，失败回滚并等待进程关闭。工具名称与读取授权由安装者声明，不采用上游注解作为权限证明；当前不支持写工具或远程 HTTP。完整规范和实际例子见 [MCP 使用说明](../../../../docs/MCP_TOOLS.md)。
 
+## Web 贡献
+
+ctx.delivery.web.register 注册唯一贡献 ID、页面元数据、API 前缀/路由/Fetch handler 和可手动执行的原有任务名称。注册随 Cordis 回滚与释放。页面路径、任务名和 API 前缀不能重复或覆盖保留入口；前端只支持已打包视图或跳到指定 Agent 的入口，不执行远端 UI 包。
+
+站会已把统计页面与 API 从全局组合移入自己的插件。任务、日报、看板插件各自声明原有手动任务；缺少所有者时旧 /api/jobs 不执行，默认仍为九个原有任务。MCP 读取示例通过元数据增加页面入口，不修改前端业务表。其他旧业务页面/API、全局维护和基础服务仍待逐项迁移，当前不宣称全产品已经插件化。
+
 ## 用户能力
 
 开发者可以组合插件、声明和验证配置，接入自定义 Agent 与 Tool，并清理插件拥有的资源。应用启动默认使用 `createDeliveryOpsHost`；直接构造 `AgentHost` 默认无业务插件。
@@ -132,6 +140,9 @@ connector.mcp 通过现有 FeaturePlugin/Config/effect 接入，无需修改 Hos
 
 ### 主要实现
 
+- `backend/src/platform/plugins/web.ts`：页面、声明路由和原有手动任务的注册、冲突检查与清理。
+- `backend/src/platform/workspace/api.ts`、`jobsApi.ts`：请求体保留、OpenAPI 路由与 Host 授权/在途跟踪。
+
 - `backend/src/connectors/mcp/plugin.ts`、`backend/examples/plugins/mcp-reader.ts`：可选外部 MCP 工具与示例 Agent。
 
 - `backend/src/platform/plugins/runActions.ts`：动作注册、校验、匹配与文本面板协议。
@@ -155,6 +166,8 @@ connector.mcp 通过现有 FeaturePlugin/Config/effect 接入，无需修改 Hos
 
 ### 主要测试
 
+- `backend/test/pluginWeb.test.ts`、`backend/test/standupApi.test.ts`：第三方贡献、移除后拒绝、回滚、Scope 与停止等待。
+
 - `backend/test/mcpConnector.test.ts`：可信配置组合、真实子进程、装配失败回滚、在途停止和 Secret 隔离。
 
 - `backend/test/runActions.test.ts`、`backend/test/workspaceActions.test.ts`：第三方动作、校验、Scope、幂等与在途清理。
@@ -174,6 +187,7 @@ connector.mcp 通过现有 FeaturePlugin/Config/effect 接入，无需修改 Hos
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 增加 Web 贡献协议；迁移站会页面/API 与原有业务手动任务授权 | 插件 Web/站会 API 专项、后端回归、前端检查及默认/空配置/MCP 浏览器验收 |
 | 2026-11-05 | 新增独立 MCP 连接插件与配置样例，不改变默认团队和工作台组合 | MCP/Schema 专项、后端全量回归与官方文件服务实际读取/越界拒绝 |
 | 2026-11-05 | 新增随插件生命周期释放的运行后续动作，通用文本面板与知识引用检查实例 | 插件动作/API 专项、后端回归、前端检查与桌面/375px 浏览器验收 |
 | 2026-11-05 | 区分团队 SDK 与 HTTP 个人知识默认组合 | 工作台专项、后端回归、前端检查与本地浏览器验收 |

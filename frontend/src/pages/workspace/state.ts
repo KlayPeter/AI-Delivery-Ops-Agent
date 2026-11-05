@@ -1,5 +1,6 @@
 import useSWR from 'swr';
 import { api } from '@/api';
+import type { PluginPage } from './pages';
 
 export interface AgentInfo {
   agentId: string; name: string; description: string; runtime: string; version: string;
@@ -13,6 +14,7 @@ export interface WorkspaceState {
   agents: AgentInfo[]; runs: RunInfo[];
   plugins: { id: string; name: string; description: string; version: string; requires?: string[]; agents: string[] }[];
   health: { started: boolean; initialized: boolean }; modelConfigured: boolean; knowledgeKind: string; managedByPluginFile: boolean;
+  pages: PluginPage[]; manualJobs: string[];
 }
 export interface ConnectionState { values: Record<string, string>; secrets: Record<string, boolean>; restartRequired: boolean }
 

@@ -10,7 +10,6 @@ import DashboardPage from '@/pages/DashboardPage';
 import LogsPage from '@/pages/LogsPage';
 import DebugPage from '@/pages/DebugPage';
 import ContextsPage from '@/pages/ContextsPage';
-import StandupsPage from '@/pages/StandupsPage';
 import MeetingSummariesPage from '@/pages/MeetingSummariesPage';
 import WeeklyReportsPage from '@/pages/WeeklyReportsPage';
 const HumanGanttPage = lazy(() => import('@/pages/HumanGanttPage'));
@@ -18,6 +17,7 @@ const WorkspacePage = lazy(() => import('@/pages/workspace/WorkspacePage'));
 const CatalogPage = lazy(() => import('@/pages/workspace/CatalogPage'));
 const ConnectionsPage = lazy(() => import('@/pages/workspace/ConnectionsPage'));
 const KnowledgePage = lazy(() => import('@/pages/workspace/KnowledgePage'));
+const PluginPage = lazy(() => import('@/pages/workspace/PluginPage'));
 
 function WorkspaceEntry() {
   return isLegacyDashboardSearch(useLocation().search) ? <DashboardPage /> : <WorkspacePage />;
@@ -43,7 +43,6 @@ function App() {
             <Route path="knowledge" element={<KnowledgePage />} />
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="human-gantt" element={<Suspense fallback={<Spin size="large" style={{ margin: '120px auto' }} />}><HumanGanttPage /></Suspense>} />
-            <Route path="standups" element={<StandupsPage />} />
             <Route path="weekly-reports" element={<WeeklyReportsPage />} />
             <Route path="logs" element={<LogsPage />} />
             <Route path="debug" element={<DebugPage />} />
@@ -51,7 +50,7 @@ function App() {
             <Route path="meeting-summaries" element={<MeetingSummariesPage />} />
             <Route path="config" element={<ConfigPage />} />
             {/* 兼容已被推送到群里的包含具体 .html 文件名的旧版本长链接 */}
-            <Route path="*" element={<DashboardPage />} />
+            <Route path="*" element={<PluginPage />} />
           </Route>
           </Routes>
         </BrowserRouter>

@@ -47,7 +47,9 @@ flowchart TD
     G --> I["日报 Agent"]
     G --> W["周报 Agent"]
     G --> J["看板 Agent"]
-    D2["Debug 页面 / 手动 Job API"] --> G2{"发送到群聊?"}
+    D2["Debug 页面 / 手动 Job API"] --> OWNER{所属插件已装配?}
+    OWNER -- 否 --> REJECT[404，不创建执行器]
+    OWNER -- 是 --> G2{"发送到群聊?"}
     G2 -- "是" --> G
     G2 -- "否" --> U2["只执行生成/更新，不创建群投递"]
     H --> K["Outbox / 审计"]
@@ -102,6 +104,10 @@ flowchart TD
 18. **普通站会与任务型站会独立调度。** 普通站会使用 `standup_push`，任务型站会使用独立的 `task_standup_template`；两者都受站会模块总开关约束，但互不依赖，可单独开启或同时开启。任务型模板按群和业务日期持久化领取，`standup_push_enabled` 关闭不会阻止任务型模板发送。
 19. **任务型站会使用轮询到期扫描。** Scheduler 每轮调用站会域检查该群已到交付时间且未完成的承诺事项。提醒按任务、交付时间和负责人持久化领取，同一交付时间只发送一次；单群扫描失败记录审计但不阻塞其他群及常规定时任务。
 20. **手动触发默认不发群。** Debug 页面和 `/api/jobs/:jobName` 的 `sendToGroup` 只有明确为 `true` 才发送群消息；关闭时仍执行日报生成、看板快照、站会统计及其他数据更新，站会/任务的私聊提醒不因该开关关闭。
+
+## 插件拥有的手动任务
+
+Debug 与 /api/jobs 统一使用 PluginWebRegistry 的 manualJobs。站会声明六项，任务/日报/看板各声明一项，默认仍为九项；空组合拒绝所有原有业务手动任务，不再回退全局执行器。执行遵守原有日期、工作日、预览与 sendToGroup；Host 停止等待在途任务。它是原有确定性 Job 的选择协议，不是另一种工作流语言或任意命令入口。
 
 ## 用户能力
 
@@ -159,6 +165,8 @@ flowchart TD
 
 ### 主要实现
 
+- `backend/src/platform/workspace/jobsApi.ts`、`backend/src/platform/plugins/web.ts`：手动入口所有者、装配状态与生命周期。
+
 - `backend/src/core/scheduleCalendar.ts`：共享日期规则、旧配置兼容与日期值规范化。
 - `frontend/src/components/config/ScheduleCalendarEditor.tsx`：受控日期策略与日历选择表单。
 
@@ -174,6 +182,8 @@ flowchart TD
 
 ### 主要测试
 
+- `backend/test/pluginWeb.test.ts`：默认/空组合、非法日期、预览、投递和停机等待。
+
 - `backend/test/schedulePlugins.test.ts`：群调度贡献、空组合、插件禁用、错误隔离与在途停止。
 
 - `backend/test/scheduleCalendar.test.ts`：节假日、调休、日期覆盖、时区、旧规则与调度入口。
@@ -188,6 +198,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 手动 Job API 随功能插件授权，保留原调度执行与审计规则 | 插件 Web/站会 API 专项、后端回归、前端检查及默认/空配置/MCP 浏览器验收 |
 | 2026-11-05 | 新增可填写连接与私有文件保存，明确重启和环境优先级 | 工作台专项、后端回归、前端检查与本地浏览器验收 |
 | 2026-11-05 | 群业务调度改为可释放插件贡献，新增外部 AI Hot 调度插件；空组合不隐式执行群任务；停机等待本轮结束 | 调度/日历/插件回归、后端 428 通过 / 1 TAPD 跳过、类型检查 |
 | 2026-11-05 | 插件组合扩展到消息指令、引用与帮助；动态配置重载复用共享注册表，业务调度边界保留 | 插件配置、消息与调度全量回归、类型检查 |

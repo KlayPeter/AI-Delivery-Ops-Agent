@@ -22,5 +22,8 @@ export const dashboardPlugin: FeaturePlugin = {
         id: 'builtin.dashboard', priority: 600, sources: ['group'], help: '生成项目看板',
         handle: ({ ctx, message }) => DashboardHandler.maybeHandle(ctx, message, 'group'),
     }],
-    apply(ctx) { registerDashboardAgent(ctx.delivery.nativeAgents, () => pluginJobs(ctx.delivery.getContext)); },
+    apply(ctx) {
+        ctx.delivery.web.register({ id: 'builtin.dashboard', manualJobs: ['dashboard'] });
+        registerDashboardAgent(ctx.delivery.nativeAgents, () => pluginJobs(ctx.delivery.getContext));
+    },
 };

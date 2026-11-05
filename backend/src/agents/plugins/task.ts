@@ -52,6 +52,7 @@ export const taskPlugin: FeaturePlugin = {
         },
     ],
     apply(ctx) {
+        ctx.delivery.web.register({ id: 'builtin.task', manualJobs: ['overdue-scan'] });
         registerTaskTools(ctx.delivery.tools, ctx.delivery.getContext);
         registerTaskAgent(ctx.delivery.modelAgents);
     },

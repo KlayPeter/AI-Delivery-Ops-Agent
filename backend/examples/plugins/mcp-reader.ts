@@ -16,6 +16,7 @@ export const mcpReaderPlugin: FeaturePlugin = {
     manifest: { apiVersion: '1.0', id: 'example.mcp-reader', name: manifest.name, version: '1.0.0', description: manifest.description, requires: ['connector.mcp'] },
     agents: [{ manifest, installationId: 'install-example-mcp-reader' }],
     apply(ctx) {
+        ctx.delivery.web.register({ id: 'example.mcp-reader', pages: [{ path: '/mcp-reader', label: 'MCP 文件读取', section: 'workspace', view: { kind: 'agent', capability: 'example.mcp.read' } }] });
         ctx.delivery.nativeAgents.register(manifest.id, manifest.version, async (request, _resolved, signal) => {
             const { prompt } = request.input as { prompt: string };
             const data = await ctx.delivery.toolGateway.execute('mcp.files.read', { path: prompt }, {

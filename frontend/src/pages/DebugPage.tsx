@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Typography, Card, Button, Row, Col, message, Select, Space, Switch } from 'antd';
+import { Typography, Card, Button, Row, Col, message, Select, Space, Switch, Alert, Empty, Skeleton } from 'antd';
 import { PlayCircleOutlined } from '@ant-design/icons';
 import { api } from '@/api';
+import { useWorkspace } from '@/pages/workspace/state';
+import { Link } from 'react-router-dom';
 
 const { Title } = Typography;
 
@@ -16,6 +18,7 @@ const JOBS = [
 ];
 
 const DebugPage = () => {
+  const { data: workspace, error, isLoading, mutate } = useWorkspace();
   const [runningJob, setRunningJob] = useState<string | null>(null);
   const [groups, setGroups] = useState<any[]>([]);
   const [selectedGroup, setSelectedGroup] = useState('');
@@ -69,6 +72,7 @@ const DebugPage = () => {
         <Space>
           <span>目标群聊：</span>
           <Select
+            aria-label="目标群聊"
             value={selectedGroup}
             onChange={setSelectedGroup}
             style={{ width: 180 }}
@@ -76,14 +80,18 @@ const DebugPage = () => {
             options={groups.map((g: any) => ({ label: g.name || g.chat_id, value: g.chat_id }))}
           />
           <Space size={8}>
-            <Switch checked={sendToGroup} onChange={setSendToGroup} />
+            <Switch aria-label="发送到群聊" checked={sendToGroup} onChange={setSendToGroup} />
             <span>发送到群聊</span>
           </Space>
         </Space>
       </div>
 
+      {error && <Alert type="error" title="无法加载已启用任务" action={<Button onClick={() => mutate()}>重试</Button>} />}
+      {isLoading && <Skeleton active />}
+      {!error && !isLoading && !JOBS.some(job => workspace?.manualJobs?.includes(job.id)) && <Empty description="当前插件没有可手动执行的业务任务"><Link to="/plugins">查看已装配插件</Link></Empty>}
+
       <Row gutter={[24, 24]}>
-        {JOBS.map((job) => (
+        {!error && JOBS.filter(job => workspace?.manualJobs?.includes(job.id)).map((job) => (
           <Col xs={24} md={12} lg={8} key={job.id}>
             <Card title={job.name} hoverable>
               <p style={{ height: 44, color: '#666' }}>{job.desc}</p>

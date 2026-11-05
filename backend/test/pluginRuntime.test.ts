@@ -13,6 +13,7 @@ import { ToolRegistry } from '@/platform/tools/registry';
 import { MessageRouteRegistry } from '@/services/messageHandler/routes';
 import { ScheduleRegistry } from '@/platform/scheduling/registry';
 import { RunActionRegistry } from '@/platform/plugins/runActions';
+import { PluginWebRegistry } from '@/platform/plugins/web';
 
 function plugin(id: string, apply: FeaturePlugin['apply'] = () => {}): FeaturePlugin {
     return { manifest: { apiVersion: '1.0', id, name: id, version: '1.0.0', description: 'Test plugin' }, apply };
@@ -26,7 +27,7 @@ function fixture() {
         modelAgents: { register: () => () => {} }, tools, skills: new SkillRegistry(), bots: new BotRegistry(),
         messageRoutes: new MessageRouteRegistry(),
         schedules: new ScheduleRegistry(),
-        runActions,
+        runActions, web: new PluginWebRegistry(),
         orchestrator: { run: async () => { throw new Error('Model is unused in this fixture'); } },
         toolGateway: { execute: async () => { throw new Error('Tool execution is unused in this fixture'); } },
         botCatalog: new PersistentBotControlCatalog(new InMemoryPersistentKeyValueStore()), skillRoot: '/nonexistent-plugin-skills',

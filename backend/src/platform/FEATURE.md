@@ -41,6 +41,9 @@ flowchart TD
     X --> I["Tool / Skill / Adapter 注册"]
     X --> MR["消息路由、引用上下文与帮助贡献"]
     MR --> Q
+    X --> WEB[页面、API 与手动任务贡献]
+    WEB --> WREQ[本机请求与 Host 在途跟踪]
+    WREQ --> J
     X --> RA[成功 Run 的插件动作与状态面板]
     UI --> RA
     RA -- 显式执行 --> B
@@ -133,6 +136,10 @@ Host 持有 RunActionRegistry，Cordis 管理注册生命周期。状态 GET 先
 
 知识与发布 CLI 可显式选择 SQLitePersistentKeyValueStore，复用既有 KV/Run/Artifact 契约。默认团队应用仍使用既有持久化路径。新状态文件校验专用 application_id/schema，创建私有文件与目录，拒绝符号链接、硬链接、共享权限与外部数据库。独立 SQLite 锁事务限制同一文件一个 CLI Host，避免重启恢复误标另一个活跃会话；已提交状态单独持久化，进程退出释放锁。此实现不是应用认证、加密存储或多机数据库。
 
+## 插件 Web 生命周期
+
+Host 提供 PluginWebRegistry，由 Cordis 管理页面/API/原有手动任务授权。handlePluginRequest 与 executePluginJob 统一进入在途跟踪；停止后拒绝新请求，等待已接受请求和任务后才释放插件。路由声明用于 HTTP 装配与 OpenAPI，Fetch handler 保留原 Request 请求体；本机 Host/Origin 边界仍生效。页面元数据不提供认证或原生代码沙箱，旧业务路由仍逐项迁移。
+
 ## 用户能力
 
 - 通过 Delivery Ops 主 Agent 调用 Task、Standup、Daily Summary、Weekly Report 和 Project Dashboard Agent。
@@ -210,6 +217,8 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 ### 主要实现
 
+- `backend/src/platform/plugins/web.ts`、`backend/src/platform/workspace/jobsApi.ts`：Web 注册、API 路由与手动任务所有者校验。
+
 - `backend/src/platform/agents/schema.ts`、`contracts.ts`：标准 JSON Schema 契约与失败关闭。
 - `backend/src/connectors/mcp/plugin.ts`：可选 stdio 工具连接；不进入默认组合。
 
@@ -230,6 +239,8 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 - `backend/src/agents/**`：当前 Agent 定义。
 
 ### 主要测试
+
+- `backend/test/pluginWeb.test.ts`：页面/API/任务元数据、默认组合、回滚、请求体与在途停止。
 
 - `backend/test/jsonSchema.test.ts`、`backend/test/mcpConnector.test.ts`：完整约束、Schema 身份隔离、工具权限与 MCP 生命周期。
 
@@ -256,6 +267,7 @@ CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | Host 跟踪插件 HTTP 和手动任务，拒绝已移除插件的旧入口 | 插件 Web/站会 API 专项、后端回归、前端检查及默认/空配置/MCP 浏览器验收 |
 | 2026-11-05 | 接入可选 MCP 工具插件，升级标准 JSON Schema 校验，保持 Agent/Tool/Skill 共用参数边界 | MCP/Schema 专项、后端全量回归与官方文件服务实际读取/越界拒绝 |
 | 2026-11-05 | Host 支持受 Scope 与生命周期约束的插件动作，复用现有 Capability 与 Runtime | 插件动作/API 专项、后端回归、前端检查与桌面/375px 浏览器验收 |
 | 2026-11-05 | 修复已有 CLI 状态文件的文件检查释放 POSIX 会话锁，重复拒绝不能放行其他进程 | 本地状态与知识复核专项、类型检查、后端回归 |

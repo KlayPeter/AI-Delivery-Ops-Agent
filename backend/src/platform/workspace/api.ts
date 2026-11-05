@@ -9,6 +9,17 @@ const runInput = z.object({ capability: z.string().min(1).max(200), input: z.rec
 const resumeInput = runInput.omit({ capability: true });
 const actionInput = z.object({ triggerId: z.string().uuid().optional() }).strict();
 
+export function createPluginApi(host: AgentHost, applicationRoutes: readonly { path: string }[] = []) {
+    const api = new Elysia({ name: 'plugin-web-api' });
+    const namespace = (path: string) => /^\/api\/[^/:*]+/.exec(path)?.[0];
+    const occupied = new Set(applicationRoutes.map(route => namespace(route.path)).filter(Boolean));
+    for (const route of host.web.routes()) {
+        if (occupied.has(namespace(route.path))) throw new Error(`Plugin API overlaps an existing application namespace: ${namespace(route.path)}`);
+        api.route(route.method, route.path, ({ request }) => host.handlePluginRequest(request), { parse: 'none' });
+    }
+    return api.all('/api/*', ({ request }) => host.handlePluginRequest(request), { parse: 'none' });
+}
+
 export function createWorkspaceApi(host: AgentHost, connections: LocalConnections, getConfig: () => AppConfig) {
     return new Elysia({ prefix: '/api/workspace', name: 'local-agent-workspace' })
         .onBeforeHandle(({ request, set }) => {
@@ -28,7 +39,7 @@ export function createWorkspaceApi(host: AgentHost, connections: LocalConnection
             const managedByPluginFile = Boolean(process.env.AGENT_PLUGINS_FILE);
             const knowledgeKind = plugins.some(plugin => plugin.id === 'knowledge.web') ? 'web'
                 : plugins.some(plugin => plugin.id === 'knowledge.markdown') ? (managedByPluginFile ? 'markdown' : process.env.KNOWLEDGE_KIND || 'sample') : 'none';
-            return { agents, runs, plugins, health: host.health(), modelConfigured: Boolean(config.ai.api_key && config.ai.model), knowledgeKind, managedByPluginFile };
+            return { agents, runs, plugins, pages: host.web.pages(), manualJobs: host.web.manualJobs(), health: host.health(), modelConfigured: Boolean(config.ai.api_key && config.ai.model), knowledgeKind, managedByPluginFile };
         })
         .get('/connections', () => connections.snapshot())
         .put('/connections', async ({ body }) => connections.save(body))

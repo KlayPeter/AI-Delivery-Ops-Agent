@@ -22,5 +22,8 @@ export const dailySummaryPlugin: FeaturePlugin = {
         id: 'builtin.daily-summary', priority: 700, sources: ['group'], help: '生成/发送群聊日报',
         handle: ({ ctx, message }) => SummaryHandler.maybeHandle(ctx, message, 'group'),
     }],
-    apply(ctx) { registerDailySummaryAgent(ctx.delivery.nativeAgents, () => pluginJobs(ctx.delivery.getContext)); },
+    apply(ctx) {
+        ctx.delivery.web.register({ id: 'builtin.daily-summary', manualJobs: ['daily-summary'] });
+        registerDailySummaryAgent(ctx.delivery.nativeAgents, () => pluginJobs(ctx.delivery.getContext));
+    },
 };

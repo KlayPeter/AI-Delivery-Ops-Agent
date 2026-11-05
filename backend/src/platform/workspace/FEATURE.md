@@ -34,6 +34,10 @@ flowchart TD
     H --> K[只读笔记或公开网页检索]
     K --> EV[带行号、内容版本和原文定位的结果]
     EV --> V
+    PL --> WEB[插件页面元数据、API 与手动任务授权]
+    WEB --> NAV[动态导航与已打包视图 / 指定 Agent 入口]
+    NAV --> V
+    WEB --> JOBS[手动任务必须有已装配所有者]
     V --> ACT[插件贡献的后续动作与上次检查时间]
     ACT -- 只读状态 --> KV[最近评估，不刷新来源或创建 Run]
     ACT -- 显式执行 --> T
@@ -75,6 +79,14 @@ flowchart TD
 成功 Run 的动作由插件通过 RunActionRegistry 贡献。工作台只负责通用文本状态面板和执行按钮，不导入知识业务逻辑。状态 GET 只读取最近评估，显示检查时间；显式 POST 才执行插件指定的 Capability。请求仅接受可选 UUID，目标与输入由服务端插件固定，幂等键包含动作、目标 Run 和 UUID。
 
 知识复核是首个使用者：检查原回答或发布草稿实际引用的文档版本，产生独立检查记录，不重新生成答案，不改变原 Run 的成功状态或原 Artifact。移除插件后不显示动作，历史产物保留。面板协议为 StatusPanel 1.0；无效或未知 Artifact 展示协议回退原有结果，状态读取失败显示错误，不沿用绿色状态。
+
+## 插件贡献的页面与业务任务
+
+HTTP 装配先核对现有 API 命名空间，插件声明冲突时拒绝启动，防止覆盖尚未迁移的接口。
+
+工作台 state 增加 pages 和 manualJobs，由真实 Cordis 注册表提供。前端按页面元数据生成导航，支持已打包站会视图或指定 Agent 的入口；不执行第三方 HTML/JS。入口失效显示恢复链接，连接失败提供重试，Agent 入口跳转后保留导航选中状态。旧 .html 看板链接与根查询参数兼容保留。
+
+站会页面和统计 API 随 builtin.standup 装配；移除后旧地址不能访问数据。Debug 页面只显示已声明的任务，后端 /api/jobs 同样校验所有者，不能靠手写请求绕过。默认九项任务保持，空组合没有这些任务。当前只迁移站会页面/API；其他旧页面和服务仍按路线图迁移。
 
 ## 用户能力
 
@@ -134,6 +146,9 @@ flowchart TD
 
 ### 主要实现
 
+- `backend/src/platform/plugins/web.ts`、`backend/src/platform/workspace/jobsApi.ts`：Web 声明与手动任务入口。
+- `frontend/src/pages/workspace/PluginPage.tsx`、`pages.ts`：动态页面、空状态与安全内部跳转。
+
 - `backend/src/platform/workspace/connections.ts`、`knowledge.ts`、`api.ts`：连接、知识组合与本地 API。
 - `backend/src/index.ts`：启动顺序、管理 API 本机限制。
 - `backend/src/platform/bootstrap/agentHost.ts`：本地根 Run 列表、详情、发起与继续。
@@ -146,6 +161,10 @@ flowchart TD
 
 ### 主要测试
 
+- `backend/test/pluginWeb.test.ts`、`backend/test/standupApi.test.ts`：第三方页面/API、未启用拒绝、请求体与查询边界。
+- `frontend/src/pages/workspace/pages.test.mjs`：页面装配、卸载后的解析、URL 编码和当前导航。
+- 浏览器验收：默认站会可用，空组合站会不可访问且手动任务为空，MCP 动态入口读取虚构文件成功；375px 导航正确选中。
+
 - `backend/test/workspaceActions.test.ts`、`backend/test/runActions.test.ts`：第三方贡献、目标/作用域、幂等、缓存不刷新、独立评估和停机等待。
 - `frontend/src/pages/workspace/panels.test.mjs`：面板版本、大小与非法格式降级。
 
@@ -157,5 +176,6 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 工作台展示插件贡献页面和手动任务；移除站会插件后页面与接口同时关闭 | 插件 Web/站会 API 专项、后端回归、前端检查及默认/空配置/MCP 浏览器验收 |
 | 2026-11-05 | 增加插件拥有的后续动作、知识引用检查与独立报告；HTTP 默认加载复核插件 | 插件动作/API 专项、后端回归、前端检查与桌面/375px 浏览器验收 |
 | 2026-11-05 | 本地 Agent 工作台、真实运行与知识入口、可填写连接设置、响应式浅色应用壳 | 工作台专项、后端回归、前端检查和本地浏览器验收 |
