@@ -1,23 +1,45 @@
 # Roadmap
 
-This roadmap is directional and does not promise release dates.
+The product direction is a self-hosted Agent plugin workbench for small software
+teams. See the [design proposal](docs/PROJECT_DIRECTION.md) for users, evidence,
+plugin boundaries and acceptance criteria. Items below are planned unless marked
+complete; they are not current product claims or release-date promises.
 
-## Before v1.0
+## A. Public migration baseline
 
-- Define an application authentication and authorization model.
-- Formalize release packaging, upgrades, migrations, and support policy.
-- Expand end-to-end tests for external integrations and failure recovery.
-- Audit dependency licenses and automate software-bill-of-materials output.
+- [x] Import sanitized delivery workflows and public CI.
+- [x] Migrate reusable standup, report, calendar and reliability updates.
+- [x] Run local regression, frontend quality gates and secret scanning.
+- [ ] Confirm remote CI for the migration batch.
 
-## Later
+## B. Every capability is a plugin
 
-- Evaluate additional model profiles without weakening current configuration
-  boundaries.
-- Reduce oversized runtime modules through behavior-preserving refactors.
-- Evaluate databases and deployment topologies beyond single-writer SQLite.
-- Consider multi-tenant isolation.
-- Consider additional messaging platforms such as Slack or Teams.
+- [ ] Use Cordis lifecycle and dependency composition, following DeepSeek Harness.
+- [ ] Publish a versioned plugin contract and one tested authoring template.
+- [ ] Move business features, integrations, runtime services, triggers and UI
+  contributions behind plugin registration, preserving current behavior.
+- [ ] Provide minimal, GitHub-team and Feishu-team composition profiles.
+- [ ] Verify missing dependencies, disabled plugins, setup failure and cleanup.
 
-These items are intentionally outside the initial open-source migration. The
-current release keeps the stable Agent Runtime, integration behavior, and
-single-writer SQLite deployment model unchanged.
+## C. First useful product
+
+- [ ] Provide a GitHub-first onboarding path and an explicitly labeled offline demo.
+- [ ] Add an onboarding assistant for existing MCP and HTTP/OpenAPI capabilities;
+  produce reviewable adapters and report unsupported repositories accurately.
+- [ ] Add plugin acceptance contracts, sample checks and execution receipts.
+- [ ] Deliver project digests and release preparation with linked source evidence.
+- [ ] Add a project-scoped RAG plugin with citations and source version tracking.
+- [ ] Add application authentication, project access checks, secret handling and
+  concrete write approval before opening external trials.
+
+## D. Reuse and adoption
+
+- [ ] Turn verified runs into user-reviewed reusable recipes.
+- [ ] Replay redacted fixtures to compare plugin and model versions without live writes.
+- [ ] Validate onboarding and repeated use with independent maintainers or teams.
+- [ ] Enable an external contributor to build and verify a plugin from documentation.
+- [ ] Publish measured success, latency, cost and recovery results with test scope.
+
+Keep single-writer SQLite until measured needs justify another topology. Broader
+multi-tenant hosting, a marketplace service, arbitrary repository execution and
+unattended code changes remain outside the first release.
