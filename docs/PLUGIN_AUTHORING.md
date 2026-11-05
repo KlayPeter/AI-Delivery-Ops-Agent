@@ -33,6 +33,8 @@ await host.stop();
 
 `getContext` 提供当前应用的 `HandlerContext`。现阶段插件 SDK 仍依赖已有应用服务，不是已发布的通用 npm SDK。应用默认组合使用 `createDeliveryOpsHost`，保留七个业务 Agent；直接构造 `AgentHost` 默认不装配业务功能。
 
+较完整的独立例子见 `backend/src/knowledge/markdown/plugin.ts`：使用现有接口声明配置、Native Agent 和两个只读 Tool，不修改 Host。它不在默认团队组合中；本地运行方式见[个人知识库指南](PERSONAL_KNOWLEDGE.md)。
+
 ## 用配置文件选择 Agent 插件
 
 从 `backend` 目录启动时，可设置：

@@ -33,6 +33,9 @@ complete; they are not current product claims or release-date promises.
 - [ ] Connect selected Markdown/Obsidian folders and public webpage URLs as source plugins;
   preserve source links, properties and versions. See the
   [personal knowledge design](docs/PERSONAL_KNOWLEDGE_DESIGN.md).
+- [x] Deliver a read-only Markdown/Obsidian plugin and local CLI with versioned keyword
+  retrieval, source citations, link status, exclusions and in-memory change tracking.
+  This is the file-source foundation; webpage ingestion and generative RAG remain open.
 - [ ] Handle source changes and deletions; restrict retrieval to explicitly selected sources.
 - [ ] Add an onboarding assistant for existing MCP and HTTP/OpenAPI capabilities;
   produce reviewable adapters and report unsupported repositories accurately.
