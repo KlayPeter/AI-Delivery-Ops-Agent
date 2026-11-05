@@ -118,6 +118,7 @@ flowchart TD
 
 ### 主要实现
 
+- `backend/src/knowledge/modelConfiguration.ts`：知识 CLI 与发布准备共用显式模型配置，query/sync 不使用模型。
 - `backend/src/knowledge/web/network.ts`：公共网络检查、IP 固定、传输和预算。
 - `backend/src/knowledge/web/parser.ts`：正文提取、定位语义与版本。
 - `backend/src/knowledge/web/source.ts`：来源配置、同步与检索。
@@ -139,5 +140,6 @@ flowchart TD
 | --- | --- | --- |
 | 2026-11-05 | 新增公开单页来源与网页回答组合，复用原排序和 RAG | 专项 33 通过；类型检查；后端 462 通过 / 1 TAPD 跳过；公开网页 CLI 抓取成功；生成使用本地模拟模型 |
 | 2026-11-05 | 显式引用解析依赖要求的标准 DOM 类型，修复干净后端安装的类型检查失败 | 干净归档安装、类型检查和后端回归；不依赖本机其他依赖带入 DOM 声明 |
+| 2026-11-05 | CLI 模型设置提取为与发布准备共享的读取器，原来源行为和显式模型边界保持 | 原知识专项和后端回归 |
 
 设计依据：[Mozilla Readability](https://github.com/mozilla/readability)、[LinkeDOM](https://github.com/WebReflection/linkedom)、[Node HTTPS](https://nodejs.org/api/https.html)、[IPv4 特殊地址](https://www.iana.org/assignments/iana-ipv4-special-registry)、[IPv6 特殊地址](https://www.iana.org/assignments/iana-ipv6-special-registry)。依赖固定为 Readability 0.6.0（Apache-2.0）和 LinkeDOM 0.18.15（ISC）。

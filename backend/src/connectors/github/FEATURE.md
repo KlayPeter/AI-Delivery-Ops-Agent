@@ -53,7 +53,7 @@ flowchart TD
 4. API 的关闭 PR 列表按更新时间获取，不根据遇到的旧记录提前停止；最多每端点五页，配置最多二十页，每页三十项。只利用 Link 是否有 next 来判断结束，不跟随服务器提供的 next URL；下一页仍在固定端点构造。
 5. 分页不足、重复条目和输出截断分别保留。每类最多输出 100 条，正文最多 3000 字符、标题 256 字符、标签 30 项/每项 64 字符；截断可见。记录版本绑定投影前实际读取的数据，未展示正文末尾变化仍会改变版本。
 6. 默认整轮 20 秒，配置最多 30 秒；单响应最多 4 MiB、整轮最多 16 MiB。取消、超时、HTTP 或 Schema 错误使调用失败，不返回旧快照。
-7. 明确信号的限流和 502/503/504 最多重试一次。尊重 Retry-After 与主限流 reset；等待超过两秒则返回错误和 retryAfterMs，不提前重试。没有重试时间的限流按至少一分钟处理，不在当前调用里长时间阻塞。403 无限流信号时按访问失败处理。
+7. 明确信号的限流和 502/503/504 最多重试一次。尊重 Retry-After 与主限流 reset；等待超过两秒则返回错误和 retryAfterMs，不提前重试。Tool/Run 的标准错误仅保留 code/message/retryable，因此 message 也显示最短重试秒数，避免归一化后丢失等待提示。没有重试时间的限流按至少一分钟处理，不在当前调用里长时间阻塞。403 无限流信号时按访问失败处理。
 8. 开放 Issue 是读取时当前状态，包含该端点的 PR 条目会排除。不是 until 时点的历史 Issue 清单。分页跨多个请求，可能因并发变化出现未被检测的遗漏；consistency 明确为 live_paginated_not_atomic，exhausted 仅说明分页读完。
 9. 调用只允许无 chatId/conversationId 的手动或 Agent Scope；不构成身份认证。可信本机或 SDK 才是当前入口。API 文本是不可信资料，不能授予工具权限。
 
@@ -111,6 +111,6 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
-| 2026-11-05 | 新增只读 GitHub 项目事实插件 | 类型检查与七项受控 REST 专项；未执行 GitHub 写入 |
+| 2026-11-05 | 新增只读 GitHub 项目事实插件 | 类型检查与八项受控 REST 专项（含整轮字节与响应取消）；未执行 GitHub 写入 |
 
 依据：[PR REST API](https://docs.github.com/en/rest/pulls/pulls)、[Issue REST API](https://docs.github.com/en/rest/issues/issues)、[REST 最佳实践](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api)。API 版本固定 2022-11-28，已通过官方 versions 端点核实仍受支持。

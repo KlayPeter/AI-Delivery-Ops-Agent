@@ -30,6 +30,13 @@ flowchart LR
     WS --> O
     PS --> O
     O --> B["多机器人路由与飞书投递"]
+    LP["本地 CLI / SDK"] --> RP["发布准备 Agent"]
+    FP --> RP
+    RP --> GH["GitHub 事实 Tool"]
+    RP --> PK["个人 Markdown / Web 检索 Tool"]
+    RP --> O
+    GH --> O
+    PK --> O
 ```
 
 ## 1. 当前功能
@@ -43,6 +50,7 @@ flowchart LR
 | `weekly-report` | 站会、TAPD 与任务变更聚合的可视化周报 | active | `native.weekly-report` | [查看](../../backend/src/domains/weeklyReport/FEATURE.md) |
 | `project-visibility` | 项目看板、历史快照与人力甘特图 | active | `native.project-dashboard`；人力甘特图不是 Agent | [查看](../../backend/src/agents/native/project-dashboard/FEATURE.md) |
 | `ai-news-radar` | 飞书私聊查询、续页、搜索与多源 AI 信号，可选独立机器人 | active | `native.ai-news-radar` | [查看](../../backend/src/agents/native/ai-news-radar/FEATURE.md) |
+| `release-preparation` | 结合仓库事实与个人规则生成发布草稿、引用与待确认项 | active | `native.release-prepare`；显式组合、本地 CLI | [查看](../../backend/src/domains/release/FEATURE.md) |
 | `github-project-facts` | GitHub 固定仓库的合并 PR、开放 Issue 与来源覆盖 | active | 无独立 Agent；只读连接 Tool | [查看](../../backend/src/connectors/github/FEATURE.md) |
 | `personal-markdown-knowledge` | 只读 Markdown/Obsidian 同步、笔记链接与版本化关键词检索；本地 CLI | active | `native.knowledge-markdown`；显式安装，默认团队不启用 | [查看](../../backend/src/knowledge/markdown/FEATURE.md) |
 | `personal-web-knowledge` | 公开单页 URL 抓取、正文提取、版本化检索与 RAG 组合 | active | `native.knowledge-web`；显式安装 | [查看](../../backend/src/knowledge/web/FEATURE.md) |
@@ -68,6 +76,7 @@ flowchart LR
 | `native.ai-news-radar` | `knowledge.ai.news.fetch` | Native Agent | AI 热点新闻助手 |
 | `native.knowledge-markdown` | `knowledge.markdown.retrieve` | 可选 Native Agent | 个人 Markdown 知识源；显式安装后生效 |
 | `native.knowledge-web` | `knowledge.web.retrieve` | 可选 Native Agent | 公开网页知识源；显式安装后生效 |
+| `native.release-prepare` | `release.prepare` | 可选 Native 管线 | 个人知识驱动的只读发布准备 |
 | `native.knowledge-answer` | `knowledge.answer` | 可选 Native RAG 管线 | 个人知识回答；依赖来源插件与显式模型配置 |
 | `external.ai-hot` | `knowledge.ai.hot.fetch` | 可选 HTTP Agent | Agent 平台；安装后生效 |
 
@@ -84,11 +93,14 @@ flowchart LR
 | `backend/src/services/standupService.ts`、`backend/src/services/standup.ts`、站会 Handler/Tool | `standup-management` |
 | 日报 Builder、Renderer、`native/dailySummaryAgent.ts` | `daily-summary` |
 | `agents/native/ai-news-radar/**` | `ai-news-radar`；涉及 Bot/Outbox 时追加 `agent-platform`、`operations-observability` |
+| `backend/src/domains/release/**`、`backend/src/scripts/release.ts` | `release-preparation` |
 | `backend/src/connectors/github/**` | `github-project-facts`；结果协议变化同步使用它的任务功能 |
 | `backend/src/knowledge/markdown/**` | `personal-markdown-knowledge`；影响回答证据时追加 `personal-knowledge-answer` |
 | `backend/src/knowledge/web/**` | `personal-web-knowledge`；回答组合变化追加 `personal-knowledge-answer` |
-| `backend/src/knowledge/search.ts`、`backend/src/knowledge/scope.ts` | `personal-markdown-knowledge`、`personal-web-knowledge`、`personal-knowledge-answer` |
-| `backend/src/knowledge/answer/**` | `personal-knowledge-answer`；共享 Host/Tool 契约变化时追加平台文档 |
+| `backend/src/knowledge/search.ts` | `personal-markdown-knowledge`、`personal-web-knowledge`；查询契约变化追加 `release-preparation` |
+| `backend/src/knowledge/scope.ts` | `personal-markdown-knowledge`、`personal-web-knowledge`、`personal-knowledge-answer`、`github-project-facts`、`release-preparation` |
+| `backend/src/knowledge/modelConfiguration.ts` | `personal-markdown-knowledge`、`personal-web-knowledge`、`personal-knowledge-answer`、`release-preparation` |
+| `backend/src/knowledge/answer/**` | `personal-knowledge-answer`；共享引用/证据协议变化追加 `release-preparation`；Host/Tool 契约变化时追加平台文档 |
 | `backend/src/scripts/knowledge.ts` | `personal-markdown-knowledge`、`personal-web-knowledge`、`personal-knowledge-answer` |
 | `backend/src/platform/models/**` | `agent-platform`、`operations-observability`；同步受影响的模型调用功能 |
 | `domains/weeklyReport/**`、`native/weeklyReportAgent.ts`、`WeeklyReportHandler.ts` | `weekly-report` |
@@ -120,5 +132,5 @@ flowchart LR
 - **推荐在功能代码 Owner 目录使用 `FEATURE.md`，不推荐再放业务型 `AGENTS.md`。** `FEATURE.md` 面向人和 AI 共同解释产品能力；根目录 `AGENTS.md` 统一约束 AI 的修改流程。这样代码与功能事实相邻，又不会让业务说明和开发规则混在一起。
 - **系统已经是 Agent 系统。** 它具备 Registry、三类 Adapter、Model Loop、Tool/Skill Runtime、委派、Session/Checkpoint、Run/Artifact、Outbox 和 Bot Binding，不只是“调用一次大模型”的普通业务系统。
 - **系统采用混合架构是正确的。** 自主决策和可插拔执行使用 Agent，强一致状态交给 Domain Service，确定性管理和查询保留为服务/控制面。强行把每个页面或函数 Agent 化会增加成本、随机性和数据冲突。
-- **当前功能文档覆盖 16 个能力。** 默认团队组合包含 7 个 Agent；个人 Markdown、公开网页检索与 RAG 回答是三个可选 Native Agent，AI Hot 是可选外部 Agent；会议纪要处于 dormant，其余功能通过 Agent、领域服务和控制面协作完成。
+- **当前功能文档覆盖 17 个能力。** 默认团队组合包含 7 个 Agent；个人 Markdown、公开网页检索、RAG 回答与发布准备是四个可选 Native Agent，AI Hot 是可选外部 Agent；会议纪要处于 dormant，其余功能通过 Agent、领域服务和控制面协作完成。
 - **下一步维护重点**是保证功能卡与代码同提交更新，并继续把业务写入口收敛到 `TaskService`、`StandupService` 和受治理 Tool；新增机器人优先增加 Binding，新增自治能力再增加 Agent。

@@ -85,5 +85,15 @@ describe('GitHub repository facts', () => {
         await expect(new GitHubRepositorySource({ repository, timeoutMs: 10 }, f).snapshot(window)).rejects.toThrow('timed out');
         f.state.override = () => new Response('x'.repeat(4 * 1024 * 1024 + 1));
         await expect(new GitHubRepositorySource({ repository }, f).snapshot(window)).rejects.toThrow('4 MiB');
+        let cancelled = false;
+        f.state.override = () => new Response(new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode('{')); }, cancel() { cancelled = true; } }));
+        await expect(new GitHubRepositorySource({ repository, timeoutMs: 10 }, f).snapshot(window)).rejects.toThrow('timed out');
+        expect(cancelled).toBe(true);
+    });
+
+    test('bounds aggregate bytes even when each individual page is below its limit', async () => {
+        const f = githubFixture(); f.state.nextPullPage = true;
+        f.state.pulls = Array.from({ length: 30 }, (_, index) => pr(index + 1, { body: 'x'.repeat(120_000) }));
+        await expect(new GitHubRepositorySource({ repository, maxPages: 5 }, f).snapshot(window)).rejects.toThrow('16 MiB');
     });
 });

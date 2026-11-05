@@ -14,10 +14,10 @@ export const retrievalEvidence = z.object({
 export type RetrievalEvidence = z.infer<typeof retrievalEvidence>;
 export type EvidenceHit = RetrievalEvidence['hits'][number];
 
-const reference = z.object({ citationId: hash, quote: z.string().trim().min(1).max(2000) }).strict();
+export const citationReference = z.object({ citationId: hash, quote: z.string().trim().min(1).max(2000) }).strict();
 const draftSchema = z.discriminatedUnion('status', [
     z.object({ status: z.literal('answered'), claims: z.array(z.object({
-        text: z.string().trim().min(1).max(2000), citations: z.array(reference).min(1).max(4),
+        text: z.string().trim().min(1).max(2000), citations: z.array(citationReference).min(1).max(4),
     }).strict()).min(1).max(8) }).strict(),
     z.object({ status: z.literal('insufficient_evidence'), reason: z.string().trim().min(1).max(1000) }).strict(),
 ]);
@@ -40,13 +40,18 @@ export function verifyDraft(text: string, evidence: readonly EvidenceHit[]) {
     const raw = text.trim().replace(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/, '$1');
     const draft = draftSchema.parse(JSON.parse(raw));
     if (draft.status === 'insufficient_evidence') return draft;
+    verifyCitations(draft.claims, evidence);
+    return draft;
+}
+
+export function verifyCitations(claims: readonly { citations: readonly z.infer<typeof citationReference>[] }[], evidence: readonly { citationId: string; excerpt: string }[]): void {
     const sources = new Map(evidence.map(hit => [hit.citationId, hit]));
-    for (const claim of draft.claims) {
+    if (sources.size !== evidence.length) throw new Error('Duplicate evidence citation ID');
+    for (const claim of claims) {
         for (const reference of claim.citations) {
             const source = sources.get(reference.citationId);
             if (!source) throw new Error('Answer cites evidence that was not supplied to the model');
             if (!source.excerpt.includes(reference.quote)) throw new Error('Answer quote is not present in the cited excerpt');
         }
     }
-    return draft;
 }

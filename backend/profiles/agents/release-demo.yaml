@@ -1,0 +1,9 @@
+apiVersion: '1.0'
+plugins:
+  - module: ../../src/domains/release/plugin.ts
+  - module: ../../src/connectors/github/plugin.ts
+    config:
+      repository: example/project
+  - module: ../../src/knowledge/markdown/plugin.ts
+    config:
+      root: examples/knowledge-vault

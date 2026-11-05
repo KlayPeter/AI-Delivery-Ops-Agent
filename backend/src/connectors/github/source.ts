@@ -114,8 +114,8 @@ export class GitHubRepositorySource {
                     : limited ? (reset && response.headers.get('x-ratelimit-remaining') === '0' ? Number(reset) * 1000 - Date.now() : 60_000) : 250;
                 const retryAfterMs = Math.max(0, Number.isFinite(wait) ? wait : 60_000);
                 if ((limited || transient) && attempt === 0 && retryAfterMs <= 2000) { await delay(retryAfterMs, undefined, { signal }); continue; }
-                throw Object.assign(new Error(`GitHub API returned HTTP ${response.status}${limited ? '; retry after the advertised rate-limit delay' : ''}`), {
-                    code: limited ? 'GITHUB_RATE_LIMITED' : `GITHUB_HTTP_${response.status}`, retryable: limited || transient, retryAfterMs: limited ? retryAfterMs : undefined,
+                throw Object.assign(new Error(`GitHub API returned HTTP ${response.status}${limited || transient ? `; retry after at least ${Math.ceil(retryAfterMs / 1000)}s` : ''}`), {
+                    code: limited ? 'GITHUB_RATE_LIMITED' : `GITHUB_HTTP_${response.status}`, retryable: limited || transient, retryAfterMs: limited || transient ? retryAfterMs : undefined,
                 });
             }
             if (!response.body) throw new Error('GitHub API returned an empty response');

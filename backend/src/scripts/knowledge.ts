@@ -8,6 +8,7 @@ import { knowledgeAnswerPlugin, KNOWLEDGE_ANSWER_CAPABILITY } from '@/knowledge/
 import { knowledgeWebPlugin, KNOWLEDGE_WEB_CAPABILITY } from '@/knowledge/web/plugin';
 import { knowledgeWebAnswerPlugin } from '@/knowledge/web/answerPlugin';
 import { webSourceConfig } from '@/knowledge/web/source';
+import { readKnowledgeModelConfig } from '@/knowledge/modelConfiguration';
 
 async function main() {
     const { values } = parseArgs({
@@ -30,14 +31,8 @@ async function main() {
     if (values.ask !== undefined && values.query !== undefined) throw new Error('Choose --query or --ask');
     let ai: Record<string, string> | undefined;
     if (values.ask !== undefined) {
-        const model = process.env.KNOWLEDGE_MODEL?.trim();
-        const key = process.env.KNOWLEDGE_API_KEY?.trim();
-        const base = process.env.KNOWLEDGE_API_BASE?.trim();
-        if (!model || !key || !base) throw new Error('--ask requires KNOWLEDGE_API_BASE, KNOWLEDGE_MODEL and KNOWLEDGE_API_KEY; it sends retrieved snippets to that model');
-        const endpoint = new URL(base);
-        if (!['http:', 'https:'].includes(endpoint.protocol) || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) throw new Error('KNOWLEDGE_API_BASE must be an HTTP(S) URL without credentials, query or fragment');
-        ai = { provider: process.env.KNOWLEDGE_PROVIDER || 'openai-compatible', api_base: endpoint.href, api_key: key, model };
-        console.error(`Generation uses ${endpoint.origin}${endpoint.pathname}; your question and selected excerpts will be sent to this model service.`);
+        ai = readKnowledgeModelConfig('--ask');
+        console.error(`Generation uses ${ai.api_base}; your question and selected excerpts will be sent to this model service.`);
     }
     const store = new InMemoryPersistentKeyValueStore();
     const host = new AgentHost(() => ({ store, config: { feishu: { bot_name: 'Local knowledge' }, groups: [], ai } }) as any,

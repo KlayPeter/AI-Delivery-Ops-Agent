@@ -30,7 +30,7 @@ flowchart TD
     C --> N{存在命中片段?}
     N -- 否 --> A[资料不足：不调用模型]
     N -- 是 --> M[Orchestrator：生成 JSON，无 Tool 与人工追问函数]
-    M --> K[核验输出结构、引用 ID 与原文子串]
+    M --> K[输出结构与共享 verifyCitations 引文核验]
     K -- 通过 --> R[带来源与核验范围的回答 Artifact]
     K -- 模型认为不足 --> A
     K -- 非法 --> F[Run 失败，不发布答案 Artifact]
@@ -122,7 +122,8 @@ flowchart TD
 ### 主要实现
 
 - `backend/src/knowledge/answer/plugin.ts`：RAG 插件、受治理检索、模型调用和步骤记录。
-- `backend/src/knowledge/answer/evidence.ts`：证据协议、上下文预算、结构与引用校验。
+- `backend/src/knowledge/answer/evidence.ts`：证据协议、上下文预算、结构与共享 verifyCitations；发布准备复用同一精确引文检查。
+- `backend/src/knowledge/modelConfiguration.ts`：CLI 专用模型设置，与发布准备复用，保持原环境变量与验证。
 - `backend/src/knowledge/markdown/plugin.ts`：默认只读来源。
 - `backend/src/knowledge/scope.ts`：共享个人范围校验。
 - `backend/src/knowledge/web/answerPlugin.ts`：网页来源的回答组合。
@@ -145,3 +146,4 @@ flowchart TD
 | --- | --- | --- |
 | 2026-11-05 | 新增可选 RAG 回答插件，复用宿主 Orchestrator/Tool Gateway，发布前核验引用与引文；CLI 显式配置模型 | 专项 13 项使用真实 SDK 与本地模拟模型；类型检查、后端 452 通过 / 1 TAPD 跳过；未调用付费远端模型 |
 | 2026-11-05 | 同一回答实现支持显式网页来源组合，保留提取文本定位与抓取时间 | 33 项知识专项、后端全量与类型检查 |
+| 2026-11-05 | 精确引文校验与 CLI 模型设置供发布准备复用，回答口径保持；拒绝重复证据 ID | 原知识专项与发布准备回归 |

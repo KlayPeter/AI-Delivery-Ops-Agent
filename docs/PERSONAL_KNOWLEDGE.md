@@ -59,6 +59,8 @@ bun run src/scripts/knowledge.ts --url https://example.com/ --url https://exampl
 
 网页报告包含原始/最终 URL、fetchedAt、rawVersion、文档版本和 extraction。引用的 `lineBasis=extracted_text` 表示行号来自提取文本，不能直接当成 HTML 源码行号；openUri 打开当前原文，不是历史快照。单页读取失败会从本轮索引移除旧内容并返回 partial；整轮预算失败或取消则不返回旧索引。当前索引与变化比较仅存在于同一进程。
 
+知识也可用于[只读发布准备](RELEASE_PREPARATION.md)：把仓库 PR/Issue 与选定规则放在同一任务中生成带引用草稿。
+
 ## 根据资料生成回答
 
 先配置你信任的模型接口。以下地址和模型名仅为占位示例，需要替换成已部署的 OpenAI 兼容接口；本地服务不校验密钥时，也要提供其允许的占位值以满足 SDK 配置。

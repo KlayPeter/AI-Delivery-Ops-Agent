@@ -117,6 +117,7 @@ flowchart TD
 
 ### 主要实现
 
+- `backend/src/knowledge/modelConfiguration.ts`：知识 CLI 与发布准备共用显式模型配置，query/sync 不使用模型。
 - `backend/src/knowledge/markdown/source.ts`：配置、有界读取、同步与关键词检索。
 - `backend/src/knowledge/search.ts`、`backend/src/knowledge/scope.ts`：与网页来源共享排序和范围校验；原 Scope 导出保持兼容。
 - `backend/src/knowledge/markdown/parser.ts`：属性、分段与链接解析。
@@ -134,3 +135,4 @@ flowchart TD
 | --- | --- | --- |
 | 2026-11-05 | 首次实现只读 Markdown/Obsidian 来源插件、版本化关键词检索与本地 CLI | 专项 10 项测试与 CLI 执行、类型及打包检查；后端全量 438 通过 / 1 真实 TAPD 跳过 |
 | 2026-11-05 | 排序与个人范围校验提取供网页来源复用，目录检索口径保持；CLI 显式选择来源 | 原 23 项来源/RAG 回归、新增网页专项与后端全量 |
+| 2026-11-05 | CLI 模型设置提取为与发布准备共享的读取器，原来源行为和显式模型边界保持 | 原知识专项和后端回归 |
