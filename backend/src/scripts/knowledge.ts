@@ -5,20 +5,28 @@ import { createTriggerEnvelope, createTriggerScope, DEFAULT_BOT_INSTANCE_ID, DEF
 import { knowledgeMarkdownPlugin, KNOWLEDGE_MARKDOWN_CAPABILITY } from '@/knowledge/markdown/plugin';
 import { markdownSourceConfig } from '@/knowledge/markdown/source';
 import { knowledgeAnswerPlugin, KNOWLEDGE_ANSWER_CAPABILITY } from '@/knowledge/answer/plugin';
+import { knowledgeWebPlugin, KNOWLEDGE_WEB_CAPABILITY } from '@/knowledge/web/plugin';
+import { knowledgeWebAnswerPlugin } from '@/knowledge/web/answerPlugin';
+import { webSourceConfig } from '@/knowledge/web/source';
 
 async function main() {
     const { values } = parseArgs({
         args: Bun.argv.slice(2),
         options: {
-            root: { type: 'string' }, query: { type: 'string' }, ask: { type: 'string' }, limit: { type: 'string' },
+            root: { type: 'string' }, url: { type: 'string', multiple: true }, query: { type: 'string' }, ask: { type: 'string' }, limit: { type: 'string' },
             exclude: { type: 'string', multiple: true }, 'vault-name': { type: 'string' }, help: { type: 'boolean' },
         },
     });
     if (values.help) {
-        console.log('Usage: bun run src/scripts/knowledge.ts --root <folder> [--query <text> | --ask <question>] [--limit 1..10] [--exclude <relative-prefix>] [--vault-name <name>]\nWithout --query/--ask, refresh the index. --query is local keyword retrieval. --ask sends the question and selected snippets to the explicitly configured model (KNOWLEDGE_API_BASE, KNOWLEDGE_MODEL, KNOWLEDGE_API_KEY; optional KNOWLEDGE_PROVIDER). Index and runtime records are in memory.');
+        console.log('Usage: bun run src/scripts/knowledge.ts (--root <folder> | --url <public-url> [--url <public-url> ...]) [--query <text> | --ask <question>] [--limit 1..10] [--exclude <relative-prefix>] [--vault-name <name>]\nWithout --query/--ask, refresh the index. --query uses keyword retrieval without a model. --url reads only the configured public pages (up to 5); no crawling or login. --exclude/--vault-name apply only to --root. --ask sends the question and selected snippets to the explicitly configured model (KNOWLEDGE_API_BASE, KNOWLEDGE_MODEL, KNOWLEDGE_API_KEY; optional KNOWLEDGE_PROVIDER). Index and runtime records are in memory.');
         return;
     }
-    const config = markdownSourceConfig.parse({ root: values.root, exclude: values.exclude, vaultName: values['vault-name'] });
+    const useWeb = values.url !== undefined;
+    if (useWeb === (values.root !== undefined)) throw new Error('Choose exactly one source: --root or --url');
+    if (useWeb && (values.exclude || values['vault-name'])) throw new Error('--exclude and --vault-name require --root');
+    const config = useWeb ? webSourceConfig.parse({ urls: values.url }) : markdownSourceConfig.parse({ root: values.root, exclude: values.exclude, vaultName: values['vault-name'] });
+    const sourcePlugin = useWeb ? knowledgeWebPlugin : knowledgeMarkdownPlugin;
+    const answerPlugin = useWeb ? knowledgeWebAnswerPlugin : knowledgeAnswerPlugin;
     if (values.ask !== undefined && values.query !== undefined) throw new Error('Choose --query or --ask');
     let ai: Record<string, string> | undefined;
     if (values.ask !== undefined) {
@@ -33,14 +41,14 @@ async function main() {
     }
     const store = new InMemoryPersistentKeyValueStore();
     const host = new AgentHost(() => ({ store, config: { feishu: { bot_name: 'Local knowledge' }, groups: [], ai } }) as any,
-        1000, undefined, [], { plugins: values.ask === undefined ? [knowledgeMarkdownPlugin] : [knowledgeMarkdownPlugin, knowledgeAnswerPlugin], pluginConfig: { 'knowledge.markdown': config } });
+        1000, undefined, [], { plugins: values.ask === undefined ? [sourcePlugin] : [sourcePlugin, answerPlugin], pluginConfig: { [sourcePlugin.manifest.id]: config } });
     try {
         const input = values.ask !== undefined ? { question: values.ask, limit: values.limit === undefined ? 5 : Number(values.limit) } : values.query === undefined ? { operation: 'sync' } : {
             operation: 'search', query: values.query, limit: values.limit === undefined ? 5 : Number(values.limit),
         };
         const scope = createTriggerScope({ workspaceId: DEFAULT_WORKSPACE_ID, botInstanceId: DEFAULT_BOT_INSTANCE_ID, triggerType: 'manual', triggerId: crypto.randomUUID() });
         const trigger = createTriggerEnvelope({ scope, occurredAt: new Date().toISOString(), payload: input, replyPolicy: { mode: 'none' } });
-        const result = await host.dispatch(trigger, values.ask === undefined ? KNOWLEDGE_MARKDOWN_CAPABILITY : KNOWLEDGE_ANSWER_CAPABILITY, input);
+        const result = await host.dispatch(trigger, values.ask === undefined ? (useWeb ? KNOWLEDGE_WEB_CAPABILITY : KNOWLEDGE_MARKDOWN_CAPABILITY) : KNOWLEDGE_ANSWER_CAPABILITY, input);
         if (result.status === 'failed') throw new Error(result.claim.error?.message || 'Knowledge operation failed');
         console.log(JSON.stringify({ runId: result.execution!.run.id, status: result.execution!.run.status, result: result.execution!.result.data }, null, 2));
     } finally { await host.stop(); }

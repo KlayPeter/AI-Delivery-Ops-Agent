@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import type { AgentManifest } from '@/platform/agents/contracts';
-import type { TriggerScope } from '@/platform/runtime/scope';
 import type { FeaturePlugin } from '@/platform/plugins/contracts';
 import { MarkdownKnowledgeSource, markdownSourceConfig } from './source';
+import { requirePersonalScope } from '../scope';
+export { requirePersonalScope } from '../scope';
 
 export const KNOWLEDGE_MARKDOWN_CAPABILITY = 'knowledge.markdown.retrieve';
 export const KNOWLEDGE_SEARCH_TOOL = 'knowledge.markdown.search';
@@ -23,12 +24,6 @@ export const knowledgeMarkdownManifest: AgentManifest = {
 
 const searchInput = z.object({ query: z.string().trim().min(1).max(500), limit: z.number().int().min(1).max(10).default(5) }).strict();
 const commandInput = z.object({ operation: z.enum(['sync', 'search']), query: z.string().max(500).optional(), limit: z.number().int().min(1).max(10).optional() }).strict();
-
-export function requirePersonalScope(scope: TriggerScope): void {
-    if (scope.chatId || scope.conversationId || !['manual', 'agent'].includes(scope.triggerType)) {
-        throw new Error('Personal knowledge currently requires a local manual scope without a chat or conversation');
-    }
-}
 
 export const knowledgeMarkdownPlugin: FeaturePlugin = {
     manifest: { apiVersion: '1.0', id: 'knowledge.markdown', name: 'Personal Markdown knowledge', version: '1.0.0', description: knowledgeMarkdownManifest.description },

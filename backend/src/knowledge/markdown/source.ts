@@ -3,6 +3,7 @@ import { lstat, open, opendir, realpath } from 'node:fs/promises';
 import * as path from 'node:path';
 import { z } from 'zod';
 import { contentHash, parseNote, resolveNoteLinks, type MarkdownNote, type ResolvedNoteLink } from './parser';
+import { knowledgeSearchInput, rankNotes } from '../search';
 
 const excludedPath = z.string().trim().min(1).refine(value => !path.isAbsolute(value) && !value.startsWith('\\')
     && !/^[A-Za-z]:|[\0*?\[\]]/.test(value) && !value.replace(/\\/g, '/').split('/').some(part => part === '..' || part === '.'), 'Use a relative file or directory prefix, without glob patterns');
@@ -29,9 +30,6 @@ interface Snapshot {
     };
 }
 
-const segmenter = new Intl.Segmenter('zh', { granularity: 'word' });
-const terms = (text: string) => [...segmenter.segment(text.normalize('NFKC').toLowerCase())].filter(item => item.isWordLike).map(item => item.segment);
-
 export class MarkdownKnowledgeSource {
     readonly config: z.output<typeof markdownSourceConfig>;
     private snapshot?: Snapshot;
@@ -42,20 +40,9 @@ export class MarkdownKnowledgeSource {
     async sync(signal?: AbortSignal) { return structuredClone((await this.refresh(signal)).report); }
 
     async search(query: string, limit = 5, signal?: AbortSignal) {
-        const input = z.object({ query: z.string().trim().min(1).max(500), limit: z.number().int().min(1).max(10) }).parse({ query, limit });
-        const wanted = new Set(terms(input.query));
-        if (!wanted.size) throw new Error('Query must contain searchable words');
+        const input = knowledgeSearchInput.parse({ query, limit });
         const snapshot = await this.refresh(signal);
-        const scored = snapshot.notes.flatMap(note => note.chunks.map(chunk => {
-            signal?.throwIfAborted();
-            const words = terms(`${note.title} ${note.aliases.join(' ')} ${note.tags.join(' ')} ${chunk.heading} ${chunk.text}`);
-            const frequency = new Map<string, number>();
-            for (const word of words) frequency.set(word, (frequency.get(word) || 0) + 1);
-            const matching = [...wanted].filter(term => frequency.has(term));
-            const title = new Set(terms(`${note.title} ${note.aliases.join(' ')} ${chunk.heading}`));
-            const score = matching.reduce((value, term) => value + 1 + Math.log1p(frequency.get(term)!) + (title.has(term) ? 2 : 0), 0) / Math.sqrt(Math.max(1, words.length));
-            return { note, chunk, score, matching };
-        })).filter(hit => hit.score > 0).sort((a, b) => b.score - a.score || a.note.path.localeCompare(b.note.path) || a.chunk.index - b.chunk.index);
+        const scored = rankNotes(snapshot.notes, input.query, signal);
         return {
             source: structuredClone(snapshot.report), query: input.query, retrieval: 'keyword' as const,
             hits: scored.slice(0, input.limit).map(({ note, chunk, score, matching }) => ({

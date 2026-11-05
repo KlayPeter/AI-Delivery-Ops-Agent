@@ -8,6 +8,7 @@ export const retrievalEvidence = z.object({
         citationId: hash, sourceId: z.string().min(1), path: z.string().min(1).max(1024), title: z.string().max(256),
         documentVersion: hash, heading: z.string().max(256), lineStart: z.number().int().positive(), lineEnd: z.number().int().positive(),
         excerpt: z.string().min(1).max(2000), openUri: z.string().optional(),
+        sourceKind: z.enum(['web', 'markdown']).optional(), lineBasis: z.literal('extracted_text').optional(), fetchedAt: z.string().optional(),
     }).refine(hit => hit.lineEnd >= hit.lineStart, 'Invalid source line range')).max(10),
 });
 export type RetrievalEvidence = z.infer<typeof retrievalEvidence>;

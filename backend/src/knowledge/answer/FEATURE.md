@@ -13,7 +13,7 @@ last_reviewed: 2026-11-05
 
 ## 功能定位
 
-`knowledge.answer` 依赖 `knowledge.markdown`，不复制文件读取、索引或路径授权逻辑。它通过现有 Tool Gateway 取得片段，由宿主 Orchestrator 生成结构化结论，再执行确定性引用校验。当前 RAG 使用关键词检索；向量、重排、历史产物过期和多人共享均未实现。
+`knowledge.answer` 默认依赖 `knowledge.markdown`；网页组合改为依赖 `knowledge.web` 并调用其检索 Tool。两者复用同一实现与 Capability，每个 Host 只能选择一个回答组合，当前不支持跨来源联合检索。不复制来源读取、索引或授权逻辑。它通过现有 Tool Gateway 取得片段，由宿主 Orchestrator 生成结构化结论，再执行确定性引用校验。当前 RAG 使用关键词检索；向量、重排、历史产物过期和多人共享均未实现。
 
 这是固定的检索、生成与核验管线，因此使用 Native Agent；模型在生成阶段没有 Tool，也不承担调度或文件读写。既有 Model Loop、委派和 Checkpoint 仍由平台其他 Agent 提供，本功能不伪装成多 Agent 自治或暂停恢复流程。
 
@@ -22,9 +22,9 @@ last_reviewed: 2026-11-05
 ```mermaid
 flowchart TD
     U[本地 CLI --ask / 手动 SDK] --> P[Cordis: knowledge.answer]
-    S[knowledge.markdown 插件] --> P
+    S[选定来源插件：Markdown 或 Web] --> P
     P --> V[验证问题、范围与取消状态]
-    V --> T[Tool Gateway: knowledge.markdown.search]
+    V --> T[Tool Gateway: 选定来源 search]
     T --> E[本轮版本化检索证据]
     E --> C[按 12000 字符预算选择完整片段]
     C --> N{存在命中片段?}
@@ -60,7 +60,7 @@ flowchart TD
 
 1. `manifest.requires` 显式要求知识源插件。输入只含 question 和可选 limit，不能覆盖根目录、来源 Tool 或模型权限。
 2. 复用知识源的本地个人范围检查：拒绝 chatId/conversationId 和消息触发；输入与取消状态在检索前检查。
-3. 固定调用一次 `knowledge.markdown.search`，经过 Tool Gateway、同一 Run 的 Scope、原子账本与一次调用预算。默认检索 5 项、最多 10 项。
+3. 固定调用一次选定来源的 search Tool（默认 `knowledge.markdown.search`，网页组合 `knowledge.web.search`），经过 Tool Gateway、同一 Run 的 Scope、原子账本与一次调用预算。默认检索 5 项、最多 10 项。
 4. 证据协议验证来源版本、片段 ID、行号与长度。生成上下文最多 12000 个标题/小标题/片段字符，按排名选择完整片段；不静默截断原文。返回检索数量、实际供给数量和截断状态。
 5. 模型只收到问题、部分索引标记和选定片段的 ID/标题/小标题/正文，不发送同步报告、失败文件路径、未命中文件或 Obsidian 打开 URI。
 6. 生成最多一步，输出请求上限 2048 token，时间取剩余 Run 时限与 30 秒的较小值。关闭 Orchestrator 默认人工输入函数，且不提供业务 Tool。缺资料用结构化不足状态表达，不创建不可恢复的 Checkpoint。
@@ -81,13 +81,13 @@ flowchart TD
 
 | 入口 | 输入 | 输出 |
 | --- | --- | --- |
-| CLI `--ask` | 固定目录、问题、可选数量及专用模型环境变量 | JSON 答案、证据、核验范围与 Run ID |
+| CLI `--ask` | 固定目录或公开链接、问题、可选数量及专用模型环境变量 | JSON 答案、证据、核验范围与 Run ID |
 | `knowledge.answer` Capability | question、可选 limit 1–10 | 回答或资料不足状态、JSON Artifact |
 | `knowledge-answer-demo.yaml` | 显式选择回答与来源插件 | 依赖排序后的组合，不代表已配置模型 |
 
 ## 运行逻辑
 
-1. 装配来源与回答插件；缺依赖立即拒绝。
+1. 装配选定来源与对应回答组合；缺依赖立即拒绝。`createKnowledgeAnswerPlugin` 绑定来源插件 ID 和 Tool，跨来源不复制生成实现。
 2. 通过 Tool Gateway 检索，并验证跨插件结果协议。
 3. 选择预算内的完整片段，无命中直接返回资料不足。
 4. 记录模型步骤，调用宿主模型执行器进行无 Tool 生成。
@@ -99,13 +99,13 @@ flowchart TD
 | 对象 | 职责 | 禁止承担 |
 | --- | --- | --- |
 | `knowledge.answer` | 检索编排、上下文、生成与验收 | 文件路径授权、索引复制和笔记回写 |
-| 来源 Tool | 固定目录读取与版本化证据 | 选择模型或授予模型权限 |
+| 来源 Tool | 固定来源读取与版本化证据 | 选择模型或授予模型权限 |
 | Orchestrator | 按宿主配置调用模型并返回用量 | 将文档指令升级为工具能力 |
 | 引用校验器 | 校验来源 ID、引文和结构 | 声称证明结论语义或资料完整性 |
 
 ## 数据与状态
 
-- 单次回答保存原始检索证据、引用版本、段落行号、partial 和上下文截断信息。
+- 单次回答保存原始检索证据、引用版本、段落行号、partial 和上下文截断信息。网页证据额外保留 sourceKind、fetchedAt 和 lineBasis=extracted_text；行号不冒充原始 HTML 定位。
 - CLI 索引、Run/Step/Artifact 在内存中；宿主应用嵌入使用时遵循其存储和留存策略。
 - Tool 账本和模型步骤归同一个 Run；重复 Trigger 不重复调用模型。
 - 模型失败时步骤保留失败状态，不将缺失用量冒充已测得的零费用。
@@ -123,7 +123,10 @@ flowchart TD
 
 - `backend/src/knowledge/answer/plugin.ts`：RAG 插件、受治理检索、模型调用和步骤记录。
 - `backend/src/knowledge/answer/evidence.ts`：证据协议、上下文预算、结构与引用校验。
-- `backend/src/knowledge/markdown/plugin.ts`：依赖的只读来源与共享范围校验。
+- `backend/src/knowledge/markdown/plugin.ts`：默认只读来源。
+- `backend/src/knowledge/scope.ts`：共享个人范围校验。
+- `backend/src/knowledge/web/answerPlugin.ts`：网页来源的回答组合。
+- `backend/src/knowledge/web/plugin.ts`：网页检索 Tool。
 - `backend/src/scripts/knowledge.ts`：query/sync 与显式 ask 模式。
 - `backend/profiles/agents/knowledge-answer-demo.yaml`：回答组合示例。
 - `backend/src/platform/plugins/contracts.ts`：宿主 Orchestrator 与 Tool Gateway 服务。
@@ -131,6 +134,7 @@ flowchart TD
 
 ### 主要测试
 
+- `backend/test/knowledgeWeb.test.ts`：网页组合、真实 SDK/Tool Gateway、来源元数据和 Scope。
 - `backend/test/knowledgeAnswer.test.ts`：真实 SDK 与本地模拟 HTTP 模型；引用拒绝、空命中、不足、版本快照、partial、Scope、CLI 与上下文预算。
 - `backend/test/toolSkillRuntime.test.ts`：调用账本、预算、取消与原 Tool/Skill 回归。
 - `backend/test/knowledgeMarkdown.test.ts`：来源解析、范围、同步与引用基线。
@@ -140,3 +144,4 @@ flowchart TD
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
 | 2026-11-05 | 新增可选 RAG 回答插件，复用宿主 Orchestrator/Tool Gateway，发布前核验引用与引文；CLI 显式配置模型 | 专项 13 项使用真实 SDK 与本地模拟模型；类型检查、后端 452 通过 / 1 TAPD 跳过；未调用付费远端模型 |
+| 2026-11-05 | 同一回答实现支持显式网页来源组合，保留提取文本定位与抓取时间 | 33 项知识专项、后端全量与类型检查 |

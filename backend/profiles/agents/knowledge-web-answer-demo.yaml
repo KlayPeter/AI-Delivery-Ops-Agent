@@ -1,0 +1,7 @@
+apiVersion: '1.0'
+plugins:
+  - module: ../../src/knowledge/web/answerPlugin.ts
+  - module: ../../src/knowledge/web/plugin.ts
+    config:
+      urls:
+        - https://example.com/

@@ -31,7 +31,7 @@ flowchart TD
     W --> V[读取内容哈希、属性、段落与笔记链接]
     V --> I[原子发布本轮内存索引与同步报告]
     V -- 整轮失败或取消 --> F[明确失败，不查询旧索引]
-    I --> Q[中文分词与关键词检索]
+    I --> Q[与网页源共享中文分词和关键词排序]
     Q --> E[来源版本、引用 ID、行号、原文片段与链接状态]
     E --> A[JSON Artifact / CLI 输出]
 ```
@@ -46,7 +46,7 @@ flowchart TD
 
 ### 非目标
 
-- 网页、PDF、OCR、Canvas、Bases 和社区插件语义尚未接入。
+- 本来源不处理网页、PDF、OCR、Canvas、Bases 或社区插件语义；公开网页由独立 `knowledge.web` 插件提供。
 - 不执行文件、脚本或笔记中的指令，不写回原文件。
 - 不提供生成式回答、向量检索、完整 Markdown 语法解析或自动关联笔记正文扩展。
 - 不提供多用户认证、Vault 共享或原生代码/敌对文件系统的操作系统沙箱。
@@ -63,7 +63,7 @@ flowchart TD
 8. 普通 Wikilink、简单行内 Markdown 链接与标题引用保留关系。同名笔记或别名有多个候选时标为歧义；附件、越界、块引用和缺失链接分别标注。代码围栏内不提取链接；不展开嵌入正文。
 9. 成功同步报告含增改移除数量、文件失败和链接状态。变化路径与失败详情各最多 25 条，返回总数及变化截断标记；检索只附少量链接关系，候选数量仍可见。
 10. 插件只接受无 chatId/conversationId 的手动或 Agent 范围；拒绝群聊、私聊和消息触发。此限制缩小当前入口，不等于访问控制。不得在缺少认证的共享管理端加载真实私人资料。
-11. CLI 的 query/sync 模式仅装配此插件；显式 `--ask` 才增加回答插件并使用专用模型配置。CLI 不启动 Web、消息连接、业务定时器或投递 Worker；运行、Artifact 和索引均在进程内存中，结束后销毁。宿主应用安装插件时则沿用宿主的持久化及留存策略。
+11. CLI 的 root 模式仅选择此来源；url 模式选择独立网页来源，两类当前互斥。query/sync 不调用模型；显式 `--ask` 才增加回答插件并使用专用模型配置。CLI 不启动 Web、消息连接、业务定时器或投递 Worker；运行、Artifact 和索引均在进程内存中，结束后销毁。宿主应用安装插件时则沿用宿主的持久化及留存策略。
 
 ## 用户能力
 
@@ -75,7 +75,6 @@ flowchart TD
 
 | 入口 | 输入 | 输出 |
 | --- | --- | --- |
-| 2026-11-05 | 导出本地个人范围校验供独立回答插件复用，来源行为保持；CLI 增加显式模型回答模式 | 来源与 RAG 专项、后端回归和类型检查 |
 | 本地 CLI | 固定目录、query/limit、排除前缀、可选 Vault 名 | JSON 同步或检索结果、Run ID |
 | `knowledge.markdown.retrieve` | operation=sync/search、可选 query/limit | Native Agent 结果与 JSON Artifact |
 | `knowledge.markdown.search` Tool | query、可选 limit 1–10 | 来源报告和命中片段 |
@@ -119,6 +118,7 @@ flowchart TD
 ### 主要实现
 
 - `backend/src/knowledge/markdown/source.ts`：配置、有界读取、同步与关键词检索。
+- `backend/src/knowledge/search.ts`、`backend/src/knowledge/scope.ts`：与网页来源共享排序和范围校验；原 Scope 导出保持兼容。
 - `backend/src/knowledge/markdown/parser.ts`：属性、分段与链接解析。
 - `backend/src/knowledge/markdown/plugin.ts`：独立插件、Native Agent 与 Tool。
 - `backend/src/scripts/knowledge.ts`：无模型和无集成凭据的本地入口。
@@ -133,3 +133,4 @@ flowchart TD
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
 | 2026-11-05 | 首次实现只读 Markdown/Obsidian 来源插件、版本化关键词检索与本地 CLI | 专项 10 项测试与 CLI 执行、类型及打包检查；后端全量 438 通过 / 1 真实 TAPD 跳过 |
+| 2026-11-05 | 排序与个人范围校验提取供网页来源复用，目录检索口径保持；CLI 显式选择来源 | 原 23 项来源/RAG 回归、新增网页专项与后端全量 |

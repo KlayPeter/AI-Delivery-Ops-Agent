@@ -1,6 +1,6 @@
-# 本地使用自己的 Markdown / Obsidian 笔记
+# 使用自己的 Markdown / Obsidian 笔记与公开链接
 
-当前支持只读文件源、内容版本、链接关系、增删改同步、关键词检索，以及显式启用的 RAG 回答。query/sync 默认只在本机检索；ask 将问题和选中片段发送给配置的模型。网页接入和知识回写尚未实现。来源契约见[来源功能卡](../backend/src/knowledge/markdown/FEATURE.md)，生成与引用检查见[回答功能卡](../backend/src/knowledge/answer/FEATURE.md)，后续目标见[设计方案](PERSONAL_KNOWLEDGE_DESIGN.md)。
+当前支持只读 Markdown/Obsidian 与公开单页 URL、内容版本、同步、关键词检索，以及显式启用的 RAG 回答。query/sync 不调用模型；网页模式会请求选定网站，ask 还会将问题和选中片段发送给配置的模型。知识回写、联合检索和历史产物过期提醒尚未实现。见[文件来源功能卡](../backend/src/knowledge/markdown/FEATURE.md)、[网页功能卡](../backend/src/knowledge/web/FEATURE.md)、[回答功能卡](../backend/src/knowledge/answer/FEATURE.md)与[设计方案](PERSONAL_KNOWLEDGE_DESIGN.md)。
 
 ## 先运行虚构样例
 
@@ -41,6 +41,24 @@ bun run src/scripts/knowledge.ts \
 
 输入目录仅来自启动配置，工具查询不能覆盖 root。笔记内容不会触发脚本或外部动作。解析、索引和关键词检索在本机完成；生成式回答的片段去向见下文。
 
+## 连接公开网页链接
+
+从 `backend` 执行；将示例 URL 换成需要读取的公开单页。每次查询重新读取配置的页面。
+
+```bash
+bun run src/scripts/knowledge.ts --url https://example.com/ --query example
+# 最多五个链接；可重复传 --url
+bun run src/scripts/knowledge.ts --url https://example.com/ --url https://example.org/ --query example
+```
+
+不传 query/ask 时返回同步报告。网页回答使用相同的显式模型配置，将 `--query` 换成 `--ask` 即可。`--root` 与 `--url` 只能选一类，当前不提供网页与 Vault 的联合检索；exclude/vault-name 仅适用于文件来源。
+
+支持公开 HTML、Markdown 和纯文本，UTF-8/ASCII。HTML 使用 Mozilla Readability 提取正文，失败时尝试显式 main/article；不运行脚本、加载页面资源或自动遍历全站。登录、付费墙、交互页面、PDF、压缩响应和其他字符编码未支持；正文提取不保证识别全部页面噪声或登录提示。
+
+每个 URL 校验公开网络与 DNS，重定向最多三次且每跳重验，不允许 HTTPS 降级。默认每页 5 秒/512 KiB、整轮 2 MiB，超出或失败会显示在报告中；私网、本机、云元数据与非标准端口拒绝。原生插件属于可信代码，这些网络限制由来源实现执行。
+
+网页报告包含原始/最终 URL、fetchedAt、rawVersion、文档版本和 extraction。引用的 `lineBasis=extracted_text` 表示行号来自提取文本，不能直接当成 HTML 源码行号；openUri 打开当前原文，不是历史快照。单页读取失败会从本轮索引移除旧内容并返回 partial；整轮预算失败或取消则不返回旧索引。当前索引与变化比较仅存在于同一进程。
+
 ## 根据资料生成回答
 
 先配置你信任的模型接口。以下地址和模型名仅为占位示例，需要替换成已部署的 OpenAI 兼容接口；本地服务不校验密钥时，也要提供其允许的占位值以满足 SDK 配置。
@@ -54,7 +72,7 @@ bun run src/scripts/knowledge.ts --root examples/knowledge-vault --ask 'API 不�
 
 这三个环境变量必须显式设置；不会自动使用团队的 AI_API_KEY 等配置。可选 KNOWLEDGE_PROVIDER 默认使用现有 OpenAI 兼容网关配置；其他模型适配沿用宿主 Gateway 的支持范围。API 地址必须是 HTTP(S)，且不在 URL 中包含凭据、query 或 fragment。
 
-`--ask` 与 `--query` 互斥。生成开始前，CLI 向 stderr 显示模型地址和数据发送提示，stdout 保持 JSON。问题与选中的片段 ID、标题、小标题和正文会发送给模型；不发送整份 Vault、未命中文件、同步失败路径或 Obsidian URI。模型服务后端如何处理数据仍需由使用者确认。
+`--ask` 与 `--query` 互斥。生成开始前，CLI 向 stderr 显示模型地址和数据发送提示，stdout 保持 JSON。问题与选中的片段 ID、标题、小标题和正文会发送给模型；不发送整份 Vault、未命中文件或同步失败路径，也不额外发送来源 URL/Obsidian URI 字段。选中正文自身包含的地址和路径仍可能随片段发送。模型服务后端如何处理数据仍需由使用者确认。
 
 回答中 `status=answered` 的每条 claim 都带 citationId 和原文 quote。系统检查 ID 来自本次供给证据，quote 是对应片段的精确子串；**这只验证引用存在和引文吻合，不证明结论语义正确或资料完整**。`verification.semanticSupport=not_verified` 明确保留这个边界。
 
@@ -66,7 +84,7 @@ bun run src/scripts/knowledge.ts --root examples/knowledge-vault --ask 'API 不�
 
 - `retrieval: keyword`：按中文分词及标题、别名、标签和正文匹配。分数是排序值，不是事实置信度；用词不同的同义表达可能找不到。
 - `source.version` 与 `documentVersion`：当前内容哈希。内容更新后版本改变，引用 ID 随对应段落版本改变。
-- `added/changed/removed`：相对于当前进程上次成功同步的变化，每类最多列 25 条，同时返回完整数量和截断标记。每次 CLI 启动都会重建索引，首次视为新增。
+- `added/changed/removed`：相对于当前进程上次成功同步的变化，文件来源每类最多列 25 条，同时返回完整数量和截断标记；网页来源最多五页，变化完整列出。每次 CLI 启动都会重建索引，首次视为新增。
 - `partial/failed/failures`：有文件读取失败时 partial=true；过大、无法读取、非法 UTF-8 或属性格式错误等文件没有进入本轮索引。失败详情最多 25 条。命令执行完成不代表所有文件都已索引。
 - `links`：区分已解析、同名歧义、缺失、附件、越界、外部链接和未支持块引用；不会自动读取附件或展开关联笔记正文。检索结果只带部分关系及候选总数。
 - 空 hits：当前关键词没有命中；不能据此断言笔记里没有相关知识。
@@ -77,7 +95,7 @@ bun run src/scripts/knowledge.ts --root examples/knowledge-vault --ask 'API 不�
 
 ## 插件方式
 
-插件模块位于 `backend/src/knowledge/markdown/plugin.ts` 与 `backend/src/knowledge/answer/plugin.ts`，可以通过现有 `FeaturePlugin` 装配。参考 `backend/profiles/agents/knowledge-demo.yaml` 和 `knowledge-answer-demo.yaml`；root 相对于进程启动目录解析，样例假设从 `backend` 启动。SDK/宿主装配回答插件时使用宿主 config.ai 的模型执行器，调用者负责配置与数据授权；CLI 才使用上述专用环境变量。
+插件模块位于 `backend/src/knowledge/markdown/plugin.ts` 与 `backend/src/knowledge/answer/plugin.ts`，可以通过现有 `FeaturePlugin` 装配。目录组合参考 `backend/profiles/agents/knowledge-demo.yaml` 和 `knowledge-answer-demo.yaml`；网页组合参考同目录的 `knowledge-web-demo.yaml` 与 `knowledge-web-answer-demo.yaml`。每个 Host 只能安装一个 `knowledge.answer` 组合；root 相对于进程启动目录解析，样例假设从 `backend` 启动。SDK/宿主装配回答插件时使用宿主 config.ai 的模型执行器，调用者负责配置与数据授权；CLI 才使用上述专用环境变量。
 
 默认团队配置不安装个人知识插件。当前只允许无群/会话的手动调用及其 Agent 调用；拒绝聊天范围。这个范围检查不构成用户认证。现有 Web 管理端缺少登录/RBAC，真实私人知识优先通过本地 CLI 使用，不能直接作为共享网站开放。
 
