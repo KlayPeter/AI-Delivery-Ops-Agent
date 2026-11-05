@@ -172,6 +172,10 @@ Tool Gateway 在预取消和领取账本期间取消时拒绝进入 Handler；�
 | `native.ai-news-radar` | `knowledge.ai.news.fetch` | Native | 实时 AI 新闻 Agent |
 | `external.ai-hot` | `knowledge.ai.hot.fetch` | HTTP | 可选外部知识 Agent |
 
+## 本地状态锁保护
+
+CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭在同步段内完成；已有文件通过 lstat 验证常规文件、单链接与私有权限，不额外打开并关闭它们。这样重复打开被拒绝后，不会因原始文件句柄 close 取消同进程的 SQLite POSIX 锁，另一进程仍不能进入活跃状态会话。
+
 ## 数据与状态
 
 - Manifest/Registry 保存定义；Trigger、Session、Checkpoint、Run、Step、Artifact 和 Tool Call 保存执行事实。
@@ -228,6 +232,7 @@ Tool Gateway 在预取消和领取账本期间取消时拒绝进入 Handler；�
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 修复已有 CLI 状态文件的文件检查释放 POSIX 会话锁，重复拒绝不能放行其他进程 | 本地状态与知识复核专项、类型检查、后端回归 |
 | 2026-11-05 | 增加本地控制面、固定 Scope 运行与人工继续；区分 HTTP 与 SDK 插件组合 | 工作台专项、后端回归、前端检查与本地浏览器验收 |
 | 2026-11-05 | 未配置默认飞书时支持本地启动；连接与就绪共用候选列表，拒绝部分凭据；增加 HOST 绑定 | 多机器人/健康回归、空库本地启动与 HTTP 就绪检查、后端全量回归 |
 | 2026-11-05 | 扩展 Native 插件模型/Tool 服务、纯生成禁用人工输入函数选项；修复取消边界和统一超时原因 | RAG、模型循环、Tool/Skill 与后端全量回归、类型检查 |

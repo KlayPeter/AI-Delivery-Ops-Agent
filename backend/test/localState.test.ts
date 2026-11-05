@@ -33,7 +33,8 @@ describe('private local runtime state', () => {
 
     test('an overlapping session cannot trigger recovery of another live host', async () => {
         const file = await filename(), store = await SQLitePersistentKeyValueStore.open(file); cleanup.push(() => store.close());
-        await expect(SQLitePersistentKeyValueStore.open(file)).rejects.toThrow('already in use');
+        for (let attempt = 0; attempt < 3; attempt++) await expect(SQLitePersistentKeyValueStore.open(file)).rejects.toThrow('already in use');
+        await Promise.all(Array.from({ length: 3 }, () => expect(SQLitePersistentKeyValueStore.open(file)).rejects.toThrow('already in use')));
         const module = `${import.meta.dir}/../src/platform/persistence/sqliteStore.ts`;
         const child = Bun.spawn([process.execPath, '-e', `import {SQLitePersistentKeyValueStore} from ${JSON.stringify(module)}; try {await SQLitePersistentKeyValueStore.open(Bun.argv[1]); process.exitCode=2;} catch(error) {console.error(error.message); process.exitCode=1;}`, file], { stdout: 'pipe', stderr: 'pipe' });
         const [stderr, exit] = await Promise.all([new Response(child.stderr).text(), child.exited]);

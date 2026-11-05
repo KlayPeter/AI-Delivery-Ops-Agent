@@ -1,17 +1,17 @@
 import { Database } from 'bun:sqlite';
-import { constants } from 'node:fs';
-import { mkdir, open, realpath } from 'node:fs/promises';
+import { closeSync, constants, lstatSync, openSync } from 'node:fs';
+import { mkdir, realpath } from 'node:fs/promises';
 import * as path from 'node:path';
 import type { PersistentKeyValueStore } from './keyValueStore';
 
 const APPLICATION_ID = 0x444f4153;
 
-async function privateFile(filename: string) {
-    const handle = await open(filename, constants.O_CREAT | constants.O_RDWR | constants.O_NONBLOCK | (constants.O_NOFOLLOW || 0), 0o600);
-    try {
-        const stat = await handle.stat();
-        if (!stat.isFile() || stat.nlink !== 1 || (stat.mode & 0o077)) throw new Error('Local state must be a single-link private regular file with mode 0600');
-    } finally { await handle.close(); }
+function privateFile(filename: string) {
+    // Closing a raw descriptor for an existing SQLite file can release another connection's POSIX locks.
+    try { closeSync(openSync(filename, constants.O_CREAT | constants.O_EXCL | constants.O_RDWR | (constants.O_NOFOLLOW || 0), 0o600)); }
+    catch (error: any) { if (error.code !== 'EEXIST') throw error; }
+    const stat = lstatSync(filename);
+    if (!stat.isFile() || stat.nlink !== 1 || (stat.mode & 0o077)) throw new Error('Local state must be a single-link private regular file with mode 0600');
 }
 
 export class SQLitePersistentKeyValueStore implements PersistentKeyValueStore {
@@ -23,8 +23,8 @@ export class SQLitePersistentKeyValueStore implements PersistentKeyValueStore {
         const resolved = path.resolve(filename);
         await mkdir(path.dirname(resolved), { recursive: true, mode: 0o700 });
         const canonical = path.join(await realpath(path.dirname(resolved)), path.basename(resolved));
-        await privateFile(canonical);
-        await privateFile(`${canonical}.lock`);
+        privateFile(canonical);
+        privateFile(`${canonical}.lock`);
         const lock = new Database(`${canonical}.lock`, { strict: true });
         let db: Database | undefined;
         try {

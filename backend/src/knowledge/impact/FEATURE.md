@@ -21,6 +21,8 @@ last_reviewed: 2026-11-05
 
 ```mermaid
 flowchart TD
+    FS[可选 CLI 状态：已有文件仅元数据检查] --> LK[SQLite 独占会话锁]
+    LK --> U
     U[本地 CLI --state --check-run / SDK] --> P[Cordis: knowledge.impact]
     P --> V[校验个人 Scope、最多二十个 Run]
     V --> R[先核对所有目标 Run 的 workspace 与 bot]
@@ -99,6 +101,10 @@ flowchart TD
 | 来源 versions Tool | 固定范围当前版本与可用性 | 静默切换来源或猜测旧身份 |
 | SQLite Store | KV 原子操作、持久化和本地单会话 | 替代应用认证或多机数据库 |
 
+## 本地状态锁保护
+
+CLI 状态文件与会话锁文件仅在不存在时独占创建，创建/关闭在同步段内完成；已有文件通过 lstat 验证常规文件、单链接与私有权限，不额外打开并关闭它们。这样重复打开被拒绝后，不会因原始文件句柄 close 取消同进程的 SQLite POSIX 锁，另一进程仍不能进入活跃状态会话。 原因见 [SQLite 官方锁说明](https://www.sqlite.org/howtocorrupt.html#posix_close_bug)。
+
 ## 数据与状态
 
 - 原证据仍在原 Artifact；独立评估只保存引用路径/身份/版本/片段 ID，不复制旧正文。
@@ -133,4 +139,5 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 修复已有 CLI 状态文件的文件检查释放 POSIX 会话锁，重复拒绝不能放行其他进程 | 本地状态与知识复核专项、类型检查、后端回归 |
 | 2026-11-05 | 新增显式历史知识复核、稳定来源身份与本地持久化 | 15 项新增专项；干净安装类型检查与后端 502 通过 / 1 TAPD 跳过；跨进程模拟模型验证，不连接服务器或执行外部写入 |
