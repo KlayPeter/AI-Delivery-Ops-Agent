@@ -6,6 +6,11 @@
 ## 使用者
 
 - [本地运行与工作台](LOCAL_DEVELOPMENT.md)：无需部署的启动步骤、连接表单与实际 Agent 运行。
+- [GitHub Skill 接入](GITHUB_SKILLS.md)：固定来源与许可审查、多份 Skill 选择，以及个人知识快照联用。
+- [个人研究助手](PERSONAL_RESEARCH.md)：模型委派资料子任务、人工补充和真实来源索引。
+- [任务配方](TASK_RECIPES.md)：核对成功运行的原参数与版本，审查后复用并保留关联。
+- [运行与停止](LOCAL_RUN_CONTROL.md)：启动回执、历史找回、并发上限和取消边界。
+- [问答评测](RAG_EVALUATIONS.md)：虚构固定题集、离线退化对照与明确确认的当前模型测试。
 - [OpenAPI 工具](OPENAPI_TOOLS.md)：读取公开规范、审查接口与服务器、导出配置并运行固定 GET。
 - [MCP 工具](MCP_TOOLS.md)：连接本地 stdio 或公开 HTTPS 服务、明确授权范围并查看运行证据。
 - [Context7 与标准 Skill](COMMUNITY_PLUGINS.md)：真实社区工具、SKILL.md 导入和独立配置档。

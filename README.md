@@ -41,7 +41,7 @@ Obsidian、公开网页或本地文档开始，检索原文、生成带引用的
 | 可靠执行 | Agent/Tool/Skill 预算、委派、Session/Checkpoint、Run/Artifact 与 Outbox |
 | 可选团队能力 | GitHub 发布准备、飞书任务与报告、TAPD 同步、多机器人路由 |
 
-默认 HTTP 工作台装配个人知识、研究、任务配方、资料收集、验收、MCP 接入助手及三个模型提供者。团队能力按需选择，显式 `AGENT_PLUGINS_FILE` 完全控制组合，不自动叠加默认插件。
+默认 HTTP 工作台装配个人知识、研究、任务配方、资料收集、验收、MCP 接入助手及三个模型提供者。团队能力按需选择。普通 `AGENT_PLUGINS_FILE` 替换默认组合；显式声明 `base: personal` 可保留本机个人工作台并追加插件，见[组合规范](docs/PLUGIN_AUTHORING.md#在个人工作台上追加插件)。
 
 | 组合 | 插件数 | Agent 数 |
 | --- | --- | --- |
