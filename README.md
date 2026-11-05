@@ -11,6 +11,8 @@ Obsidian、公开网页或本地文档开始，检索原文、生成带引用的
 当前为 `v0.1.0-alpha`。无需飞书、TAPD 或模型密钥即可启动并体验示例知识检索；
 调用外部服务或生成回答时，再配置自己的连接。
 
+![个人知识工作台：内置虚构资料的无模型检索](docs/images/knowledge-workspace.jpg)
+
 ## 三个值得试的流程
 
 - **资料成为任务输入**：网页正文或 PDF/Office 转为带来源指纹的 Markdown，
@@ -157,5 +159,6 @@ SQLite 与资料库要求同一数据目录只有一个后端写实例。不要�
 ## 文档与许可
 
 [文档中心](docs/README.md)包含使用、插件开发与架构指南。
+[项目演示与验证证据](docs/PROJECT_EVIDENCE.md)提供可复现流程、实际截图、简历描述和待完成事项。
 项目采用 [Apache License 2.0](LICENSE)；外部服务、内容源和依赖见
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

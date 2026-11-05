@@ -1,0 +1,113 @@
+# 项目演示与验证证据
+
+2026-11-05 的本地 Alpha 验证快照。运行功能以
+[`a2631a2`](https://github.com/KlayPeter/AI-Delivery-Ops-Agent/tree/a2631a2ae6cb486f82d9aada310cef7b6ed5f159)
+为基线；仓库配置保护与干净目录回归基线为
+[`0d80fe3`](https://github.com/KlayPeter/AI-Delivery-Ops-Agent/tree/0d80fe3f9a69a3e13dba37d4ecaaf2ac23a6e0bd)。
+后续实现和未完成项见[路线图](../ROADMAP.md)。
+
+## 项目定位与卖点
+
+面向开发者和个人知识使用者的本地 Agent 插件工作台。把自己的笔记、网页与文档
+接入任务，保存结果的来源与执行过程，再独立检查引用变化和插件结果。
+
+- **个人知识进入工作流程**：Markdown/Obsidian、公开网页和应用资料库参与检索、
+  可选 RAG 与 GitHub 发布准备；资料仍保留来源、版本和定位。
+- **旧结果可以复核**：按历史 Run 实际引用检查来源变化、缺失和不可访问，
+  保存独立评估，保留原结果。
+- **开源能力按协议接入**：标准 Skill、MCP stdio/HTTPS、HTTP Agent 与原生插件
+  共用宿主执行链路；插件可声明自己的结果规则。
+
+这些是当前产品的组合取舍。实际节省时间、使用频率和采用人数仍需真实用户验证。
+
+## 可以复现的演示
+
+### 无账号体验个人知识
+
+1. 按[本地运行](LOCAL_DEVELOPMENT.md)启动两个开发进程，示例凭据留空。
+2. 进入「知识库」，点击「API 迁移说明」，再点击「检索原文」。
+3. 结果应引用内置虚构笔记 `Release.md` 的第 6–9 行，运行成功；生成引用回答
+   需要另配模型，原文检索可直接使用。
+
+![干净安装后检索内置虚构笔记，保留文件与行号](images/knowledge-workspace.jpg)
+
+### 在线开源工具进入执行记录
+
+1. 完成本地数据库初始化后，在 backend 执行：
+
+   ```sh
+   AGENT_PLUGINS_FILE=examples/plugins.context7-http.yaml bun run dev
+   ```
+
+2. 启动前端，进入「开发文档」，输入
+   `React useEffect cleanup function for a window event listener`。
+3. 返回当次 Context7 检索正文与 React 文档来源；运行详情中 Agent 和 Tool
+   两个步骤均成功。该次实测为 1 次工具调用、0 次模型调用。
+
+![官方 Context7 HTTPS 查询的实际 Agent 和 Tool 步骤](images/context7-http-steps.jpg)
+
+该配置只选择 MCP 与 Context7。查询发送给 Context7，匿名可用性及限额由上游
+决定；配置、凭据引用和固定地址边界见[MCP 指南](MCP_TOOLS.md)。
+
+### 资料收集、知识复核与结果验收
+
+- 按[文档导入指南](DOCUMENT_IMPORT.md)安装 MarkItDown，转换自己的可公开样例，
+  核对正文与来源指纹，明确收录后到「资料库」检索；个人 Vault 保持只读。
+- 使用自己的模型生成带引用回答后，修改选定来源，再按
+  [知识变更复核](KNOWLEDGE_IMPACT.md)检查旧结果。
+- 在「结果验收」选择网页收集或文档转换规则及原运行，可再选基准记录，
+  查看结构断言与执行版本。缺少历史凭证显示无法验证，结构通过不代表语义正确。
+
+## 证据地图
+
+| 要证明的能力 | 可核对证据 | 当前范围 |
+| --- | --- | --- |
+| 通用架构与修复迁移 | [迁移提交 cc8a7dc](https://github.com/KlayPeter/AI-Delivery-Ops-Agent/commit/cc8a7dc)；现有源工程的 49 个平台 TypeScript 路径在公开版均存在，公开版共有 63 个 | 路径覆盖配合回归验证；原工程的待提交实验未当作已迁移能力 |
+| Cordis 插件依赖与清理 | [插件规范](PLUGIN_AUTHORING.md)、[插件运行时](../backend/src/platform/plugins/FEATURE.md)、[生命周期测试](../backend/test/pluginRuntime.test.ts) | 独立功能装配、缺依赖/失败回滚/停止清理；基础服务仍有宿主耦合 |
+| Tool/Skill、委派与恢复 | [Agent 平台](../backend/src/platform/FEATURE.md)、[委派测试](../backend/test/agentDelegation.test.ts)、[会话测试](../backend/test/sessionRuntime.test.ts) | Scope、预算、父子 Run、人工继续、超时与父中止；原生代码不提供强杀沙箱 |
+| RAG 与个人来源 | [Markdown 测试](../backend/test/knowledgeMarkdown.test.ts)、[网页测试](../backend/test/knowledgeWeb.test.ts)、[回答测试](../backend/test/knowledgeAnswer.test.ts) | 关键词检索与可选模型，引用 ID/精确原文核验；模型集成测试使用本地模拟服务 |
+| 知识变化影响 | [复核测试](../backend/test/knowledgeImpact.test.ts) | 显式检查实际引用；保留原结果，无全局自动通知 |
+| 开源工具与 Skill | [社区说明](COMMUNITY_PLUGINS.md)、[HTTP MCP 测试](../backend/test/mcpHttp.test.ts)、[Context7 测试](../backend/test/context7Plugin.test.ts) | Context7 与标准 Skill 实际接入；MarkItDown 真实格式转换；任意仓库仍需适配 |
+| 插件结果契约 | [规则与版本测试](../backend/test/pluginChecks.test.ts) | 同一规则检查保存的产物/步骤，发现植入回归；不重放历史环境或判断语义 |
+| 本地启动与连接表单 | [工作台测试](../backend/test/workspace.test.ts)、上面的浏览器截图 | 空凭据启动，17 插件/14 Agent；本机私有配置，重启生效 |
+
+## 本次验证结果
+
+- 在独立目录导出已提交源码，分别执行 Bun/pnpm 锁定安装，未借用原工作区的
+  node_modules；Prisma 初始化、类型、测试与前端构建通过。
+- 后端 **602 通过、1 项真实 TAPD 集成测试跳过**；前端 **17 通过**。
+  lint 为 0 错误、163 项既有警告；构建保留大于 500 KiB 的包体提示。
+- 转换器虚拟环境另行创建并安装所选格式依赖，实际使用 Python **3.14.7** 与
+  MarkItDown **0.1.9**。CI 使用 Python 3.13；其他环境按
+  [贡献指南](../CONTRIBUTING.md)复现。
+- 新数据库、空凭据启动后就绪，所需飞书连接为 0；通过实际页面检索到示例原文。
+- 功能基线的 Git 历史扫描覆盖 167 个提交，Gitleaks 无发现。跟踪文件检查未发现
+  `.env`、数据库、日志或开发机绝对路径；本机 `.local.yaml` 由实际 Git 回归验证。
+- [0d80fe3 的公开 CI](https://github.com/KlayPeter/AI-Delivery-Ops-Agent/actions/runs/42044702770)
+  后端、前端与密钥检查通过；CI 不连接或部署服务器。
+
+以上是指定源码、样例与环境的验证记录；没有把测试数当作使用人数或性能提升。
+
+## 可用于简历的描述
+
+按本人实际参与范围取用：
+
+- 迁移并重构 TypeScript/Bun Agent 系统，基于 Cordis 建立功能插件装配、依赖与
+  生命周期，统一 Native、Model Loop、HTTP Agent，以及受 Scope/预算约束的
+  Tool、Skill、委派、Checkpoint 和 Outbox。
+- 实现个人 Markdown/Obsidian 与网页知识链路，结合可选 RAG、来源版本和精确引文
+  核验，支持历史结果的知识变更复核及独立资料收集、转换和资料库插件。
+- 接入标准 Agent Skills 与 MCP stdio/Streamable HTTP，设计版本化插件结果规则与
+  执行凭证；用真实协议、转换器、故障用例和公开 CI 验证调用与恢复边界。
+
+没有实际数据时，保留采用人数、成功率、节省费用和性能提升数字为空。
+
+## 仍需完成与验证
+
+完整的基础服务插件化、MCP/HTTP 接入助手、运行转配方、知识回写补丁与历史环境
+回放仍在路线图中。应用登录、多人项目权限和具体外部写入确认尚未提供；当前使用
+范围是本机工作台。真实模型质量、外部维护者独立接入和重复使用价值尚未验证。
+
+试用反馈可提交到[项目 Issues](https://github.com/KlayPeter/AI-Delivery-Ops-Agent/issues)：
+首次完成任务的步骤与耗时、产物是否需要修改、是否愿意再次使用、失败发生在哪一步。
+反馈使用可公开样例即可，无需上传个人笔记或凭据。
