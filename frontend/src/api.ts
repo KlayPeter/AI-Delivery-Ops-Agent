@@ -78,6 +78,20 @@ export const api = {
     rememberRunInput(result.runId, input);
     return result;
   },
+  startAgent: async (capability: string, input: Record<string, unknown>, triggerId: string) => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const { data } = await client.post('/workspace/runs/start', { capability, input, triggerId }, { timeout: 15000 });
+        rememberRunInput(data.runId, input);
+        return data;
+      } catch (error: unknown) {
+        if (axios.isAxiosError(error) && error.response) throw normalizeError(error);
+        // Retry the same receipt key; a lost response must not start another task.
+        if (attempt === 1) throw Object.assign(new Error('启动回执未确认，请先到运行记录检查任务，避免重复发起。'), { cause: error });
+      }
+    }
+  },
+  cancelRun: (runId: string) => request(client.post(`/workspace/runs/${encodeURIComponent(runId)}/cancel`, {})),
   fetchRun: (runId: string) => request(client.get(`/workspace/runs/${encodeURIComponent(runId)}`)),
   fetchRunActions: (runId: string) => request(client.get(`/workspace/runs/${encodeURIComponent(runId)}/actions`)),
   runAction: (runId: string, actionId: string, triggerId: string) => request(client.post(`/workspace/runs/${encodeURIComponent(runId)}/actions/${encodeURIComponent(actionId)}`, { triggerId })),

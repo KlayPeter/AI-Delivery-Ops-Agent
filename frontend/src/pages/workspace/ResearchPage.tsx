@@ -11,7 +11,7 @@ export default function ResearchPage() {
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [runId, setRunId] = useState<string | null>(null);
   const research = async ({ prompt }: { prompt: string }) => {
     setBusy(true); setError('');
-    try { const result = await api.runAgent('personal.research', { prompt: prompt.trim(), source: 'private' }, crypto.randomUUID()); setRunId(result.runId); await mutate(); }
+    try { const result = await api.startAgent('personal.research', { prompt: prompt.trim(), source: 'private' }, crypto.randomUUID()); setRunId(result.runId); await mutate(); }
     catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   };
   const available = data?.agents.some(agent => agent.status === 'active' && agent.capabilities.includes('personal.research'));

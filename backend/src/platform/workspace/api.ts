@@ -6,6 +6,7 @@ import type { AppConfig } from '@/core/config';
 import { isLocalWorkspaceRequest, type LocalConnections } from './connections';
 
 const runInput = z.object({ capability: z.string().min(1).max(200), input: z.record(z.string(), z.unknown()).refine(value => Buffer.byteLength(JSON.stringify(value)) <= 32768), triggerId: z.string().uuid().optional() }).strict();
+const startInput = runInput.extend({ triggerId: z.string().uuid() });
 const resumeInput = runInput.omit({ capability: true });
 const actionInput = z.object({ triggerId: z.string().uuid().optional() }).strict();
 
@@ -29,7 +30,8 @@ export function createWorkspaceApi(host: AgentHost, connections: LocalConnection
             }
         })
         .onError(({ error, set }) => {
-            set.status = 400;
+            const code = (error as any)?.code;
+            set.status = code === 'RUN_CAPACITY' ? 429 : ['TRIGGER_INPUT_CHANGED', 'RUN_START_PENDING'].includes(code) ? 409 : 400;
             return { error: error instanceof z.ZodError ? '输入格式不正确，请检查必填项' : error instanceof Error ? error.message : '操作失败' };
         })
         .get('/state', async () => {
@@ -46,6 +48,17 @@ export function createWorkspaceApi(host: AgentHost, connections: LocalConnection
             const input = runInput.parse(body);
             const result = await host.runLocal(input.capability, input.input, input.triggerId || randomUUID());
             return { runId: result.execution?.run.id || result.claim.runId, status: result.execution?.run.status || result.status };
+        })
+        .post('/runs/start', async ({ body, set }) => {
+            const input = startInput.parse(body);
+            const result = await host.startLocal(input.capability, input.input, input.triggerId);
+            set.status = 202; return result;
+        })
+        .post('/runs/:runId/cancel', async ({ params, body, set }) => {
+            z.object({}).strict().parse(body);
+            const result = await host.cancelLocal(z.string().uuid().parse(params.runId));
+            if (!result) { set.status = 404; return { error: '未找到可控制的本机手动根运行；旧记录和子任务不能单独停止' }; }
+            return result;
         })
         .get('/runs/:runId', async ({ params, set }) => {
             const details = await host.getLocalRunDetails(params.runId);

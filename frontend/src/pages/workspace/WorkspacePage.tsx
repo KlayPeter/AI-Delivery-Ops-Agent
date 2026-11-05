@@ -33,7 +33,7 @@ export default function WorkspacePage({ history = false }: { history?: boolean }
       const input = jsonInput.trim() ? JSON.parse(jsonInput) : groupTask
         ? { groupId, dayIso: new Date().toISOString(), cutoffAt: new Date().toISOString(), period: 'current_week', sendToGroup: false }
         : prepareInput(capability, prompt);
-      const result = await api.runAgent(capability, input, crypto.randomUUID());
+      const result = await api.startAgent(capability, input, crypto.randomUUID());
       setRunId(result.runId); await mutate();
     } catch (e) { setRunError(errorMessage(e)); }
     finally { setRunning(false); }

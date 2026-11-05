@@ -19,7 +19,8 @@ personal.research 是独立 Model Loop 插件，复用既有 Agent Runtime、模
 
 ```mermaid
 flowchart TD
-    U[本机研究表单：问题与范围] --> R[Model Loop 请求守卫：个人 Scope]
+    U[本机研究表单：问题与范围] --> ACK[先取得持久启动回执；详情轮询与根任务停止]
+    ACK --> R[Model Loop 请求守卫：个人 Scope]
     R --> M[配置模型：有界规划与工具选择]
     M --> S[所选 Markdown 或 Web 检索 Agent]
     M --> A[知识问答 Agent：检索、生成与原文引用校验]
@@ -157,3 +158,7 @@ flowchart LR
     MIX_MD --> MIX_RESULT[保留原引用与独立版本]
     MIX_WEB --> MIX_RESULT
 ```
+
+## 本机任务体验
+
+本功能发起页使用持久启动回执，立即进入可轮询详情；手动根任务可请求停止，关闭页面后仍可从运行记录找回。停止沿既有执行信号传递，取消后不能继续或接受迟到成功，已保存产物与完成操作保留；子任务由父任务管理。CLI/SDK 与内联审查操作仍使用原同步接口。完整协议见[工作台功能卡](../../platform/workspace/FEATURE.md)；验证：backend/test/runControl.test.ts、localRunApi.test.ts 和本功能既有回归，frontend/src/api.test.mjs。

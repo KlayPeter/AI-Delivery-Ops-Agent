@@ -26,7 +26,7 @@ export default function KnowledgePage() {
     if (!retrieval || !query.trim() || (answer && !canAnswer)) return;
     setRunning(true); setActionError('');
     try {
-      const result = await api.runAgent(answer ? 'knowledge.answer' : retrieval, answer ? { question: query.trim(), limit: 5 } : { operation: 'search', query: query.trim(), limit: 5 }, crypto.randomUUID());
+      const result = await api.startAgent(answer ? 'knowledge.answer' : retrieval, answer ? { question: query.trim(), limit: 5 } : { operation: 'search', query: query.trim(), limit: 5 }, crypto.randomUUID());
       setRunId(result.runId); await mutate();
     } catch (e) { setActionError(errorMessage(e)); } finally { setRunning(false); }
   };

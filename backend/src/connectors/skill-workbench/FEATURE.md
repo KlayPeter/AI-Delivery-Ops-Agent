@@ -29,7 +29,8 @@ flowchart TD
     REVIEW --> EXPORT[按原 Run 归属和内容指纹导出 YAML]
     EXPORT --> LOCAL[用户保存到 backend 并重启]
     LOCAL --> P[skills.prompt 注册固定 Skill]
-    TASK[用户文本任务与所选模型] --> RUN[Native Skill 运行 Agent]
+    TASK[用户文本任务与所选模型] --> ACK[先返回持久 Run 回执；详情可请求停止]
+    ACK --> RUN[Native Skill 运行 Agent]
     P --> RUN
     RUN --> SK[宿主 SkillRuntime：兼容性、输入、取消、步骤]
     SK --> MODEL[原 Prompt Executor 与模型网关]
@@ -104,3 +105,7 @@ flowchart TD
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
 | 2026-11-06 | GitHub Skill 来源审查、固定配置导出与原 Prompt Runtime 文本执行；补强取消/超时与指令凭证 | 专项、全量、前端与本地浏览器验收；未调用真实付费模型 |
+
+## 本机任务体验
+
+本功能发起页使用持久启动回执，立即进入可轮询详情；手动根任务可请求停止，关闭页面后仍可从运行记录找回。停止沿既有执行信号传递，取消后不能继续或接受迟到成功，已保存产物与完成操作保留；子任务由父任务管理。CLI/SDK 与内联审查操作仍使用原同步接口。完整协议见[工作台功能卡](../../platform/workspace/FEATURE.md)；验证：backend/test/runControl.test.ts、localRunApi.test.ts 和本功能既有回归，frontend/src/api.test.mjs。

@@ -95,6 +95,7 @@ export class AgentHost {
     private initialized = false;
     private started = false;
     private triggerRuntime?: TriggerRuntime;
+    private agentRuntime?: AgentRuntime;
     private deliveryWorker?: DeliveryWorker;
     private catalog?: PersistentAgentCatalog;
     private controlCatalog?: PersistentBotControlCatalog;
@@ -147,7 +148,7 @@ export class AgentHost {
         await this.initializePromise?.catch(() => {});
         await messagesStopped;
         await schedulesStopped;
-        await Promise.allSettled(this.inFlight);
+        while (this.inFlight.size) await Promise.allSettled(this.inFlight);
         await this.deliveryWorker?.stop();
         await this.pluginRuntime?.dispose();
         this.initialized = false;
@@ -376,7 +377,10 @@ export class AgentHost {
     }
 
     async getLocalRunDetails(runId: string) {
-        return await this.localRun(runId) ? this.getRunDetails(runId) : null;
+        const run = await this.localRun(runId);
+        if (!run) return null;
+        const details = await this.getRunDetails(runId);
+        return details ? { ...details, controls: this.agentRuntime!.controls(details.run) } : null;
     }
 
     private async localRun(runId: string) {
@@ -432,8 +436,33 @@ export class AgentHost {
         return this.dispatch(createTriggerEnvelope({ scope, occurredAt: new Date().toISOString(), payload: input, trustedContext: expected ? { expectedExecution: expected } : undefined, replyPolicy: { mode: 'none' } }), capability, input);
     }
 
+    async startLocal(capability: string, input: unknown, triggerId: string) {
+        await this.initialize();
+        return this.track(async () => {
+            const scope = createTriggerScope({ workspaceId: DEFAULT_WORKSPACE_ID, botInstanceId: DEFAULT_BOT_INSTANCE_ID, triggerType: 'manual', triggerId });
+            const started = await this.triggerRuntime!.start(createTriggerEnvelope({ scope, occurredAt: new Date().toISOString(), payload: input, replyPolicy: { mode: 'none' } }), capability, input);
+            if (started.completion) {
+                const completion = started.completion;
+                this.inFlight.add(completion);
+                void completion.finally(() => this.inFlight.delete(completion)).catch(() => {});
+            }
+            return { runId: started.runId, status: started.status };
+        });
+    }
+
+    async cancelLocal(runId: string) {
+        await this.initialize();
+        return this.track(async () => {
+            if (!await this.localRun(runId)) return null;
+            const result = await this.agentRuntime!.cancel(runId, { workspaceId: DEFAULT_WORKSPACE_ID, botInstanceId: DEFAULT_BOT_INSTANCE_ID });
+            return result ? { runId: result.run.id, status: result.run.status, requested: result.requested } : null;
+        });
+    }
+
     async resumeLocal(runId: string, input: unknown, triggerId: string) {
-        if (!await this.getLocalRunDetails(runId)) throw new Error('Run not found in local workspace');
+        const run = await this.localRun(runId);
+        if (!run) throw new Error('Run does not belong to the local workspace');
+        if (run.parentRunId) throw new Error('子任务需由父 Agent 管理继续执行');
         const scope = createTriggerScope({ workspaceId: DEFAULT_WORKSPACE_ID, botInstanceId: DEFAULT_BOT_INSTANCE_ID, triggerType: 'manual', triggerId });
         return this.resume(createTriggerEnvelope({ scope, occurredAt: new Date().toISOString(), payload: input, replyPolicy: { mode: 'none' } }), runId, input);
     }
@@ -550,7 +579,7 @@ export class AgentHost {
             }
         }
         await this.registerExtensions();
-        const agentRuntime = new AgentRuntime(
+        const agentRuntime = this.agentRuntime = new AgentRuntime(
             this.registry,
             this.bots,
             runStore,

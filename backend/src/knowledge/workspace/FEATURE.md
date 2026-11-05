@@ -21,7 +21,8 @@ flowchart TD
     C[默认 HTTP 组合或显式插件配置] --> P[knowledge.workspace；检查来源依赖]
     P --> W[插件拥有 /knowledge 与描述 API]
     W --> V[页面读取明确来源及检索 Capability]
-    V --> R[既有本机 Run API；固定个人 Scope]
+    V --> R[先返回真实 Run 回执；固定个人 Scope]
+    D --> STOPRUN[手动根任务停止；保留证据与已完成操作]
     R --> K[已选择的 Markdown 或网页 Agent]
     K --> E
     CFG --> LIB[可选应用资料库；固定范围目录与来源 ID]
@@ -139,3 +140,7 @@ flowchart LR
     MIX_MD --> MIX_RESULT[保留原引用与独立版本]
     MIX_WEB --> MIX_RESULT
 ```
+
+## 本机任务体验
+
+本功能发起页使用持久启动回执，立即进入可轮询详情；手动根任务可请求停止，关闭页面后仍可从运行记录找回。停止沿既有执行信号传递，取消后不能继续或接受迟到成功，已保存产物与完成操作保留；子任务由父任务管理。CLI/SDK 与内联审查操作仍使用原同步接口。完整协议见[工作台功能卡](../../platform/workspace/FEATURE.md)；验证：backend/test/runControl.test.ts、localRunApi.test.ts 和本功能既有回归，frontend/src/api.test.mjs。

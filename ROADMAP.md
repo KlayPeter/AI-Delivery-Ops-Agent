@@ -77,6 +77,10 @@ are deferred while the local product is being validated.
 - [ ] Add application authentication, project access checks, secret handling and
   concrete write approval before opening external trials.
 
+- [x] Add durable local launch receipts, same-key retry, four active manual root limits,
+  live details and cooperative root/descendant cancellation; retain completed effects
+  and history, and drain accepted background tasks before plugin teardown.
+
 ## D. Reuse and adoption
 
 - [x] Add a bounded personal research Model Loop with actual child-run evidence,

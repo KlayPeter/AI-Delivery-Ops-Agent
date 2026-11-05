@@ -87,6 +87,7 @@ export interface AgentRun {
     agentInstallationId: string;
     capability: string;
     triggerId: string;
+    triggerType?: TriggerType;
     correlationId: string;
     rootRunId: string;
     parentRunId?: string;

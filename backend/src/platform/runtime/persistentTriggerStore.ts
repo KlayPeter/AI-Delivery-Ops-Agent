@@ -9,12 +9,13 @@ const PREFIX = 'agent:trigger:';
 export class PersistentTriggerClaimStore implements TriggerClaimStore {
     constructor(private readonly store: PersistentKeyValueStore) {}
 
-    async claim(trigger: TriggerEnvelope, now: Date = new Date()): Promise<{ claimed: boolean; record: TriggerProcessingRecord }> {
+    async claim(trigger: TriggerEnvelope, now: Date = new Date(), requestHash?: string): Promise<{ claimed: boolean; record: TriggerProcessingRecord }> {
         const timestamp = now.toISOString();
         const record: TriggerProcessingRecord = {
             idempotencyKey: trigger.idempotencyKey,
             envelopeId: trigger.id,
             status: 'processing',
+            ...(requestHash ? { requestHash } : {}),
             claimedAt: timestamp,
             updatedAt: timestamp,
         };
@@ -25,12 +26,19 @@ export class PersistentTriggerClaimStore implements TriggerClaimStore {
         return { claimed: false, record: existing };
     }
 
+    linkRun(idempotencyKey: string, runId: string, now: Date = new Date()): Promise<TriggerProcessingRecord> {
+        return this.transition(idempotencyKey, current => {
+            if (current.runId && current.runId !== runId) throw new Error('Trigger claim already points to another run');
+            return { ...current, runId, updatedAt: now.toISOString() };
+        });
+    }
+
     complete(idempotencyKey: string, runId: string, now: Date = new Date()): Promise<TriggerProcessingRecord> {
         return this.transition(idempotencyKey, current => ({ ...current, status: 'completed', runId, error: undefined, updatedAt: now.toISOString() }));
     }
 
     fail(idempotencyKey: string, error: AgentError, runId?: string, now: Date = new Date()): Promise<TriggerProcessingRecord> {
-        return this.transition(idempotencyKey, current => ({ ...current, status: 'failed', runId, error: { ...error }, updatedAt: now.toISOString() }));
+        return this.transition(idempotencyKey, current => ({ ...current, status: 'failed', runId: runId ?? current.runId, error: { ...error }, updatedAt: now.toISOString() }));
     }
 
     get(idempotencyKey: string): Promise<TriggerProcessingRecord | null> {

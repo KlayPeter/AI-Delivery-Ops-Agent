@@ -38,6 +38,10 @@ flowchart TD
     WOWN --> B["Trigger / Job Execution"]
     B --> C["Agent Run / 业务服务"]
     C --> AB[父中止或自身超时：停止等待并拒绝迟到成功]
+    A --> RECEIPT[固定 UUID 与输入 SHA；执行前持久关联 Run]
+    RECEIPT --> C
+    C --> CANCEL[手动根运行停止与同 Scope 子任务取消]
+    CANCEL --> AB
     AB --> AFAIL[失败 Run / Agent Step / 委派 Step；无成功返回产物]
     C --> SC[Agent / Tool / Skill 标准 JSON Schema 校验]
     SC --> C7[标准 Skill 与社区 MCP 工具调用]
@@ -490,3 +494,9 @@ flowchart LR
 ```
 
 实现与限制见[Skill 工作台功能卡](../../connectors/skill-workbench/FEATURE.md)。代码：backend/src/connectors/skill-workbench/、platform/skills/packageLoader.ts、runtime.ts；前端 SkillSetupPage.tsx / SkillRunnerPage.tsx。验证：backend/test/skillWorkbench.test.ts、toolSkillRuntime.test.ts、context7Plugin.test.ts 与既有 Host/Plugin/模型回归，前端检查及桌面/375px 验收。仅支持指令文本，无脚本/引用资源自动执行或完整上游能力兼容；模型协议样例不证明真实质量。
+
+## 本机长任务控制边界
+
+启动回执在 Adapter 运行前持久绑定 UUID、输入 SHA 与 Run；后台执行纳入 Host 在途跟踪，关闭持续排空集合后才释放插件。新的异步入口最多四个活跃本机手动根任务，既有同步 SDK/API 保持完成契约。停止仅允许同默认 Scope 且明确 manual 来源的根运行，子任务随父控制；RUN_CANCELLED 形成 cancelled Run/Step，不按成功投递，原产物和暂停快照保留。完成提交与停止按单运行锁排序；旧记录不推断控制权限。忽略信号的原生代码不能强杀，已完成的副作用不回滚。一般父中止 PARENT_ABORTED、自身 TIMEOUT 语义不变。
+
+完整流程与代码地图见[工作台功能卡](../workspace/FEATURE.md)。验证：backend/test/runControl.test.ts、localRunApi.test.ts、既有 Agent/委派/Trigger/Host 回归；frontend/src/api.test.mjs。未新增业务插件或 Agent。

@@ -21,7 +21,7 @@ export function RunStatus({ status }: { status: string }) {
 interface Evidence { sourceKind?: string; lineBasis?: string; title?: string; path: string; excerpt: string; lineStart?: number; lineEnd?: number; openUri?: string; citationId?: string }
 interface SourceCoverage { kind: 'markdown' | 'web'; status: 'available' | 'unavailable'; indexed: number; partial: boolean }
 interface KnowledgeResult { hits?: Evidence[]; evidence?: Evidence[]; claims?: { text: string; citations?: { citationId: string }[] }[]; status?: string; reason?: string; source?: { partial?: boolean; sources?: SourceCoverage[] }; retrieval?: { partial?: boolean; sources?: SourceCoverage[] } }
-interface RunDetail { run: RunInfo; steps: { id: string; name: string; kind: string; status: string; error?: { message: string } }[]; artifacts: { id: string; type: string; content?: unknown; metadata?: Record<string, unknown> }[]; children: RunInfo[]; checkpoint?: { question?: string } }
+interface RunDetail { run: RunInfo; controls?: { canCancel: boolean; cancellationRequested: boolean }; steps: { id: string; name: string; kind: string; status: string; error?: { message: string } }[]; artifacts: { id: string; type: string; content?: unknown; metadata?: Record<string, unknown> }[]; children: RunInfo[]; checkpoint?: { question?: string } }
 function downloadMarkdown(content: string) {
   const url = URL.createObjectURL(new Blob([content], { type: 'text/markdown;charset=utf-8' }));
   const link = document.createElement('a'); link.href = url; link.download = 'result.md'; link.click();
@@ -61,20 +61,30 @@ export default function RunDrawer({ runId, onClose, onSelectRun }: { runId: stri
   const [reply, setReply] = useState('');
   const [resuming, setResuming] = useState(false);
   const [resumeError, setResumeError] = useState('');
+  const [stopping, setStopping] = useState(false), [stopError, setStopError] = useState('');
   const artifacts = (data?.artifacts || []).filter(artifact => data?.run.status === 'waiting_human' || artifact.metadata?.waitingHuman !== true).sort((a, b) => Number(Boolean(parseStatusPanels(b.metadata?.statusPanels))) - Number(Boolean(parseStatusPanels(a.metadata?.statusPanels))) || Number(b.metadata?.artifactRole === 'personal.research.summary') - Number(a.metadata?.artifactRole === 'personal.research.summary'));
   const resume = async () => {
     setResuming(true); setResumeError('');
     try { await api.resumeRun(runId!, { prompt: reply.trim(), text: reply.trim() }, crypto.randomUUID()); setReply(''); await Promise.all([refresh(), mutate()]); }
     catch (e) { setResumeError(errorMessage(e)); } finally { setResuming(false); }
   };
+  const stop = async () => {
+    setStopping(true); setStopError('');
+    try { await api.cancelRun(runId!); await Promise.all([refresh(), mutate()]); }
+    catch (e) { setStopError(errorMessage(e)); } finally { setStopping(false); }
+  };
   return <Drawer title={data ? capabilityName(data.run.capability, workspace?.agents.find(agent => agent.capabilities.includes(data.run.capability))?.name) : '运行详情'} open={Boolean(runId)} onClose={onClose} size="large" className="run-drawer">
     {isLoading ? <Spin /> : error ? <Alert type="error" title="加载失败" description={error.message} /> : data ? <>
       <div className="run-meta"><RunStatus status={data.run.status} /><Typography.Text copyable className="muted">{data.run.id}</Typography.Text></div>
+      {data.controls?.canCancel && <div className="form-actions"><Button onClick={stop} loading={stopping}>请求停止</Button><span className="muted">已完成的操作不会撤销</span></div>}
+      {data.controls?.cancellationRequested && ['running', 'queued'].includes(data.run.status) && <Alert type="info" showIcon title="已请求停止，正在更新运行记录" />}
+      {stopError && <Alert type="error" showIcon title="停止请求未确认" description={stopError} />}
       {recipesAvailable && data.run.status === 'succeeded' && !data.run.parentRunId && <p><Link to={`/recipes?runId=${encodeURIComponent(data.run.id)}`} onClick={onClose}>保存为任务配方</Link></p>}
       {provenance?.receipt && <Alert type="info" showIcon title={`来自「${provenance.receipt.recipeName}」配方${provenance.receipt.parametersChanged ? ' · 本次参数已修改' : ''}`} action={<Button onClick={() => onSelectRun(provenance.receipt!.sourceRunId)}>查看来源运行</Button>} />}
-      {data.run.error && <Alert type="error" showIcon title="本次执行未完成" description={data.run.error.message} />}
+      {data.run.error && <Alert type={data.run.status === 'cancelled' ? 'info' : 'error'} showIcon title={data.run.status === 'cancelled' ? '任务已取消' : '本次执行未完成'} description={data.run.error.message} />}
       {data.run.status === 'succeeded' && <RunActions runId={data.run.id} onSelectRun={onSelectRun} />}
-      {data.run.status === 'waiting_human' && <div className="resume-form">
+      {data.run.status === 'waiting_human' && data.run.parentRunId && <Alert type="info" showIcon title="子任务等待补充信息" description="请返回父任务，由父 Agent 管理继续执行。" action={<Button onClick={() => onSelectRun(data.run.parentRunId!)}>查看父任务</Button>} />}
+      {data.run.status === 'waiting_human' && !data.run.parentRunId && <div className="resume-form">
         <Alert type="warning" title="Agent 需要你补充信息" description={data.checkpoint?.question || '查看下方结果，补充后继续同一次运行。'} showIcon />
         <label htmlFor="resume-input">补充说明</label><Input.TextArea id="resume-input" value={reply} onChange={e => setReply(e.target.value)} rows={3} />
         {resumeError && <Alert type="error" title={resumeError} />}<Button onClick={resume} loading={resuming} disabled={!reply.trim()} type="primary">继续执行</Button>

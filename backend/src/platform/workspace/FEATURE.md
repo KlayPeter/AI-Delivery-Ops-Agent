@@ -30,7 +30,11 @@ flowchart TD
     RP --> H
     PL --> H[Agent Host]
     G --> T[固定默认 workspace/bot·manual Trigger]
-    T --> H
+    T --> ACK[持久绑定启动 UUID 与 Run；返回回执]
+    ACK --> H
+    V --> CANCEL[本机手动根运行请求停止]
+    CANCEL --> SIGNAL[传播取消信号；保留已完成操作与历史]
+    SIGNAL --> R
     H --> R[Run / Step / Artifact 持久化]
     R --> V[结果 / 执行步骤 / 详情]
     R --> WAIT[waiting_human]
@@ -380,3 +384,15 @@ flowchart LR
 ```
 
 实现与限制见[Skill 工作台功能卡](../../connectors/skill-workbench/FEATURE.md)。代码：backend/src/connectors/skill-workbench/、platform/skills/packageLoader.ts、runtime.ts；前端 SkillSetupPage.tsx / SkillRunnerPage.tsx。验证：backend/test/skillWorkbench.test.ts、toolSkillRuntime.test.ts、context7Plugin.test.ts 与既有 Host/Plugin/模型回归，前端检查及桌面/375px 验收。仅支持指令文本，无脚本/引用资源自动执行或完整上游能力兼容；模型协议样例不证明真实质量。
+
+## 本机长任务启动与停止
+
+首页、知识检索/回答、个人研究、发布准备和导入 Skill 文本页改用 POST /api/workspace/runs/start。请求必须带 UUID triggerId，Capability 与序列化输入的 SHA 绑定该领取记录；先持久关联 Run，才允许 Adapter 执行。返回 202 和真实 runId/status 后打开详情轮询；相同 UUID/参数复用同一运行，不同参数返回 409。前端仅对无服务端响应重试一次同一 UUID，仍未确认时引导检查运行记录。后端每 workspace/bot 最多四个活跃手动根任务，新启动超额返回 429，没有等待队列；暂停任务不占活跃槽位。旧 POST /runs、插件 runLocal、动作和配方仍等待完成，内联检查/导出流程保持原契约。
+
+详情返回 controls.canCancel/cancellationRequested；只有带明确 manual 来源、本机默认 Scope 的根运行可控制。POST /runs/:runId/cancel 仅接受空对象，先验归属；子任务、旧记录缺少来源、其他 Scope 返回 404。活跃任务请求协作取消，暂停任务直接进入 cancelled；遍历同根且同 Scope 的子任务，传播 RUN_CANCELLED。单运行状态提交与取消串行，完成先落盘则返回 requested=false，取消先发生则拒绝迟到成功。请求记录为 guardrail Step run.cancel，原产物和 Checkpoint 保留；已取消根任务及其子任务不能独立继续，子任务补充信息回到父任务。
+
+取消不是副作用回滚或操作系统进程强杀；忽略信号的原生插件可能继续操作。运行记录中的取消状态表示宿主停止等待与接受成功结果。取消后的任务不创建新的结果投递；此前完成的写入或投递不会撤销。关闭页面不会停止任务，返回“运行记录”可找回最近根任务；服务重启仍按既有 PROCESS_RESTARTED 收敛未结束任务，不自动重放。
+
+Host 跟踪回执准备及其后台 completion。关闭时持续排空在途集合，覆盖回执持久化中才加入的后台任务，再释放插件。控制层不新增业务 Agent/插件，默认仍为十四插件九 Agent。
+
+代码：backend/src/platform/agents/runtime.ts、contracts.ts；backend/src/platform/runtime/triggerRuntime.ts、triggerStore.ts、persistentTriggerStore.ts；backend/src/platform/bootstrap/agentHost.ts、workspace/api.ts；frontend/src/api.ts、pages/workspace/RunDrawer.tsx 及上述五类发起页面。验证：backend/test/runControl.test.ts、localRunApi.test.ts、既有 Runtime/Host/工作台回归；frontend/src/api.test.mjs 验证响应丢失复用 UUID、服务拒绝不重试与未确认提示。操作与限制见 [本机运行控制](../../../../docs/LOCAL_RUN_CONTROL.md)。

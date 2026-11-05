@@ -14,7 +14,7 @@ export default function SkillRunnerPage() {
   const run = async () => {
     if (!prompt.trim() || !workspace?.modelConfigured) return;
     setBusy(true); setError('');
-    try { const result = await api.runAgent('skills.prompt.run', { prompt: prompt.trim() }, crypto.randomUUID()); setRunId(result.runId); await refresh(); }
+    try { const result = await api.startAgent('skills.prompt.run', { prompt: prompt.trim() }, crypto.randomUUID()); setRunId(result.runId); await refresh(); }
     catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   };
   return <div className="workspace-page"><div className="page-heading"><div><h1>使用 Skill</h1><p>用已审查的固定指令完成一份文本任务，保留实际 Skill 和模型步骤。</p></div></div>

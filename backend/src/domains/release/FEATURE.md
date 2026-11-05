@@ -23,7 +23,8 @@ CLI、配置档与插件拥有的本地 /release 页面均可使用。HTTP 默�
 flowchart TD
     UISET[本机连接设置：固定仓库与可选读取密钥] --> BOOT[重启后组合 GitHub 与匹配知识源的发布插件]
     BOOT --> PAGE[插件拥有的 /release 时间段与规则表单]
-    PAGE --> U[本地 Web / CLI / SDK：时间段与知识范围]
+    PAGE --> ACK[Web 先返回持久 Run 回执；可在详情请求停止]
+    ACK --> U[本地 Web / CLI / SDK：时间段与知识范围]
     U --> P[Cordis: release.prepare]
     P --> V[校验本地个人 Scope 与输入]
     V --> G[Tool Gateway: GitHub snapshot]
@@ -193,3 +194,7 @@ flowchart LR
     MIX_MD --> MIX_RESULT[保留原引用与独立版本]
     MIX_WEB --> MIX_RESULT
 ```
+
+## 本机任务体验
+
+本功能发起页使用持久启动回执，立即进入可轮询详情；手动根任务可请求停止，关闭页面后仍可从运行记录找回。停止沿既有执行信号传递，取消后不能继续或接受迟到成功，已保存产物与完成操作保留；子任务由父任务管理。CLI/SDK 与内联审查操作仍使用原同步接口。完整协议见[工作台功能卡](../../platform/workspace/FEATURE.md)；验证：backend/test/runControl.test.ts、localRunApi.test.ts 和本功能既有回归，frontend/src/api.test.mjs。

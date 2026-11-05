@@ -25,7 +25,7 @@ export default function ReleasePage() {
     setError(''); setRunning(operation);
     try {
       const values = await form.validateFields();
-      const result = await api.runAgent('release.prepare', prepareReleaseInput(values, operation), crypto.randomUUID());
+      const result = await api.startAgent('release.prepare', prepareReleaseInput(values, operation), crypto.randomUUID());
       setRunId(result.runId); await mutate();
     } catch (e) { if (!(e && typeof e === 'object' && 'errorFields' in e)) setError(errorMessage(e)); }
     finally { setRunning(null); }

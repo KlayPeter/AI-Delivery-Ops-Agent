@@ -12,11 +12,13 @@ export interface TriggerProcessingRecord {
     claimedAt: string;
     updatedAt: string;
     runId?: string;
+    requestHash?: string;
     error?: AgentError;
 }
 
 export interface TriggerClaimStore {
-    claim(trigger: TriggerEnvelope, now?: Date): MaybePromise<{ claimed: boolean; record: TriggerProcessingRecord }>;
+    claim(trigger: TriggerEnvelope, now?: Date, requestHash?: string): MaybePromise<{ claimed: boolean; record: TriggerProcessingRecord }>;
+    linkRun(idempotencyKey: string, runId: string, now?: Date): MaybePromise<TriggerProcessingRecord>;
     complete(idempotencyKey: string, runId: string, now?: Date): MaybePromise<TriggerProcessingRecord>;
     fail(idempotencyKey: string, error: AgentError, runId?: string, now?: Date): MaybePromise<TriggerProcessingRecord>;
     get(idempotencyKey: string): MaybePromise<TriggerProcessingRecord | null>;
@@ -25,7 +27,7 @@ export interface TriggerClaimStore {
 export class InMemoryTriggerClaimStore implements TriggerClaimStore {
     private readonly records = new Map<string, TriggerProcessingRecord>();
 
-    claim(trigger: TriggerEnvelope, now: Date = new Date()): { claimed: boolean; record: TriggerProcessingRecord } {
+    claim(trigger: TriggerEnvelope, now: Date = new Date(), requestHash?: string): { claimed: boolean; record: TriggerProcessingRecord } {
         const existing = this.records.get(trigger.idempotencyKey);
         if (existing) return { claimed: false, record: this.copy(existing) };
         const timestamp = now.toISOString();
@@ -33,6 +35,7 @@ export class InMemoryTriggerClaimStore implements TriggerClaimStore {
             idempotencyKey: trigger.idempotencyKey,
             envelopeId: trigger.id,
             status: 'processing',
+            ...(requestHash ? { requestHash } : {}),
             claimedAt: timestamp,
             updatedAt: timestamp,
         };
@@ -40,12 +43,18 @@ export class InMemoryTriggerClaimStore implements TriggerClaimStore {
         return { claimed: true, record: this.copy(record) };
     }
 
+    linkRun(idempotencyKey: string, runId: string, now: Date = new Date()): TriggerProcessingRecord {
+        const current = this.get(idempotencyKey);
+        if (current?.runId && current.runId !== runId) throw new Error('Trigger claim already points to another run');
+        return this.transition(idempotencyKey, { runId, updatedAt: now.toISOString() });
+    }
+
     complete(idempotencyKey: string, runId: string, now: Date = new Date()): TriggerProcessingRecord {
         return this.transition(idempotencyKey, { status: 'completed', runId, error: undefined, updatedAt: now.toISOString() });
     }
 
     fail(idempotencyKey: string, error: AgentError, runId?: string, now: Date = new Date()): TriggerProcessingRecord {
-        return this.transition(idempotencyKey, { status: 'failed', runId, error: { ...error }, updatedAt: now.toISOString() });
+        return this.transition(idempotencyKey, { status: 'failed', ...(runId === undefined ? {} : { runId }), error: { ...error }, updatedAt: now.toISOString() });
     }
 
     get(idempotencyKey: string): TriggerProcessingRecord | null {
