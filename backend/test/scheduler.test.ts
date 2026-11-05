@@ -1,3 +1,4 @@
+import { teamSchedules } from "./helpers/schedules";
 import { describe, expect, test } from "bun:test";
 import { InProcessScheduler } from "@/core/scheduler";
 import { ScheduledAgentDispatcher } from "@/platform/bootstrap/scheduledAgentDispatcher";
@@ -54,6 +55,7 @@ describe("InProcessScheduler group dashboard", () => {
                 appendAuditLog: async () => {},
             },
         };
+        ctx.schedules = teamSchedules();
         const scheduler = new InProcessScheduler(() => ({ ctx }) as any, 30, 0);
 
         const first = scheduler.tick(new Date("2026-07-10T09:00:00+08:00"));
@@ -99,6 +101,7 @@ describe("InProcessScheduler group dashboard", () => {
             },
             feishu: {},
         };
+        ctx.schedules = teamSchedules();
         const scheduler = new InProcessScheduler(() => ({ ctx }) as any, 30, 0) as any;
         const runs: string[] = [];
         scheduler.runJob = async (_handler: any, jobName: string) => {
@@ -129,6 +132,7 @@ describe("InProcessScheduler group dashboard", () => {
                 appendAuditLog: async () => {},
             },
         };
+        ctx.schedules = teamSchedules();
         const scheduler = new InProcessScheduler(() => ({ ctx }) as any, 30, 0) as any;
         const runs: Date[] = [];
         scheduler.runJob = async (_handler: any, _jobName: string, _groupId: string, day: Date) => { runs.push(day); return { ok: true }; };
@@ -187,6 +191,7 @@ describe("InProcessScheduler group dashboard", () => {
                 appendAuditLog: async () => {},
             },
         };
+        ctx.schedules = teamSchedules();
         const scheduler = new InProcessScheduler(() => ({ ctx }) as any, 30, 0);
 
         expect(await scheduler.tick(new Date("2026-07-10T09:00:00+08:00"))).toEqual({
@@ -221,6 +226,7 @@ describe("InProcessScheduler group dashboard", () => {
                 appendAuditLog: async (eventType: string, detail: any) => audits.push({ eventType, detail }),
             },
         };
+        ctx.schedules = teamSchedules();
         const scheduler = new InProcessScheduler(() => ({ ctx }) as any, 30, 0) as any;
         scheduler.runJob = async () => ({ status: "completed_with_warnings", delivery: { skipped: 1 } });
 
@@ -243,6 +249,7 @@ describe("InProcessScheduler group dashboard", () => {
             config: rawConfig,
             store: { getDynamicConfig: async () => rawConfig, appendAuditLog: async () => {} },
         };
+        ctx.schedules = teamSchedules();
         const scheduler = new InProcessScheduler(() => ({ ctx }) as any, 30, 0) as any;
         let runs = 0;
         scheduler.runJob = async () => { runs++; return { ok: true }; };
@@ -263,6 +270,7 @@ describe("InProcessScheduler group dashboard", () => {
             config: rawConfig,
             store: { getDynamicConfig: async () => rawConfig, appendAuditLog: async () => {} },
         };
+        ctx.schedules = teamSchedules();
         const scheduler = new InProcessScheduler(() => ({ ctx }) as any, 30, 0) as any;
         let runs = 0;
         scheduler.runJob = async () => { runs++; return { ok: true }; };
@@ -286,6 +294,7 @@ describe("InProcessScheduler group dashboard", () => {
                 appendAuditLog: async () => {},
             },
         };
+        ctx.schedules = teamSchedules();
         const scheduler = new InProcessScheduler(() => ({ ctx }) as any, 30, 0) as any;
         const runs: string[] = [];
         scheduler.runJob = async (_handler: any, jobName: string) => { runs.push(jobName); return { ok: true }; };
@@ -319,6 +328,7 @@ describe("InProcessScheduler group dashboard", () => {
                 appendAuditLog: async () => {},
             },
         };
+        ctx.schedules = teamSchedules();
         const scheduler = new InProcessScheduler(() => ({ ctx }) as any, 30, 0) as any;
         let runs = 0;
         scheduler.runJob = async (_handler: any, jobName: string) => {
@@ -358,6 +368,7 @@ describe("InProcessScheduler group dashboard", () => {
             flushDeliveries: async () => { flushes++; return { delivered: 0, retried: 0, deadLettered: 0 }; },
             dailySummary: async () => { dispatches++; return { status: dispatches === 1 ? 'completed' : 'duplicate' }; },
         };
+        ctx.schedules = teamSchedules();
         const scheduler = new InProcessScheduler(() => ({ ctx }) as any, 30, 0, agentJobs);
         expect(await scheduler.tick(new Date(2026, 6, 10, 18, 40, 0))).toEqual({ "daily-summary:oc_dev": "completed" });
         expect(await scheduler.tick(new Date(2026, 6, 10, 18, 40, 30))).toEqual({ "daily-summary:oc_dev": "duplicate" });
@@ -399,6 +410,7 @@ describe("InProcessScheduler group dashboard", () => {
             flushDeliveries: async () => ({ delivered: 0, retried: 0, deadLettered: 0 }),
             weeklyReport: async () => { dispatches++; return { status: "completed" }; },
         };
+        ctx.schedules = teamSchedules();
         const scheduler = new InProcessScheduler(() => ({ ctx }) as any, 30, 0, agentJobs);
 
         expect(await scheduler.tick(new Date("2026-07-23T10:50:00Z"))).toEqual({});
@@ -420,6 +432,7 @@ describe("InProcessScheduler group dashboard", () => {
             flushDeliveries: async () => ({ delivered: 0, retried: 0, deadLettered: 0 }),
             dailySummary: async () => { dispatches++; return { status: "completed" }; },
         };
+        ctx.schedules = teamSchedules();
         const scheduler = new InProcessScheduler(() => ({ ctx }) as any, 30, 0, agentJobs);
 
         expect(await scheduler.tick(new Date(2026, 6, 10, 18, 40, 0))).toEqual({ "daily-summary:oc_dev": "completed" });
@@ -448,6 +461,7 @@ describe("InProcessScheduler group dashboard", () => {
                 return { status: "completed" };
             },
         };
+        ctx.schedules = teamSchedules();
         const scheduler = new InProcessScheduler(() => ({ ctx }) as any, 30, 0, agentJobs, 0);
 
         expect(await scheduler.tick(new Date(2026, 6, 10, 18, 40, 0))).toEqual({ "daily-summary:oc_dev": "completed" });
@@ -476,6 +490,7 @@ describe("InProcessScheduler group dashboard", () => {
                 appendAuditLog: async (eventType: string, detail: any) => auditLogs.push({ eventType, detail }),
             },
         };
+        ctx.schedules = teamSchedules();
         const scheduler = new InProcessScheduler(() => ({ ctx }) as any, 30, 0, undefined, 0) as any;
         let runs = 0;
         scheduler.runJob = async () => { runs++; throw new Error(`failure-${runs}`); };
@@ -505,6 +520,7 @@ describe("InProcessScheduler group dashboard", () => {
                 appendAuditLog: async (eventType: string, detail: any) => auditLogs.push({ eventType, detail }),
             },
         };
+        ctx.schedules = teamSchedules();
         const scheduler = new InProcessScheduler(() => ({ ctx }) as any, 30, 0, undefined, 0) as any;
         let runs = 0;
         scheduler.runJob = async () => {

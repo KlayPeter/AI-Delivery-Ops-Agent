@@ -11,6 +11,7 @@ import type { FeaturePlugin, PluginHostServices } from '@/platform/plugins/contr
 import { SkillRegistry } from '@/platform/skills/registry';
 import { ToolRegistry } from '@/platform/tools/registry';
 import { MessageRouteRegistry } from '@/services/messageHandler/routes';
+import { ScheduleRegistry } from '@/platform/scheduling/registry';
 
 function plugin(id: string, apply: FeaturePlugin['apply'] = () => {}): FeaturePlugin {
     return { manifest: { apiVersion: '1.0', id, name: id, version: '1.0.0', description: 'Test plugin' }, apply };
@@ -22,6 +23,7 @@ function fixture() {
         getContext: () => ({} as any), agents: new AgentRegistry(), nativeAgents: new NativeAgentAdapter(),
         modelAgents: { register: () => () => {} }, tools, skills: new SkillRegistry(), bots: new BotRegistry(),
         messageRoutes: new MessageRouteRegistry(),
+        schedules: new ScheduleRegistry(),
         botCatalog: new PersistentBotControlCatalog(new InMemoryPersistentKeyValueStore()), skillRoot: '/nonexistent-plugin-skills',
     };
     return { services, tools };
@@ -74,6 +76,7 @@ describe('Cordis feature plugins', () => {
         const { services, tools } = fixture();
         const feature = plugin('test.failing', ctx => {
             ctx.delivery.messageRoutes.register({ id: 'test.dynamic', priority: 20, sources: ['private'], handle: async () => null });
+            ctx.delivery.schedules.register({ id: 'test.dynamic', priority: 20, kind: 'timed', plan: () => null, run: async () => ({}) });
             ctx.delivery.tools.register({
                 id: 'test.echo', version: '1.0.0', description: 'Echo', inputSchema: {}, outputSchema: {},
                 sideEffect: 'read', riskLevel: 'low', idempotent: true, timeoutSeconds: 1,
@@ -84,10 +87,12 @@ describe('Cordis feature plugins', () => {
         });
         feature.agents = [{ manifest: dailySummaryManifest, installationId: 'test-install' }];
         feature.messageRoutes = [{ id: 'test.declared', priority: 10, sources: ['group'], handle: async () => null }];
+        feature.schedules = [{ id: 'test.declared', priority: 10, kind: 'timed', plan: () => null, run: async () => ({}) }];
         const runtime = new PluginRuntime([feature], services);
         await expect(runtime.start()).rejects.toThrow('setup failed');
         expect(tools.list()).toEqual([]);
         expect((services.messageRoutes as MessageRouteRegistry).list()).toEqual([]);
+        expect((services.schedules as ScheduleRegistry).list()).toEqual([]);
         expect(services.agents.getInstallation('test-install')).toBeNull();
         expect(services.agents.listBindings()).toEqual([]);
         expect(() => services.agents.install({

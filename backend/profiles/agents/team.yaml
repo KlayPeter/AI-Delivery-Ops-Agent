@@ -8,3 +8,4 @@ plugins:
   - module: builtin.standup
   - module: builtin.orchestrator
   - module: builtin.meeting-summary
+  - module: builtin.ai-hot-schedule

@@ -121,6 +121,7 @@ flowchart TD
 ### 主要实现
 
 - `backend/src/services/messageHandler/routes.ts`：消息贡献协议、校验、排序、注册清理与在途等待。
+- `backend/src/services/messageHandler/types.ts`：应用共享上下文；消息和群调度注册表由组合层传入，配置重载复用实例。
 - `backend/src/agents/plugins/`：各功能拥有的路由、引用与帮助贡献。
 - `backend/src/services/messageHandler/MessageRouter.ts`：插件路由的统一仲裁入口与动态帮助。
 - `backend/src/services/messageHandler/ContextRouter.ts`：引用上下文路由。
@@ -144,6 +145,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 共享上下文增加插件群调度注册表，消息仲裁行为保持不变 | 消息插件/Handler 与后端全量回归、类型检查 |
 | 2026-11-05 | 内置路由改为功能插件贡献，删除硬编码策略表；保持默认仲裁与成员识别，关闭插件同步关闭引用与帮助；停机等待确定性消息 | 消息插件与原 Handler 回归、后端 422 通过 / 1 TAPD 跳过、类型检查 |
 | 2026-11-05 | 增加可信 YAML Agent 插件选择与本地/已安装包加载；未启用模块不导入，消息 AI/新闻分流检查实际 Capability | 配置加载、插件/Host 测试与后端全量回归 |
 | 2026-11-05 | 将主编排 Agent装配移入 `builtin.orchestrator`，保留业务与持久化契约 | 插件/Host 测试、后端全量回归 |

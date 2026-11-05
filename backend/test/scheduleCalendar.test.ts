@@ -1,3 +1,6 @@
+import { teamSchedules } from './helpers/schedules';
+import { pluginJobs } from '@/agents/plugins/jobs';
+import { ScheduleRegistry } from '@/platform/scheduling/registry';
 import { describe, expect, test } from 'bun:test';
 import { buildConfig } from '@/core/config';
 import { isScheduleDateEnabled, normalizeScheduleCalendar } from '@/core/scheduleCalendar';
@@ -38,14 +41,25 @@ describe('automatic task calendar', () => {
             weekly_report_enabled: true, weekly_report: '09:00', weekly_report_timezone: 'Asia/Shanghai', ...schedule,
         } }] };
         const calls: string[] = [], claims: string[] = [];
-        const ctx = { store: {
+        const ctx: any = { schedules: teamSchedules(), store: {
             getDynamicConfig: async () => raw, appendAuditLog: async () => {},
             claimIdempotencyKey: async (key: string) => { claims.push(key); return true; }, setIdempotencyKey: async () => {},
         } };
         const scheduler = new InProcessScheduler(() => ({ ctx }) as any, 30, 0);
-        (scheduler as any).createScheduledJobs = () => ({ taskStandupRemindDue: async () => {
-            calls.push('commitment'); return { sent: 0, failed: 0 };
-        } });
+        const poll = ctx.schedules.get('task-standup-remind');
+        const original = poll.run;
+        ctx.schedules = new ScheduleRegistry();
+        for (const entry of teamSchedules().list()) {
+            ctx.schedules.register(entry.id !== poll.id ? entry : {
+                ...entry,
+                run: async (context: any) => {
+                    context.resources.set(pluginJobs, { taskStandupRemindDue: async () => {
+                        calls.push('commitment'); return { sent: 0, failed: 0 };
+                    } });
+                    return original(context);
+                },
+            });
+        }
         (scheduler as any).runJob = async (_handler: unknown, name: string) => { calls.push(name); return {}; };
         return { scheduler, calls, claims };
     }

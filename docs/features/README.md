@@ -45,7 +45,7 @@ flowchart LR
 | `ai-news-radar` | 飞书私聊查询、续页、搜索与多源 AI 信号，可选独立机器人 | active | `native.ai-news-radar` | [查看](../../backend/src/agents/native/ai-news-radar/FEATURE.md) |
 | `meeting-summary` | 会议纪要生成、归档、查看与邮件分发 | dormant | 无 | [查看](../../backend/src/services/messageHandler/meeting-summary/FEATURE.md) |
 | `configuration-scheduling` | 群组、成员、通讯录、模块开关与定时任务 | active | 无 | [查看](../../backend/src/core/configuration-scheduling/FEATURE.md) |
-| `plugin-runtime` | Cordis 功能插件、消息贡献、依赖与资源生命周期 | active | 无独立业务 Agent | [查看](../../backend/src/platform/plugins/FEATURE.md) |
+| `plugin-runtime` | Cordis 功能插件、消息/群调度贡献、依赖与资源生命周期 | active | 无独立业务 Agent | [查看](../../backend/src/platform/plugins/FEATURE.md) |
 | `agent-platform` | Agent、Tool、Skill、会话、外部 Agent 与多机器人控制面 | active | Agent Host 及全部 Agent | [查看](../../backend/src/platform/FEATURE.md) |
 | `operations-observability` | 审计日志、上下文、手动触发、Run 与可靠投递 | active | 无独立业务 Agent | [查看](../../backend/src/platform/runtime/FEATURE.md) |
 
@@ -81,6 +81,7 @@ flowchart LR
 | Dashboard Service、Project Dashboard、`native/dashboardAgent.ts`、`HumanGanttPage` | `project-visibility` |
 | Meeting Summary Handler、Service、邮件分发、`MeetingSummariesPage` | `meeting-summary` |
 | `core/config`、Scheduler、`jobs.ts`、群成员同步、`ConfigPage` | `configuration-scheduling`；同时更新被调度的业务功能 |
+| `backend/src/platform/scheduling/**` | `plugin-runtime`、`configuration-scheduling`、`operations-observability`；同步对应业务功能 |
 | `backend/src/platform/plugins/**`、`backend/src/agents/plugins/**` | `plugin-runtime`、`agent-platform`；同步对应业务功能 |
 | `backend/src/platform/agents/**`、`tools/**`、`skills/**`、`bots/**`、Agent 定义 | `agent-platform`；同时更新受影响的业务功能 |
 | Outbox、Delivery Worker、Run/Step/Artifact、审计、上下文、Debug/Logs 页面 | `operations-observability`；同时更新产生产物的业务功能 |

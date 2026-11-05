@@ -20,7 +20,8 @@ last_reviewed: 2026-11-05
 
 ```mermaid
 flowchart TD
-    PC["可信插件配置 / 重启生效"] --> PH["Agent、Tool、Skill 与消息路由装配"]
+    PC["可信插件配置 / 重启生效"] --> PH["Agent、Tool、Skill、消息与群调度装配"]
+    PH --> E
     A["Config Page / API"] --> B["Schema 校验与持久化"]
     C["飞书通讯录与群"] --> D["带页数/时长/总请求预算的成员同步"]
     D --> B
@@ -70,13 +71,13 @@ flowchart TD
 
 ## 核心规则
 
-`AGENT_PLUGINS_FILE` 属于重启生效的可信代码装配配置，选择 Agent、Tool、Skill 与确定性消息贡献。默认八个功能插件提供七个 Agent；移除插件关闭其指令、引用和帮助，但现有业务 API、Scheduler、Web 页面与飞书连接尚未全部跟随。动态业务配置重载复用同一个消息注册表，不重复装配路由。
+`AGENT_PLUGINS_FILE` 属于重启生效的可信代码装配配置，选择 Agent、Tool、Skill、确定性消息与群业务调度贡献。默认九个功能插件提供七个 Agent；移除插件关闭其指令、引用、帮助和群业务计划，但现有业务 API、全局维护/成员同步、Web 页面与飞书连接尚未全部跟随。动态业务配置重载复用同一个消息注册表，不重复装配路由。
 
 自动调度统一通过 `backend/src/core/scheduleCalendar.ts` 判断群级 `schedule.calendar`。指定日期的触发/暂停优先于基础策略；`workdays` 使用中国工作日（含调休），`every_day` 不限制节假日，`selected_dates` 仅执行指定触发日。日期放行不绕过模块开关、任务开关或原定时刻，手动触发不受该日历限制。未配置或 `legacy` 保留原有 `workdays_only` 规则及周报、承诺到期提醒的例外；无效日期与非布尔覆盖值在读取配置时丢弃。
 
 1. **配置先校验再持久化。** Cron、时区、群、Bot、模块开关和外部服务参数必须通过服务端 Schema；前端校验只改善体验。飞书发送与模型重试次数统一限制为 0–3，非法值回退安全默认值。
 2. **保存成功只代表配置已持久化。** Scheduler 当前按轮询周期读取新配置，页面提示约 30 秒内生效；配置 API 不能把未来的调度执行描述成已经成功。
-3. **Scheduler 只创建执行。** 到点后写入 Job/Trigger 记录，再调用对应 Agent 或领域服务；Scheduler 不复制日报、站会和看板规则。
+3. **Scheduler 只执行插件贡献。** 群计划、日期资格、周五/跨午夜/工作窗口和模块开关由所属插件声明。 到点后写入 Job/Trigger 记录，再调用对应 Agent 或领域服务；Scheduler 不复制日报、站会和看板规则。
 4. **每个群独立调度。** 群配置、时区、计划和 Bot Binding 共同确定运行 Scope，一个群失败不阻塞其他群。
 5. **定时执行使用稳定幂等键并禁止本进程重入。** 功能、群、计划时间或业务日期共同识别一次执行，服务重启不会重复完成同一业务动作；前一轮 `tick` 尚未结束时，后续 tick 复用同一进行中 Promise，不并行启动另一轮扫描。同一分钟的后续轮询若由 Agent Trigger Store 判定为 `duplicate`，只记录 `job_duplicate_skipped`，不能再次记录任务完成。
 6. **计划任务只重试临时失败。** 当前调度链路对可重试失败额外尝试一次，并分别记录每次尝试；供应商给出 `Retry-After` 时优先使用，明确不可重试的权限、参数、月额度耗尽、分页预算耗尽或分页游标异常直接失败。Native Agent 的错误码和 `retryable` 必须穿透 Dispatcher，不能在外层重新变成默认可重试错误。业务副作用仍需自身幂等，发送跳过或拒绝记录 `completed_with_warnings`，不得伪装为干净完成。
@@ -166,6 +167,8 @@ flowchart TD
 
 ### 主要测试
 
+- `backend/test/schedulePlugins.test.ts`：群调度贡献、空组合、插件禁用、错误隔离与在途停止。
+
 - `backend/test/scheduleCalendar.test.ts`：节假日、调休、日期覆盖、时区、旧规则与调度入口。
 
 - `backend/test/config.test.ts`：配置校验和持久化。
@@ -178,6 +181,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 群业务调度改为可释放插件贡献，新增外部 AI Hot 调度插件；空组合不隐式执行群任务；停机等待本轮结束 | 调度/日历/插件回归、后端 428 通过 / 1 TAPD 跳过、类型检查 |
 | 2026-11-05 | 插件组合扩展到消息指令、引用与帮助；动态配置重载复用共享注册表，业务调度边界保留 | 插件配置、消息与调度全量回归、类型检查 |
 | 2026-11-05 | 增加可信 YAML Agent 插件选择与本地/已安装包加载；未启用模块不导入，消息 AI/新闻分流检查实际 Capability | 配置加载、插件/Host 测试与后端全量回归 |
 | 2026-07-29 | 公开版移除真实项目默认值，TAPD Workspace 与 Workitem Type 改为安全空值，并统一公开项目与机器人名称 | `config.test.ts` |

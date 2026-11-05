@@ -1,32 +1,16 @@
 import { loadConfig } from './config';
 import { DataRetentionService } from './dataRetention';
 import { MessageHandler } from '@/services/messageHandler';
-import { ScheduledJobs } from '@/services/jobs';
-import { DashboardService } from '@/services/dashboard';
 import { GroupMemberSyncService } from '@/services/groupMembers';
-import { StandupService } from '@/services/standupService';
 import { utcNowIso } from '@/models/types';
-import dayjs from 'dayjs';
-import { isScheduleDateEnabled } from './scheduleCalendar';
 import type { ScheduledAgentDispatcher } from '@/platform/bootstrap/scheduledAgentDispatcher';
-import { isRecurringTimeDue, zonedClock } from './scheduleTime';
-
-const JOB_TO_CONFIG_KEY: Record<string, string> = {
-    "standup-push": "standup_push",
-    "task-standup-template": "task_standup_template",
-    "standup-second-remind": "standup_second_remind",
-    "standup-summary": "standup_summary",
-    "standup-supplement-summary": "standup_summary",
-    "overdue-scan": "overdue_scan",
-    "daily-summary": "daily_summary",
-    "dashboard": "dashboard",
-    "weekly-report": "weekly_report",
-    "ai-hot": "ai_hot",
-};
+import { zonedClock } from './scheduleTime';
+import type { GroupScheduleContext } from '@/platform/scheduling/registry';
 
 export class InProcessScheduler {
     private getHandler: () => MessageHandler;
     private intervalSeconds: number;
+    private stopped = false;
     private timer?: ReturnType<typeof setInterval>;
     private tickInFlight?: Promise<Record<string, string>>;
     private lastMemberSyncAt = 0;
@@ -43,6 +27,7 @@ export class InProcessScheduler {
     }
 
     start() {
+        if (this.stopped) throw new Error('Scheduler is stopped; create a new instance');
         if (this.timer) return;
         this.timer = setInterval(() => {
             this.tick(new Date()).catch(() => {
@@ -53,16 +38,20 @@ export class InProcessScheduler {
         }, this.intervalSeconds * 1000);
     }
 
-    stop() {
+    async stop(): Promise<void> {
+        this.stopped = true;
         if (this.timer) {
             clearInterval(this.timer);
             this.timer = undefined;
         }
+        await this.tickInFlight?.catch(() => {});
     }
 
     async tick(now: Date): Promise<Record<string, string>> {
+        if (this.stopped) throw new Error('Scheduler is stopped');
         if (this.tickInFlight) return this.tickInFlight;
-        const run = this.runTick(now);
+        const registry = (this.getHandler() as any).ctx.schedules;
+        const run = registry ? registry.run(() => this.runTick(now)) : this.runTick(now);
         this.tickInFlight = run;
         try {
             return await run;
@@ -79,60 +68,37 @@ export class InProcessScheduler {
         await this.runMaintenanceIfDue(ctx, now);
         if (this.agentJobs) await this.agentJobs.flushDeliveries();
         const results: Record<string, string> = {};
-        const jobs = this.createScheduledJobs(handler);
+        const resources = new Map<unknown, unknown>();
+        const entries = ctx.schedules?.list() || [];
         for (const group of ctx.config.groups) {
             const groupId = group.chat_id;
             if (!groupId) continue;
-
-            try {
-                const taskStandup = isScheduleDateEnabled(dayjs(now).format('YYYY-MM-DD'), group.schedule, true)
-                    ? await jobs.taskStandupRemindDue(groupId, now)
-                    : { sent: 0, failed: 0 };
-                if (taskStandup.sent || taskStandup.failed) {
-                    results[`task-standup-remind:${groupId}`] = taskStandup.failed ? "completed_with_warnings" : "completed";
+            const context: GroupScheduleContext = { ctx, group, now, resources, agents: this.agentJobs };
+            for (const entry of entries) {
+                const jobName = entry.id;
+                if (entry.kind === 'poll') {
+                    try { Object.assign(results, await entry.run(context)); }
+                    catch (error: any) {
+                        results[`${jobName}:${groupId}`] = 'failed';
+                        await ctx.store.appendAuditLog('scheduler_poll_failed', { job_name: jobName, group_id: groupId, error: error?.message || String(error) });
+                    }
+                    continue;
                 }
-            } catch (error: any) {
-                results[`task-standup-remind:${groupId}`] = "failed";
-                await ctx.store.appendAuditLog("standup_commitment_reminder_failed", {
-                    group_id: groupId,
-                    error: error?.message || String(error),
-                });
-            }
-
-            for (const [jobName, configKey] of Object.entries(JOB_TO_CONFIG_KEY)) {
-                const configuredTime = (group.schedule as any)[configKey];
-                const supplementSchedule = jobName === "standup-supplement-summary"
-                    ? standupSupplementSchedule(configuredTime)
-                    : null;
-                const scheduledTime = supplementSchedule?.time || configuredTime;
-                if (!this.isJobDue(jobName, scheduledTime, now, group.schedule)) continue;
-
-                const jobEnabled = jobName === "task-standup-template"
-                    ? group.schedule?.task_standup_enabled === true
-                    : (group.schedule as any)[`${configKey}_enabled`] !== false;
-                if (!jobEnabled) continue;
-
-                if ((configKey.startsWith('standup_') || jobName === "task-standup-template") && group.schedule?.module_standup_enabled === false) continue;
-                if (configKey === 'daily_summary' && group.schedule?.module_daily_summary_enabled === false) continue;
-                if (configKey === 'dashboard' && group.schedule?.module_dashboard_enabled === false) continue;
-                if (configKey === 'weekly_report' && group.schedule?.module_weekly_report_enabled === false) continue;
-                if (configKey === 'weekly_report' && !StandupService.isGroupEnabled(group)) continue;
-                if (configKey === 'ai_hot' && group.schedule?.module_ai_hot_enabled === false) continue;
-                const overdueClock = jobName === "overdue-scan"
-                    ? zonedClock(now, group.schedule.overdue_scan_timezone)
-                    : null;
-                const weeklyClock = jobName === "weekly-report"
-                    ? zonedClock(now, group.schedule.weekly_report_timezone)
-                    : null;
-                const jobDay = supplementSchedule?.previousDay ? dayjs(now).subtract(1, 'day').toDate() : now;
-                const workdaysOnly = group.schedule.workdays_only ?? ctx.config.schedule.workdays_only;
-                const calendarDay = overdueClock?.date || weeklyClock?.date || dayjs(jobDay).format('YYYY-MM-DD');
-                if (!isScheduleDateEnabled(calendarDay, { ...group.schedule, workdays_only: workdaysOnly }, jobName === "weekly-report")) continue;
-
-                const dateIso = overdueClock?.date || weeklyClock?.date || dayjs(jobDay).format('YYYY-MM-DD');
-                const executionTime = overdueClock?.time || weeklyClock?.time || scheduledTime;
-                const key = `scheduled:${jobName}:${groupId}:${dateIso}:${executionTime}`;
-                const usesAgentRuntime = ['daily-summary', 'weekly-report', 'dashboard', 'ai-hot'].includes(jobName) && !!this.agentJobs;
+                let plan;
+                try {
+                    plan = entry.plan(context);
+                    if (!plan) continue;
+                    if (!(plan.day instanceof Date) || !Number.isFinite(plan.day.getTime())
+                        || !/^\d{4}-\d{2}-\d{2}$/.test(plan.date) || !/^\d{1,2}:\d{2}$/.test(plan.time)) {
+                        throw new Error(`Invalid schedule plan: ${jobName}`);
+                    }
+                } catch (error: any) {
+                    results[`${jobName}:${groupId}`] = 'failed';
+                    await ctx.store.appendAuditLog('job_plan_failed', { job_name: jobName, group_id: groupId, error: error?.message || String(error) });
+                    continue;
+                }
+                const key = `scheduled:${jobName}:${groupId}:${plan.date}:${plan.time}`;
+                const usesAgentRuntime = entry.agent === true && !!this.agentJobs;
                 if (!usesAgentRuntime) {
                     const claimed = await ctx.store.claimIdempotencyKey(key, {
                         status: "running", started_at: utcNowIso(), job_name: jobName, group_id: groupId,
@@ -141,7 +107,7 @@ export class InProcessScheduler {
                 }
 
                 try {
-                    const { payload, attempts } = await this.runJobWithRetry(handler, jobName, groupId, jobDay, jobs);
+                    const { payload, attempts } = await this.runJobWithRetry(handler, jobName, groupId, plan.day, context);
                     if (payload?.status === "duplicate") {
                         await ctx.store.appendAuditLog("job_duplicate_skipped", {
                             job_name: jobName,
@@ -223,10 +189,10 @@ export class InProcessScheduler {
         }
     }
 
-    private async runJobWithRetry(handler: MessageHandler, jobName: string, groupId: string, day: Date, jobs?: ScheduledJobs): Promise<{ payload: any; attempts: number }> {
+    private async runJobWithRetry(handler: MessageHandler, jobName: string, groupId: string, day: Date, context: GroupScheduleContext): Promise<{ payload: any; attempts: number }> {
         const ctx = (handler as any).ctx;
         try {
-            return { payload: await this.runJob(handler, jobName, groupId, day, 0, jobs), attempts: 1 };
+            return { payload: await this.runJob(handler, jobName, groupId, day, 0, context), attempts: 1 };
         } catch (firstError: any) {
             const firstMessage = firstError?.message || String(firstError);
             if (firstError?.retryable === false) {
@@ -250,7 +216,7 @@ export class InProcessScheduler {
                 await new Promise(resolve => setTimeout(resolve, retryDelayMs));
             }
             try {
-                const payload = await this.runJob(handler, jobName, groupId, day, 1, jobs);
+                const payload = await this.runJob(handler, jobName, groupId, day, 1, context);
                 await Promise.resolve(ctx.store.appendAuditLog("job_retry_succeeded", {
                     job_name: jobName,
                     group_id: groupId,
@@ -268,76 +234,9 @@ export class InProcessScheduler {
         }
     }
 
-    private createScheduledJobs(handler: MessageHandler): ScheduledJobs {
-        const ctx = (handler as any).ctx;
-        const llm = ctx.intentParser?.llm;
-        const dashboard = new DashboardService(
-            ctx.store,
-            ctx.config.data_path,
-            ctx.config.project.name,
-            ctx.config.runtime.public_base_url
-        );
-        return new ScheduledJobs(ctx.config, ctx.store, ctx.feishu, dashboard, ctx.tapd, llm);
+    private async runJob(handler: MessageHandler, jobName: string, _groupId: string, day: Date, retryAttempt: number, context: GroupScheduleContext) {
+        const entry = (handler as any).ctx.schedules?.get(jobName);
+        if (!entry || entry.kind !== 'timed') throw Object.assign(new Error(`Scheduled plugin job is unavailable: ${jobName}`), { retryable: false });
+        return entry.run({ ...context, day, retryAttempt });
     }
-
-    private async runJob(handler: MessageHandler, jobName: string, groupId: string, day: Date, retryAttempt: number = 0, jobs?: ScheduledJobs) {
-        const scheduledJobs = jobs || this.createScheduledJobs(handler);
-
-        switch (jobName) {
-            case "standup-push": return await scheduledJobs.standupPush(groupId, day);
-            case "task-standup-template": return await scheduledJobs.taskStandupTemplate(groupId, day);
-            case "standup-second-remind": return await scheduledJobs.standupSecondRemind(groupId, day);
-            case "standup-summary": return await scheduledJobs.standupSummary(groupId, day);
-            case "standup-supplement-summary": return await scheduledJobs.standupSupplementSummary(groupId, day);
-            case "overdue-scan": return await scheduledJobs.overdueScan(groupId, day);
-            case "daily-summary": return this.agentJobs ? await this.agentJobs.dailySummary(groupId, day, retryAttempt) : await scheduledJobs.dailySummary(groupId, day);
-            case "weekly-report": if (!this.agentJobs) throw new Error("Weekly Report Agent dispatcher is not configured"); return await this.agentJobs.weeklyReport(groupId, day, retryAttempt);
-            case "dashboard": return this.agentJobs ? await this.agentJobs.dashboard(groupId, day, retryAttempt) : await scheduledJobs.dashboardGenerate(groupId, day);
-            case "ai-hot": if (!this.agentJobs) throw new Error('AI Hot Agent dispatcher is not configured'); return await this.agentJobs.aiHot(groupId, day, retryAttempt);
-            default: throw new Error(`Unknown job: ${jobName}`);
-        }
-    }
-
-    private isDue(scheduledTime: any, now: Date): boolean {
-        if (typeof scheduledTime !== 'string') return false;
-        try {
-            const [hourText, minuteText] = scheduledTime.split(":", 2);
-            return parseInt(hourText, 10) === now.getHours() && parseInt(minuteText, 10) === now.getMinutes();
-        } catch {
-            return false;
-        }
-    }
-
-    private isJobDue(jobName: string, scheduledTime: any, now: Date, schedule: Record<string, any>): boolean {
-        if (jobName === "weekly-report") {
-            const clock = zonedClock(now, schedule.weekly_report_timezone);
-            return Boolean(clock && calendarDate(clock.date).getDay() === 5 && clock.time === scheduledTime);
-        }
-        if (jobName !== "overdue-scan") return this.isDue(scheduledTime, now);
-        return isRecurringTimeDue(
-            now,
-            scheduledTime,
-            schedule.overdue_scan_end,
-            schedule.overdue_scan_interval_minutes,
-            schedule.overdue_scan_timezone,
-        );
-    }
-}
-
-function calendarDate(dateText: string): Date {
-    const [year, month, day] = dateText.split("-").map(Number);
-    return new Date(year, month - 1, day, 12, 0, 0, 0);
-}
-
-function standupSupplementSchedule(value: any): { time: string; previousDay: boolean } | null {
-    const match = /^(\d{1,2}):(\d{2})$/.exec(String(value || ""));
-    if (!match) return null;
-    const hour = Number(match[1]);
-    const minute = Number(match[2]);
-    if (hour > 23 || minute > 59) return null;
-    const nextHour = hour + 1;
-    return {
-        time: `${String(nextHour % 24).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
-        previousDay: nextHour >= 24,
-    };
 }

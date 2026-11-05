@@ -1,6 +1,6 @@
 # 功能插件规范 v1
 
-当前 SDK 面向本仓库内或由部署者审查的 TypeScript 原生插件。使用 Cordis 4.1.0，协议版本为 `1.0`。现阶段提供 Agent、Tool、Skill 和消息路由的独立装配、依赖校验和资源清理；页面、Scheduler、业务 API 与基础服务的完整插件化继续按路线图迁移。
+当前 SDK 面向本仓库内或由部署者审查的 TypeScript 原生插件。使用 Cordis 4.1.0，协议版本为 `1.0`。现阶段提供 Agent、Tool、Skill、消息路由和群业务调度的独立装配、依赖校验和资源清理；页面、全局维护/成员同步、业务 API 与基础服务的完整插件化继续按路线图迁移。
 
 ## 包结构
 
@@ -41,7 +41,7 @@ await host.stop();
 AGENT_PLUGINS_FILE=profiles/agents/team.yaml bun run dev
 ```
 
-未设置变量时默认组合为八个功能插件、七个 Agent；会议纪要插件没有独立 Agent，仍受原有模块开关控制。示例还包括 `profiles/agents/native-demo.yaml` 和 `profiles/agents/empty.yaml`，分别选择 Echo 模板和零业务插件。所选插件同时决定消息指令、引用上下文和能力提示；这些配置尚不关闭原 Web、飞书连接、业务 API 或业务定时任务，也不等同完整的最小产品部署配置档。
+未设置变量时默认组合为九个功能插件、七个 Agent；会议纪要和外部 AI Hot 调度插件没有独立 Agent。会议纪要仍受原有模块开关控制，外部 AI Hot 能力仍需另行安装。示例还包括 `profiles/agents/native-demo.yaml` 和 `profiles/agents/empty.yaml`，分别选择 Echo 模板和零业务插件。所选插件同时决定消息指令、引用上下文、能力提示和群业务调度；这些配置尚不关闭原 Web、飞书连接、业务 API、全局维护或成员同步，也不等同完整的最小产品部署配置档。
 
 ```yaml
 apiVersion: '1.0'
@@ -70,16 +70,17 @@ plugins:
 | `agents` | Agent Manifest 与安装 ID；Capability、输入输出、资源预算和可使用 Tool 继续由 Agent Manifest 声明 |
 | `skillPackages` | Skill 根目录下的直接子包名；声明但缺失时拒绝启动 |
 | `messageRoutes` | 可选消息路由贡献；由宿主自动注册并随插件释放 |
+| `schedules` | 可选群调度贡献；声明计划/轮询与执行函数，由 Scheduler 统一执行 |
 | `Config` | 可选 Standard Schema 校验器，例如 `z.object(...)`；配置从 `pluginConfig[manifest.id]` 传入 |
 | `apply(ctx, config)` | 声明能力，配置已经过 `Config` 校验 |
 
 ## 注册与清理
 
-通过 `ctx.delivery.nativeAgents.register`、`modelAgents.register`、`tools.register`、`skills.register`、`messageRoutes.register` 注册。它们自动将 disposer 加入当前 Cordis 插件作用域；启动失败或 Host 停止时释放。静态消息路由优先声明在 `messageRoutes`，依赖配置的路由也可在 `apply` 中注册。
+通过 `ctx.delivery.nativeAgents.register`、`modelAgents.register`、`tools.register`、`skills.register`、`messageRoutes.register`、`schedules.register` 注册。它们自动将 disposer 加入当前 Cordis 插件作用域；启动失败或 Host 停止时释放。静态消息和调度优先声明在对应数组，依赖配置的贡献也可在 `apply` 中注册。
 
 连接、监听器和计时器使用 `ctx.effect` / `ctx.on`。插件需要在持久化控制面恢复后协调配置时，监听 `delivery/restored`；该回调失败同样使 Host 启动失败并释放插件。
 
-业务数据不随卸载删除。Host 停止时拒绝新路由请求，等待在途确定性消息、Run 和投递结束，再释放插件；停止后的 Host 与消息注册表不能重新启动，应创建新实例。尚未提供运行中单插件热卸载。
+业务数据不随卸载删除。Host 停止时拒绝新消息和调度执行，等待在途消息、调度轮次、Run 和投递结束，再释放插件；停止后的对象不能重新启动，应创建新实例。应用先 `await scheduler.stop()` 再停止 Host，避免正在执行的调度再向已关闭的 Host 派发。尚未提供运行中单插件热卸载。
 
 ## 消息路由贡献
 
@@ -93,6 +94,18 @@ plugins:
 
 应用组合层创建一个 `MessageRouteRegistry`，同时传给 `HandlerContext.messageRoutes` 和 `AgentHostOptions.messageRoutes`。参考 `backend/src/index.ts`。注册表缺失或为空时没有隐式业务默认项；测试通过显式选择插件贡献构造所需路由。
 
+## 群业务调度贡献
+
+协议见 `backend/src/platform/scheduling/registry.ts`。每条贡献有唯一 `id`、唯一数值 `priority` 和 `kind`，按优先级从高到低执行，不依赖插件装配顺序。
+
+- `kind: 'timed'` 的纯函数 `plan(context)` 返回 `{day, date, time}`，不满足日期、时刻、资格或开关条件时返回 `null`。插件拥有这些业务规则；共用日历工具保留全局工作日兜底和群覆盖。`run` 接收相同上下文、明确业务日期和 `retryAttempt`。
+- 默认由 Scheduler 使用 `scheduled:id:group:date:time` 原子领取并记录执行结果。`agent: true` 仅在提供 Agent Dispatcher 时将幂等交给 Agent Trigger Store；执行函数必须实际通过对应 Runtime 派发，不能借此跳过幂等。
+- 临时执行错误最多额外重试一次，遵守 `retryAfterMs`；`retryable: false` 不重试。重复 Trigger 与带警告完成沿用原语义，计划错误单独记录且不执行。
+- `kind: 'poll'` 在每轮逐群调用，函数拥有自身的到期检查、领取与结果记录方式，不套用分钟计划 Claim 或通用重试。站会承诺提醒复用原来的领域幂等及错误审计。其他插件抛出的轮询错误被隔离，不阻塞其余贡献。
+- 每轮共享 `resources` Map，插件可按稳定键惰性复用资源。内置 `scheduledPluginJobs` 让多群扫描复用同一个 `ScheduledJobs`，不重复创建 TAPD 同步上下文。资源只在本轮使用，不跨轮保存私有业务事实。
+
+应用组合层创建共享 `ScheduleRegistry`，传给 `HandlerContext.schedules` 与 `AgentHostOptions.schedules`。无注册表或空列表时不隐式运行群业务任务；全局维护、成员同步及 Outbox Worker 当前仍为基础服务。默认十项定时任务与一项站会轮询由功能插件贡献；`builtin.ai-hot-schedule` 只负责外部 AI Hot 调度，不自动安装外部服务。
+
 ## 权限与数据边界
 
 原生插件运行在宿主进程，属于受信任代码。`ctx.delivery.getContext` 仍可访问现有应用服务，插件声明不是原生 JavaScript 的沙箱。没有审查的远程仓库不能直接变成原生插件执行。
@@ -105,9 +118,9 @@ plugins:
 
 1. 在真实 Host 中执行至少一个合法输入，检查结果和 Artifact。
 2. 非法配置和不兼容契约必须明确失败。
-3. 模拟初始化或配置恢复失败，确认没有残留 Tool、Agent Handler、消息路由、安装或绑定。
+3. 模拟初始化或配置恢复失败，确认没有残留 Tool、Agent Handler、消息路由、调度、安装或绑定。
 4. 停止时释放自己的资源；已完成运行和用户配置仍可从持久化存储读取。
 5. 有外部写入时验证幂等、重试与结果不确定的处理，不把网络成功等同于业务成功。
 6. 同步功能卡、代码与测试地图，运行受影响回归和 `git diff --check`。
 
-当前规范的运行证据见 `backend/test/pluginRuntime.test.ts`、`backend/test/agentHost.test.ts` 和 `backend/test/messagePlugins.test.ts`。面向业务结果的插件验收契约与版本回放实验室仍在产品路线图中。
+当前规范的运行证据见 `backend/test/pluginRuntime.test.ts`、`backend/test/agentHost.test.ts`、`backend/test/messagePlugins.test.ts` 和 `backend/test/schedulePlugins.test.ts`。面向业务结果的插件验收契约与版本回放实验室仍在产品路线图中。

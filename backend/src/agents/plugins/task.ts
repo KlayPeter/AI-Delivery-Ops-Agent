@@ -2,6 +2,9 @@ import { registerTaskAgent, registerTaskTools, taskAgentManifest } from '@/agent
 import type { FeaturePlugin } from '@/platform/plugins/contracts';
 import { StatusUpdateHandler } from '@/services/messageHandler/handlers/StatusUpdateHandler';
 import { TaskCommandHandler } from '@/services/messageHandler/handlers/TaskCommandHandler';
+import { isRecurringTimeDue, zonedClock } from '@/core/scheduleTime';
+import { calendarPlan } from '@/platform/scheduling/calendar';
+import { scheduledPluginJobs } from './jobs';
 
 const taskContexts = new Set([
     'task_confirmation', 'task_plan_request', 'task_group_notice', 'task_acceptance_prompt',
@@ -12,6 +15,17 @@ export const taskPlugin: FeaturePlugin = {
     manifest: { apiVersion: '1.0', id: 'builtin.task', name: 'Task management', version: '1.0.0', description: 'Task Agent and governed task tools.' },
     agents: [{ manifest: taskAgentManifest, installationId: 'install-built-in-task-agent' }],
     skillPackages: ['task-management'],
+    schedules: [{
+        id: 'overdue-scan', kind: 'timed', priority: 500,
+        plan(context) {
+            const schedule = context.group.schedule;
+            if (schedule.overdue_scan_enabled === false || !isRecurringTimeDue(context.now, schedule.overdue_scan,
+                schedule.overdue_scan_end, schedule.overdue_scan_interval_minutes, schedule.overdue_scan_timezone)) return null;
+            const clock = zonedClock(context.now, schedule.overdue_scan_timezone);
+            return clock ? calendarPlan(context, clock.date, clock.time) : null;
+        },
+        run: context => scheduledPluginJobs(context).overdueScan(context.group.chat_id, context.day),
+    }],
     messageRoutes: [
         {
             id: 'builtin.task.context', phase: 'context', priority: 100, sources: ['group', 'private'],

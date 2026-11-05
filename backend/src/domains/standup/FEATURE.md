@@ -23,6 +23,7 @@ Standup Agent 和 LLM 只把自然语言整理为结构化内容。`StandupServi
 flowchart TD
     PL["Cordis: builtin.standup"] --> B
     PL --> MR["插件消息路由与帮助"]
+    PL --> GS["插件贡献：站会推送、汇总与承诺轮询"]
     MR --> B
     A["定时提醒 / 飞书提交 / 主 Agent 委派"] --> B["Standup Agent 或 Handler"]
     B --> C["固定格式解析优先，必要时自然语言 AI 解析"]
@@ -67,7 +68,9 @@ flowchart TD
 
 ## 核心规则
 
-运行时装配由 `builtin.standup` 插件负责，拥有 Standup Agent、三个 Standup Tool 与 standup-management Skill 与站会消息、引用优先规则和两类任务站会的免 @ 回复的注册和清理。移除插件后历史引用与帮助不会重新开放消息入口；Agent/Capability/安装 ID 和领域行为保持原契约。页面、业务 API、调度与基础服务尚未全部迁为插件贡献。
+运行时装配由 `builtin.standup` 插件负责，拥有 Standup Agent、Tool、Skill、站会消息和群站会调度的装配和清理。移除插件关闭对应消息和群业务调度，历史数据保留；页面、业务 API、全局维护/成员同步与基础服务尚未全部迁为插件贡献。
+
+普通推送、任务模板、二次提醒、主汇总、补充汇总及承诺到期轮询均由站会插件贡献。补充汇总跨午夜时保留前一业务日及其日历；移除后轮询也不再运行。
 
 自动调度统一通过 `backend/src/core/scheduleCalendar.ts` 判断群级 `schedule.calendar`。指定日期的触发/暂停优先于基础策略；`workdays` 使用中国工作日（含调休），`every_day` 不限制节假日，`selected_dates` 仅执行指定触发日。日期放行不绕过模块开关、任务开关或原定时刻，手动触发不受该日历限制。未配置或 `legacy` 保留原有 `workdays_only` 规则及周报、承诺到期提醒的例外；无效日期与非布尔覆盖值在读取配置时丢弃。
 
@@ -153,6 +156,8 @@ flowchart TD
 
 ### 主要测试
 
+- `backend/test/schedulePlugins.test.ts`：移除插件后的群任务关闭、跨午夜日期、第三方调度和停机收敛。
+
 - `backend/test/messagePlugins.test.ts`：插件禁用、历史引用、帮助与生命周期；原业务 Handler 测试继续验证默认行为。
 
 - `backend/test/standupHandler.test.ts`：提交和消息响应。
@@ -165,6 +170,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 站会推送、汇总与承诺轮询改为插件贡献，业务日期、幂等、重试和持久化契约保留 | 原调度与插件回归、后端 428 通过 / 1 TAPD 跳过、类型检查 |
 | 2026-11-05 | 将站会消息、引用优先规则和两类任务站会的免 @ 回复归属 `builtin.standup`，移除后同步关闭消息入口；业务服务契约保留 | 消息插件及原业务回归、后端 422 通过 / 1 TAPD 跳过、类型检查 |
 | 2026-11-05 | 将Standup Agent、三个 Standup Tool 与 standup-management Skill装配移入 `builtin.standup`，保留业务与持久化契约 | 插件/Host 测试、后端全量回归 |
 | 2026-10-05 | 自动调度增加群级节假日策略与日历日期覆盖，保留旧配置兼容 | `scheduleCalendar.test.ts`、`scheduler.test.ts`、`config.test.ts`、前后端类型检查 |

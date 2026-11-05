@@ -16,6 +16,7 @@ import { DashboardImageService } from './services/dashboardImage';
 import { MessageIntentParser } from './services/messageIntent';
 import { MessageHandler } from './services/messageHandler';
 import { MessageRouteRegistry } from './services/messageHandler/routes';
+import { ScheduleRegistry } from './platform/scheduling/registry';
 import { InProcessScheduler } from './core/scheduler';
 import { ScheduledAgentDispatcher } from './platform/bootstrap/scheduledAgentDispatcher';
 import { AgentHost } from './platform/bootstrap/agentHost';
@@ -51,6 +52,7 @@ let agentHost: AgentHost | undefined;
 let scheduledAgents: ScheduledAgentDispatcher | undefined;
 let botConnections: FeishuBotConnectionManager | undefined;
 const messageRoutes = new MessageRouteRegistry();
+const schedules = new ScheduleRegistry();
 
 function knownNamesFromConfig(current: AppConfig): Record<string, string> {
     const knownNames: Record<string, string> = {};
@@ -87,6 +89,7 @@ async function reloadConfig(): Promise<void> {
         dashboard,
         projectDashboard,
         messageRoutes,
+        schedules,
         intentParser,
         agentOrchestrator: {
             isAvailable: () => agentHost?.isModelAvailable() === true && agentHost.canDispatch(DELIVERY_OPS_CAPABILITY),
@@ -112,6 +115,7 @@ const pluginSelection = process.env.AGENT_PLUGINS_FILE
     : undefined;
 agentHost = createDeliveryOpsHost(() => (handler as any).ctx, 1000, undefined, [], {
     messageRoutes,
+    schedules,
     ...(pluginSelection ? { plugins: pluginSelection.plugins, pluginConfig: pluginSelection.config } : {}),
 });
 await agentHost.initialize();
@@ -743,7 +747,7 @@ let shuttingDown = false;
 async function shutdown(): Promise<void> {
     if (shuttingDown) return;
     shuttingDown = true;
-    scheduler.stop();
+    await scheduler.stop();
     await botConnections?.stop();
     await agentHost?.stop();
     await app.stop();

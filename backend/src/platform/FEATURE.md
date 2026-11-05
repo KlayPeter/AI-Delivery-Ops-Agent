@@ -38,6 +38,8 @@ flowchart TD
     X --> I["Tool / Skill / Adapter 注册"]
     X --> MR["消息路由、引用上下文与帮助贡献"]
     MR --> Q
+    X --> SJ[群业务计划与轮询贡献]
+    SJ --> A
     C --> D["Trigger / Session / Run Runtime"]
     D --> E{"Adapter 类型"}
     E -- Model Loop --> F["主 Agent / 专业 Agent"]
@@ -71,7 +73,7 @@ flowchart TD
 
 ## 核心规则
 
-默认组合为八个功能插件、七个 Agent。各插件拥有自己的消息指令与引用贡献；Router 无业务默认项，空组合无消息功能。私聊组合中的成员门槛继续保留，不表示已提供逐路由授权或 RBAC。
+默认组合为九个功能插件、七个 Agent。各插件拥有自己的消息指令与引用贡献；Router 无业务默认项，空组合无消息和群业务调度功能。私聊组合中的成员门槛继续保留，不表示已提供逐路由授权或 RBAC。
 
 1. **Manifest 是运行契约。** Agent 只能声明并使用自己的 Capability、Tool、Skill 和可委派子 Agent；运行时不接受 Prompt 临时扩大权限。
 2. **Registry 负责发现，Binding 负责使用。** 安装 Agent 不等于所有机器人自动可用；Bot Binding 决定某个机器人可路由哪些 Capability，以及优先级和覆盖配置。
@@ -177,6 +179,8 @@ flowchart TD
 
 ### 主要测试
 
+- `backend/test/schedulePlugins.test.ts`：群调度贡献、空组合、插件禁用、错误隔离与在途停止。
+
 - `backend/test/messagePlugins.test.ts`：共享消息注册表、插件禁用、第三方私聊与确定性消息在途停止。
 
 - `backend/test/pluginRuntime.test.ts`：版本、依赖、配置、恢复、失败回滚与清理。
@@ -194,6 +198,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-05 | 群业务调度改为可释放插件贡献，新增外部 AI Hot 调度插件；空组合不隐式执行群任务；停机等待本轮结束 | 调度/日历/插件回归、后端 428 通过 / 1 TAPD 跳过、类型检查 |
 | 2026-11-05 | 插件扩展消息路由贡献；Host 停止先拒绝并等待在途确定性消息，再清理插件 | 消息插件、Host 和原业务回归；类型检查 |
 | 2026-11-05 | 增加可信 YAML Agent 插件选择与本地/已安装包加载；未启用模块不导入，消息 AI/新闻分流检查实际 Capability | 配置加载、插件/Host 测试与后端全量回归 |
 | 2026-11-05 | 用 Cordis 装配七个 Agent 插件，Host 去除业务 Agent 直接依赖；停止前等待在途执行，清理注册且保留运行数据 | 插件/Host 测试、后端全量回归 |

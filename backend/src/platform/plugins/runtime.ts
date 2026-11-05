@@ -97,8 +97,10 @@ export class PluginRuntime {
                             modelAgents: { register: (...args) => ctx.effect(() => services.modelAgents.register(...args)) },
                             skills: { register: (...args) => ctx.effect(() => services.skills.register(...args)) },
                             messageRoutes: { register: (...args) => ctx.effect(() => services.messageRoutes.register(...args)) },
+                            schedules: { register: (...args) => ctx.effect(() => services.schedules.register(...args)) },
                         };
                         for (const route of plugin.messageRoutes || []) scoped.messageRoutes.register(route);
+                        for (const schedule of plugin.schedules || []) scoped.schedules.register(schedule);
                         for (const agent of plugin.agents || []) {
                             ctx.effect(() => services.agents.register(agent.manifest));
                             ctx.effect(() => services.agents.install({

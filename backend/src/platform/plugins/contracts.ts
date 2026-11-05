@@ -9,6 +9,7 @@ import type { ToolRegistry } from '@/platform/tools/registry';
 import type { SkillRegistry } from '@/platform/skills/registry';
 import type { HandlerContext } from '@/services/messageHandler/types';
 import type { MessageRoute, MessageRouteRegistry } from '@/services/messageHandler/routes';
+import type { GroupSchedule, ScheduleRegistry } from '@/platform/scheduling/registry';
 
 export interface PluginManifest {
     apiVersion: '1.0';
@@ -32,6 +33,7 @@ export interface PluginHostServices {
     tools: Pick<ToolRegistry, 'register'>;
     skills: Pick<SkillRegistry, 'register'>;
     messageRoutes: Pick<MessageRouteRegistry, 'register'>;
+    schedules: Pick<ScheduleRegistry, 'register'>;
     bots: BotRegistry;
     botCatalog: PersistentBotControlCatalog;
     skillRoot: string;
@@ -42,6 +44,7 @@ export interface FeaturePlugin {
     agents?: readonly PluginAgent[];
     skillPackages?: readonly string[];
     messageRoutes?: readonly MessageRoute[];
+    schedules?: readonly GroupSchedule[];
     Config?: Plugin.Object<Record<string, unknown>>['Config'];
     apply: (ctx: Context, config: Record<string, unknown>) => void | Promise<void>;
 }

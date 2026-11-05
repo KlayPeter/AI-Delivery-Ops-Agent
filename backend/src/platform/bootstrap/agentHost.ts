@@ -32,6 +32,7 @@ import { ToolGateway } from '@/platform/tools/gateway';
 import { ToolRegistry } from '@/platform/tools/registry';
 import type { HandlerContext } from '@/services/messageHandler/types';
 import { MessageRouteRegistry } from '@/services/messageHandler/routes';
+import { ScheduleRegistry } from '@/platform/scheduling/registry';
 
 export interface AgentConversationOutcome {
     runId: string;
@@ -66,6 +67,7 @@ export interface AgentHostExtension {
 
 export interface AgentHostOptions {
     messageRoutes?: MessageRouteRegistry;
+    schedules?: ScheduleRegistry;
     plugins?: readonly FeaturePlugin[];
     pluginConfig?: Readonly<Record<string, Record<string, unknown>>>;
     conversationCapability?: string;
@@ -73,6 +75,7 @@ export interface AgentHostOptions {
 
 export class AgentHost {
     readonly messageRoutes: MessageRouteRegistry;
+    readonly schedules: ScheduleRegistry;
     readonly registry = new AgentRegistry();
     readonly nativeAdapter = new NativeAgentAdapter();
     readonly bots = new BotRegistry();
@@ -103,6 +106,7 @@ export class AgentHost {
         private readonly options: AgentHostOptions = {},
     ) {
         this.messageRoutes = options.messageRoutes || new MessageRouteRegistry();
+        this.schedules = options.schedules || new ScheduleRegistry();
     }
 
     initialize(): Promise<void> {
@@ -130,8 +134,10 @@ export class AgentHost {
         this.started = false;
         this.stopped = true;
         const messagesStopped = this.messageRoutes.stop();
+        const schedulesStopped = this.schedules.stop();
         await this.initializePromise?.catch(() => {});
         await messagesStopped;
+        await schedulesStopped;
         await Promise.allSettled(this.inFlight);
         await this.deliveryWorker?.stop();
         await this.pluginRuntime?.dispose();
@@ -431,6 +437,7 @@ export class AgentHost {
             tools: this.toolRegistry,
             skills: this.skillRegistry,
             messageRoutes: this.messageRoutes,
+            schedules: this.schedules,
             bots: this.bots,
             botCatalog: this.controlCatalog,
             skillRoot: this.skillRoot,
