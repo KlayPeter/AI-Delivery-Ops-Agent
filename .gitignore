@@ -41,7 +41,7 @@ __pycache__/
 .firecrawl/
 
 # Local plugin profiles
-backend/profiles/agents/*.local.yaml
+**/*.local.yaml
 
 # Local workspace credentials
 connections.json

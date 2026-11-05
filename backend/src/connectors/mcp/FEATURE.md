@@ -139,6 +139,7 @@ example.mcp-reader 通过 ctx.delivery.web.register 贡献 /mcp-reader 导航，
 
 - `backend/test/mcpConnector.test.ts`、`backend/test/helpers/mcpServer.ts`：真实 stdio 子进程、分页、白名单、错误、超限、取消、停止与环境隔离。
 - `backend/test/mcpHttp.test.ts`：真实 TCP JSON/SSE、会话/Bearer、固定 IP/Host/TLS 参数、配置与 DNS 拒绝、取消/超时、已声明或流式超限和清理。TCP 测试映射到本地 HTTP，真实 HTTPS 由官方 Context7 在线验收覆盖。
+- `backend/test/featureIndex.test.ts`：用实际 Git 验证任意目录的 .local.yaml 均忽略，公开配置示例仍可跟踪；复制到 examples 的本机配置不会漏出保护范围。
 - `backend/test/jsonSchema.test.ts`：标准约束、引用、联合类型、同 ID 契约隔离与失败关闭。
 - `backend/test/toolSkillRuntime.test.ts`：现有 Tool/Skill 权限、幂等与预算回归。
 - 人工专项：官方 @modelcontextprotocol/server-filesystem 2.2.0，Bun 运行，读取虚构目录内文件成功、目录外文件失败，产生真实 Agent/Tool Step；不调用模型或外部写入。
