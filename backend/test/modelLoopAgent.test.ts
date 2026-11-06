@@ -49,6 +49,35 @@ function trigger(id: string, payload: unknown) {
 }
 
 describe('Model Loop Agent', () => {
+    test('enforces request-scoped delegation policy even when the model provider bypasses its advertised schema', async () => {
+        let delegated = 0;
+        const descriptions: string[] = [];
+        const tools = new ToolRegistry(), runs = new InMemoryAgentRunStore();
+        const gateway = new ToolGateway(tools, new InMemoryToolCallStore(), runs), skills = new SkillRegistry();
+        const orchestrator: OrchestratorAdapter = { async run(request) {
+            expect(request.tools.some(tool => tool.name === 'agent_hidden_run')).toBe(false);
+            const tool = request.tools.find(tool => tool.name === 'agent_child_run')!;
+            expect(tool.inputSchema).toMatchObject({ allOf: [{ type: 'object' }, { const: { prompt: 'approved' } }] });
+            for (const input of [{ prompt: 'changed' }, { prompt: 'approved', resumeRunId: 'other-run' }, { prompt: 'approved', extra: true }]) {
+                await expect(tool.execute(input, 'bad', request.signal)).rejects.toMatchObject({ code: 'DELEGATE_INPUT_NOT_APPROVED' });
+            }
+            expect(delegated).toBe(0);
+            await tool.execute({ prompt: 'approved' }, 'good', request.signal);
+            return { text: 'done', metrics: { modelCalls: 1, toolCalls: 1, inputTokens: 1, outputTokens: 1 } };
+        } };
+        const adapter = new ModelLoopAgentAdapter(orchestrator, tools, gateway, skills, new SkillRuntime(skills, gateway, runs), new PersistentAgentSessionStore(new InMemoryPersistentKeyValueStore()), runs);
+        const parent = { ...manifest, delegates: ['child.run'], optionalDelegates: ['hidden.run'] };
+        adapter.register(parent.id, parent.version, { instructions: 'Only approved input.', delegationSchema: async (_request, capability) => capability === 'child.run' ? { const: { prompt: 'approved' } } : null });
+        adapter.setDelegateExecutor({ describeDelegate(_request, _manifest, capability) {
+            descriptions.push(capability); return { name: 'child', description: 'child', inputSchema: { type: 'object' } };
+        }, async delegate() {
+            delegated++; return { run: { id: 'child', status: 'succeeded' }, result: { status: 'succeeded', data: 'ok', artifacts: [] }, artifacts: [] } as any;
+        } });
+        await adapter.execute({ runId: 'policy-root', scope: { workspaceId: 'workspace-default', botInstanceId: 'bot-default', triggerId: 'policy-trigger' } as any, capability: parent.capabilities[0]!, input: { prompt: 'go' }, deadlineAt: new Date(Date.now() + 5000).toISOString(), traceContext: {} }, { manifest: parent } as any, new AbortController().signal);
+        expect(delegated).toBe(1); expect(descriptions).toEqual(['child.run']);
+        expect((await runs.listSteps('policy-root')).filter(step => step.kind === 'guardrail' && step.status === 'failed')).toHaveLength(3);
+    });
+
     test('waits for human input and resumes the same durable Run', async () => {
         let calls = 0;
         const orchestrator: OrchestratorAdapter = {

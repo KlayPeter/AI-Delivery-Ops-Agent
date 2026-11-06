@@ -20,7 +20,7 @@ const manifest: AgentManifest = {
 };
 export function createOpenApiConnectorPlugin(network?: WebTransport): FeaturePlugin {
     return {
-        manifest: { apiVersion: '1.0', id: 'connector.openapi', name: 'OpenAPI 读取连接', version: '1.0.0', description: manifest.description }, Config: connectorConfig,
+        manifest: { apiVersion: '1.0', id: 'connector.openapi', name: 'OpenAPI 读取连接', version: '1.1.0', description: manifest.description }, Config: connectorConfig,
         agents: [{ manifest, installationId: 'install-openapi-runner' }],
         apply(ctx, value) {
             const config = connectorConfig.parse(value);
@@ -28,7 +28,8 @@ export function createOpenApiConnectorPlugin(network?: WebTransport): FeaturePlu
             for (const tool of tools) {
                 // Compile the pinned contract before exposing any operations.
                 if (validateSchema({}, tool.inputSchema).some(error => error.includes('invalid or unsupported'))) throw new Error('OpenAPI 参数 Schema 不受支持');
-                ctx.delivery.tools.register({ id: tool.id, version: '1.0.0', description: `${tool.operation.key}: ${tool.operation.summary}`, inputSchema: tool.inputSchema, outputSchema: { type: 'object' }, sideEffect: 'read', riskLevel: 'medium', idempotent: true, timeoutSeconds: 20 }, async (args, execution) => {
+                ctx.delivery.tools.register({ id: tool.id, version: '1.1.0', description: `${tool.operation.key}: ${tool.operation.summary}`, inputSchema: tool.inputSchema, outputSchema: { type: 'object' }, sideEffect: 'read', riskLevel: 'medium', idempotent: true, timeoutSeconds: 20,
+                    binding: { kind: 'openapi-get', url: tool.operation.serverUrl, sha256: createHash('sha256').update(JSON.stringify({ source: config.source, operation: tool.operation })).digest('hex') } }, async (args, execution) => {
                     requirePersonalScope(execution.scope); execution.signal?.throwIfAborted();
                     const url = operationUrl(tool.operation, args as { path?: Record<string, unknown>; query?: Record<string, unknown> });
                     const response = await fetchApiData(url.href, execution.signal || new AbortController().signal, network);
@@ -44,7 +45,7 @@ export function createOpenApiConnectorPlugin(network?: WebTransport): FeaturePlu
                     return Response.json({ source: config.source, tools: tools.map(tool => ({ id: tool.id, key: tool.operation.key, summary: tool.operation.summary, serverUrl: tool.operation.serverUrl, inputSchema: tool.inputSchema })) });
                 } },
             });
-            ctx.delivery.tools.register({ id: route, version: '1.0.0', description: 'Route one explicitly granted OpenAPI read operation using its pinned input contract; callers cannot supply URLs or credentials.', inputSchema: schema, outputSchema: { type: 'object' }, sideEffect: 'read', riskLevel: 'medium', idempotent: true, timeoutSeconds: 30 }, async (value, execution) => {
+            ctx.delivery.tools.register({ id: route, version: '1.1.0', description: 'Route one explicitly granted OpenAPI read operation using its pinned input contract; callers cannot supply URLs or credentials.', inputSchema: { ...schema, properties: { ...schema.properties, toolId: { type: 'string', enum: tools.map(tool => tool.id) } } }, outputSchema: { type: 'object' }, sideEffect: 'read', riskLevel: 'medium', idempotent: true, timeoutSeconds: 30 }, async (value, execution) => {
                 requirePersonalScope(execution.scope); const parsed = input.parse(value);
                 if (!tools.some(tool => tool.id === parsed.toolId)) throw new Error('OpenAPI 接口未获本地配置授权');
                 if (!execution.budget) throw new Error('OpenAPI 运行器需要共享调用预算');

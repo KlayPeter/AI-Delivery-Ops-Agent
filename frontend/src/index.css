@@ -82,6 +82,10 @@ button, summary { cursor: pointer; }
 .catalog-search { max-width: 360px; margin-bottom: 24px; }
 .profile-file-input { display: block; max-width: 100%; min-height: 44px; margin: 8px 0; padding: 8px 0; font: inherit; }
 .profile-file-input::file-selector-button { min-height: 36px; margin-right: 12px; cursor: pointer; }
+.research-requests { margin: 20px 0; }
+.research-requests > label { display: block; margin: 16px 0 8px; }
+.research-tool-select { width: 100%; }
+.research-request-item { margin: 16px 0; padding: 16px; border: 1px solid var(--line); border-radius: 8px; }
 .catalog-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
 .catalog-card { display: flex; flex-direction: column; padding: 22px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); min-width: 0; }
 .catalog-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }

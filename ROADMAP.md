@@ -95,6 +95,10 @@ are deferred while the local product is being validated.
 
 ## D. Reuse and adoption
 
+- [x] Let research delegate explicitly reviewed fixed MCP/OpenAPI requests alongside
+  personal knowledge, pin destination/contracts, restore approval after pause/restart,
+  and enforce the exact parameters before child execution. No automatic grant expansion.
+
 - [x] Add a bounded personal research Model Loop with actual child-run evidence,
   human continuation, durable delegation limits and a completion gate. Summary
   semantics remain unverified; model protocol tests use local fixtures.

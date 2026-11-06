@@ -14,6 +14,7 @@ export interface ToolDefinition {
     riskLevel: ToolRiskLevel;
     idempotent: boolean;
     timeoutSeconds: number;
+    binding?: { kind: 'mcp-http' | 'openapi-get'; url: string; sha256: string };
 }
 
 export interface ToolExecutionContext {

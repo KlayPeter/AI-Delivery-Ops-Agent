@@ -2,6 +2,7 @@ import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/cli
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { AjvJsonSchemaValidator } from '@modelcontextprotocol/client/validators/ajv';
 import { z } from 'zod';
+import { createHash } from 'node:crypto';
 import type { FeaturePlugin } from '@/platform/plugins/contracts';
 import { EnvironmentSecretResolver } from '@/platform/secrets/resolver';
 import { requirePersonalScope } from '@/knowledge/scope';
@@ -37,7 +38,7 @@ export const mcpConfig = z.object({
 const failure = (code: string, message: string, retryable = false) => Object.assign(new Error(message), { code, retryable });
 
 export const createMcpPlugin = (httpNetwork?: McpHttpNetwork): FeaturePlugin => ({
-    manifest: { apiVersion: '1.0', id: 'connector.mcp', name: 'MCP tools', version: '1.1.0',
+    manifest: { apiVersion: '1.0', id: 'connector.mcp', name: 'MCP tools', version: '1.2.0',
         description: 'Connect reviewed stdio or public HTTPS MCP servers and expose explicitly selected read tools through the Tool Gateway.' },
     Config: mcpConfig,
     async apply(ctx, value) {
@@ -88,7 +89,8 @@ export const createMcpPlugin = (httpNetwork?: McpHttpNetwork): FeaturePlugin => 
                 } catch { throw failure('MCP_INVALID_SCHEMA', `Selected MCP tool has an invalid or unsupported schema: ${server.id}/${binding.name}`); }
                 const toolId = `mcp.${server.id}.${binding.alias}`;
                 ctx.delivery.tools.register({
-                    id: toolId, version: '1.0.0', description: binding.description,
+                    id: toolId, version: '1.1.0', description: binding.description,
+                    ...(server.transport === 'http' ? { binding: { kind: 'mcp-http' as const, url: server.url, sha256: createHash('sha256').update(JSON.stringify({ server, binding, tool })).digest('hex') } } : {}),
                     inputSchema, outputSchema: { type: 'object' },
                     sideEffect: 'read', riskLevel: 'medium', idempotent: true, timeoutSeconds: Math.ceil(server.timeoutMs / 1000) + 1,
                 }, async (input, execution) => {

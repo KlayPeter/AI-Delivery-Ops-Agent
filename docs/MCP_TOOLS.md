@@ -118,3 +118,7 @@ Secret 不写入 YAML 或命令参数。缺少引用时在启动进程前失败�
 HTTP 自动测试使用真实 TCP 服务及 SDK，覆盖 JSON/SSE、会话和 Bearer 引用、固定 IP/Host/TLS 参数、DNS/URL 拒绝、流取消、超时、字节超限、重定向与错误失败；测试传输映射至回环服务，真实 TLS 另由官方 Context7 在线验收覆盖，不声称测试了所有第三方服务。
 
 协议与 SDK 依据：[Client 连接](https://ts.sdk.modelcontextprotocol.io/v2/clients/connect)、[工具调用](https://ts.sdk.modelcontextprotocol.io/v2/clients/calling.html)、[Streamable HTTP](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)、[MCP 工具规范](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)。
+
+## 在研究助手中使用
+
+启用对应读取运行器并保留个人工作台后，可在研究页选择当前授权工具、核对实际服务和固定参数，再明确允许本次研究调用。最多三份固定请求，不允许模型改写参数；暂停后继续保持原确认，服务/授权/契约变化须新建任务。实际读取保留独立子任务及原共享预算，确认记录不算资料。详见[研究流程](PERSONAL_RESEARCH.md#让已接入工具参与研究)。

@@ -16,7 +16,7 @@ const manifest: AgentManifest = {
     delivery: { allowedArtifactTypes: ['json', 'text'], directDelivery: false },
 };
 export const mcpRunnerPlugin: FeaturePlugin = {
-    manifest: { apiVersion: '1.0', id: 'mcp.runner', name: manifest.name, version: '1.0.0', description: manifest.description, requires: ['connector.mcp'] }, Config: runnerConfig,
+    manifest: { apiVersion: '1.0', id: 'mcp.runner', name: manifest.name, version: '1.1.0', description: manifest.description, requires: ['connector.mcp'] }, Config: runnerConfig,
     agents: [{ manifest, installationId: 'install-mcp-runner' }],
     apply(ctx, value) {
         const config = runnerConfig.parse(value);
@@ -38,7 +38,7 @@ export const mcpRunnerPlugin: FeaturePlugin = {
                 catch { return Response.json({ error: '当前工具授权不可用，请检查插件配置' }, { status: 409 }); }
             } },
         });
-        ctx.delivery.tools.register({ id: tool, version: '1.0.0', description: 'Invoke one MCP read tool explicitly granted by trusted plugin configuration; no model-controlled grant expansion.', inputSchema: schema, outputSchema: { type: 'object' }, sideEffect: 'read', riskLevel: 'medium', idempotent: true, timeoutSeconds: 35 }, async (value, execution) => {
+        ctx.delivery.tools.register({ id: tool, version: '1.1.0', description: 'Invoke one MCP read tool explicitly granted by trusted plugin configuration; no model-controlled grant expansion.', inputSchema: { ...schema, properties: { ...schema.properties, toolId: { ...schema.properties.toolId, enum: config.allowedTools } } }, outputSchema: { type: 'object' }, sideEffect: 'read', riskLevel: 'medium', idempotent: true, timeoutSeconds: 35 }, async (value, execution) => {
             requirePersonalScope(execution.scope);
             const parsed = input.parse(value);
             if (!granted().some(tool => tool.id === parsed.toolId)) throw new Error('工具未获本地配置授权');

@@ -10,12 +10,14 @@ import { RunToolCallBudget } from '@/platform/tools/budget';
 import type { ToolCallBudget } from '@/platform/tools/contracts';
 import type { ToolGateway } from '@/platform/tools/gateway';
 import type { ToolRegistry } from '@/platform/tools/registry';
+import { validateSchema } from './schema';
 
 export interface ModelLoopAgentDefinition {
     instructions: string;
     artifactTitle?: string;
     artifactMetadata?: Readonly<Record<string, unknown>>;
     validateRequest?(request: AgentRequest, signal: AbortSignal): void | Promise<void>;
+    delegationSchema?(request: AgentRequest, capability: string): JsonSchema | null | undefined | Promise<JsonSchema | null | undefined>;
     validateCompletion?(request: AgentRequest, signal: AbortSignal): readonly ArtifactInput[] | Promise<readonly ArtifactInput[]>;
 }
 
@@ -81,7 +83,7 @@ export class ModelLoopAgentAdapter implements AgentRuntimeAdapter {
         const priorToolCalls = priorSteps.filter(step => step.kind === 'tool').length;
         const toolBudget = new RunToolCallBudget(resolved.manifest.limits.maxToolCalls, priorToolCalls);
         const priorAgentCalls = priorSteps.filter(step => step.kind === 'agent' && step.name.startsWith('delegate:')).length;
-        const orchestratorTools = this.toolsFor(request, resolved, delegatedArtifacts, toolBudget, priorAgentCalls);
+        const orchestratorTools = await this.toolsFor(request, resolved, delegatedArtifacts, toolBudget, priorAgentCalls, definition);
         const result = await this.orchestrator.run({
             agentId: resolved.manifest.id,
             modelProfile: resolved.manifest.modelProfile,
@@ -135,13 +137,14 @@ export class ModelLoopAgentAdapter implements AgentRuntimeAdapter {
         };
     }
 
-    private toolsFor(
+    private async toolsFor(
         request: AgentRequest,
         resolved: ResolvedAgent,
         delegatedArtifacts: Artifact[],
         toolBudget: ToolCallBudget,
         priorAgentCalls: number,
-    ): OrchestratorTool[] {
+        definition: ModelLoopAgentDefinition,
+    ): Promise<OrchestratorTool[]> {
         const definitions: OrchestratorTool[] = resolved.manifest.requirements.tools.map(toolId => {
             const tool = this.tools.resolve(toolId).definition;
             return {
@@ -183,6 +186,8 @@ export class ModelLoopAgentAdapter implements AgentRuntimeAdapter {
         const requiredDelegates = new Set(resolved.manifest.delegates || []);
         const delegateCapabilities = [...requiredDelegates, ...(resolved.manifest.optionalDelegates || []).filter(capability => !requiredDelegates.has(capability))];
         for (const capability of delegateCapabilities) {
+            const policy = await definition.delegationSchema?.(request, capability);
+            if (policy === null) continue;
             if (!this.delegateExecutor) throw new Error(`Agent delegate executor is not configured: ${capability}`);
             let descriptor;
             try {
@@ -194,8 +199,16 @@ export class ModelLoopAgentAdapter implements AgentRuntimeAdapter {
             definitions.push({
                 name: this.safeName(`agent_${capability}`),
                 description: `Delegate to ${descriptor.name}: ${descriptor.description}. To resume a waiting child Run, include its resumeRunId with the new prompt.`,
-                inputSchema: descriptor.inputSchema,
+                // Providers inspect the root object fields before processing composition keywords.
+                inputSchema: policy ? { ...descriptor.inputSchema, allOf: [descriptor.inputSchema, policy] } : descriptor.inputSchema,
                 execute: async (input, _toolCallId, signal) => {
+                    signal.throwIfAborted();
+                    if (policy && validateSchema(input, policy).length) {
+                        const error = { code: 'DELEGATE_INPUT_NOT_APPROVED', message: '子任务参数不在本次已确认的范围内', retryable: false };
+                        const now = new Date().toISOString();
+                        await this.runs?.saveStep({ id: randomUUID(), runId: request.runId, kind: 'guardrail', name: `delegate-policy:${capability}`, status: 'failed', startedAt: now, completedAt: now, error });
+                        throw Object.assign(new Error(error.message), error);
+                    }
                     agentCalls++;
                     if (agentCalls > resolved.manifest.limits.maxAgentCalls) {
                         throw Object.assign(new Error(`Agent call limit exceeded: ${resolved.manifest.limits.maxAgentCalls}`), { code: 'AGENT_CALL_LIMIT_EXCEEDED', retryable: false });

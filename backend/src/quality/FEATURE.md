@@ -32,6 +32,9 @@ flowchart TD
     R -. 保持原记录 .-> OLD[源 Run/Step/Artifact]
     RT[Runtime 每次实际调用] --> SNAP[执行 ID/版本、Manifest 和输入指纹]
     SNAP --> R
+    RFIX[研究任务：用户确认固定外部请求] --> RSNAP[持久确认与目的地址/契约指纹]
+    RSNAP --> RPOL[仅收紧已声明委派；执行前检查常量参数]
+    RPOL --> RCHILD[原 MCP/OpenAPI 子任务与真实资料索引]
 ```
 
 ## 能力边界
@@ -134,3 +137,11 @@ flowchart LR
     MIX_MD --> MIX_RESULT[保留原引用与独立版本]
     MIX_WEB --> MIX_RESULT
 ```
+
+## 研究任务固定请求协作（2026-11-06）
+
+personal.research 1.1.0 可按本次人工确认的固定参数委派已装配 MCP HTTP/OpenAPI GET；空选择保持原研究能力，不暴露这两项可选委派。先留私有确认记录再联系模型，实际完成仍由成功子 Run/Artifact 证明；确认记录不是资料证据，原结果规则按 artifactRole 继续只检查研究稿与资料索引。新可选 delegationSchema 回调只能过滤/约束 Manifest 已声明能力，Schema 与原契约组合，并在执行前独立校验，拒绝留下 guardrail、不调用子任务。默认未提供回调的模型插件行为保持。
+
+ToolDefinition 可带连接器生成的 binding（公开地址与配置/契约 SHA，无 Secret 值）；MCP/OpenAPI 路由输入 Schema 明确枚举本地授权工具，原调用前白名单与共享预算保留。研究目录绑定 Tool、路由授权、Agent Manifest 和安装 ID；继续读取原确认，拒绝端点/契约变化与新授权。没有增加 Agent 或默认插件数量。
+
+实现与边界见[研究功能卡](../agents/personal-research/FEATURE.md)。代码：agents/personal-research/externalRequests.ts、plugin.ts，platform/agents/modelLoopAdapter.ts、platform/tools/contracts.ts，connectors/mcp/plugin.ts、mcp-workbench/runner.ts、openapi/plugin.ts；前端 ResearchRequests.tsx / ResearchPage.tsx、api.ts、index.css。测试：backend/test/researchRequests.test.ts、modelLoopAgent.test.ts、personalResearch.test.ts，原 MCP/OpenAPI、结果验收、Host/生命周期/取消回归，以及前端检查和本地界面验证。

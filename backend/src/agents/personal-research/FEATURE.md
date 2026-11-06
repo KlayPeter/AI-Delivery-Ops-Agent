@@ -27,6 +27,11 @@ flowchart TD
     M --> W[公开网页收集 Agent]
     M --> I[指定历史运行的引用复核 Agent]
     M -. 实际安装后可用 .-> O[Context7 查询或 GitHub 发布准备]
+    U --> FIXED[可选固定外部请求：工具、参数和当前契约确认]
+    FIXED --> SNAP[模型前保存私有确认与 guardrail]
+    SNAP --> POLICY[从确认记录生成常量委派 Schema；执行前再次校验]
+    POLICY --> EXT[MCP/OpenAPI 子 Agent 与共享 Tool 预算]
+    EXT --> CHILD
     M --> H[缺少信息：人工输入 Checkpoint]
     H --> RES[同一 Run 继续；从委派步骤恢复预算]
     RES --> M
@@ -62,13 +67,13 @@ flowchart TD
 ## 核心规则
 
 1. 父 Agent 只允许 personal.research，接受非空 prompt（最多 4000 字符）及兼容现有人工回复的 text。个人 Scope 在创建会话和联系模型之前校验；chat/conversation 拒绝。
-2. 父 Agent 没有直接 Tool、文件路径或 Secret 权限。必需委派：当前来源检索、knowledge.answer、knowledge.page.capture、knowledge.impact.check。可选委派仅 docs.context7.lookup、release.prepare，缺少实际绑定时不暴露给模型。
+2. 父 Agent 没有直接 Tool、文件路径或 Secret 权限。必需委派：当前来源检索、knowledge.answer、knowledge.page.capture、knowledge.impact.check。可选委派包括 docs.context7.lookup、release.prepare；mcp.tools.run / openapi.tools.run 还须满足本次固定请求确认策略，无选择时不暴露。
 3. 通过工厂绑定 markdown/web 来源，requires 与检索 Capability 一起切换；sample/library 复用 Markdown 来源。不可通过任务输入换根目录或增加能力。
 4. 单次模型循环最多八步，父 Run 最多四次已记录委派，深度最多二，父执行最长 180 秒；子任务仍有自身 Scope、预算和受父约束的截止时间。人工继续根据 delegate: Agent Step 恢复已用次数，失败与继续同样计数。裸 Adapter 未提供 RunStore 时不具备跨继续的持久预算。
 5. 人工提问不执行完成门槛；继续沿用同一 Run/Checkpoint。会话保留问题和回复，工具消息不保证跨调用完整重放，必要时需在剩余预算内重新取证。
-6. 完成守卫读取实际 listChildren 和子 Artifact，核对 parentRunId、workspace/bot、成功状态及允许的资料能力，至少一个非空 JSON/Markdown 产物才交付。模型文本、引用复核状态和失败子任务不能伪装成资料来源。
+6. 完成守卫读取实际 listChildren 和子 Artifact，核对 parentRunId、workspace/bot、成功状态及允许的资料能力，至少一个非空 JSON/Markdown 资料产物才交付。模型文本、引用复核状态和失败子任务不能伪装成资料来源。
 7. 空检索和 insufficient_evidence 回答可留下真实查询记录；索引证明过程与产物存在，不证明命中、充分性、语义质量或模型总结正确。UI 和元数据明确待复核。
-8. 未结束的子任务阻止完成（RESEARCH_CHILD_PENDING）。失败/取消子任务不计资料；若仍有成功资料，可交付带 partial 覆盖警告的研究稿，failures 记录真实失败状态与错误码。没有失败只表示 recorded，不表示资料充分。守卫返回 research-evidence/1.0 索引，由 Runtime 和模型稿一起按现有产物/字节约束保存；包含检查时间、子 Run/Artifact ID，不复制未选笔记。父 Markdown 和提问标记 privateKnowledge，语义未验证。
+8. 未结束的子任务阻止完成（RESEARCH_CHILD_PENDING）。失败/取消子任务不计资料；若仍有成功资料，可交付带 partial 覆盖警告的研究稿，failures 记录真实失败状态与错误码。没有失败只表示 recorded，不表示资料充分。守卫返回 research-evidence/1.0 索引，由 Runtime 和模型稿一起按现有产物/字节约束保存；包含检查时间、子 Run/Artifact ID，不复制未选笔记。确认记录不计资料；父 Markdown 和提问标记 privateKnowledge，语义未验证。
 9. 子 JSON 仍提升到父结果，Markdown 保留在子运行；源 Artifact 不改写。索引提供真实子运行跳转。研究稿为空也不能成功交付。
 10. personal.research.evidence 规则通过 JSON Schema selector 按 artifactRole 选择最终稿和索引，再检查 Schema；缺少、重复、坏结构均失败。选择器不删资料，不把提问当最终稿，不执行代码或远端 Schema。人工完成后的结果页隐藏旧提问，详情仍保留历史；引用锚点以 Artifact ID 区分多份资料。
 
@@ -83,7 +88,7 @@ flowchart TD
 | 入口 | 输入 | 输出 |
 | --- | --- | --- |
 | /research | prompt 与资料范围 | 真实 Model Loop Run 或模型配置提示 |
-| personal.research | prompt、可选 private source；继续兼容 text | text 研究稿、JSON 索引与子运行 |
+| personal.research | prompt、可选 private source 与 externalRequests/confirmedExternalRequests；继续兼容 text | text 研究稿、JSON 索引与子运行 |
 | personal.research.evidence | 已结束父 Run | 结构验收，不判断研究结论 |
 
 ## 运行逻辑
@@ -118,13 +123,16 @@ flowchart TD
 ### 主要实现
 
 - `backend/src/agents/personal-research/plugin.ts`、`webPlugin.ts`：来源绑定、Model Loop、完成门槛、资料索引和规则。
+- `backend/src/agents/personal-research/externalRequests.ts`：当前授权目录、固定请求确认、服务/契约指纹、持久恢复与常量委派约束。
 - `backend/src/platform/agents/modelLoopAdapter.ts`：可信请求/完成守卫、额外产物、私有元数据及委派预算恢复。
 - `backend/src/platform/workspace/knowledge.ts`：默认个人组合。
 - `backend/src/platform/plugins/checks.ts`、`backend/src/quality/service.ts`：可选 selector 的有界声明与校验。
-- `frontend/src/pages/workspace/ResearchPage.tsx`、`PluginPage.tsx`、`RunDrawer.tsx`：研究表单、已打包入口、多资料与阶段结果。
+- `frontend/src/pages/workspace/ResearchPage.tsx`、`ResearchRequests.tsx`、`PluginPage.tsx`、`RunDrawer.tsx`：研究表单、已打包入口、多资料与阶段结果。
 - `docs/PERSONAL_RESEARCH.md`：使用与验证边界。
 
 ### 主要测试
+
+- `backend/test/researchRequests.test.ts`：真实 SDK/TCP MCP、固定 GET、知识检索共同委派；旧任务隐藏新能力；确认/指纹/参数/权限/大小拒绝；暂停后重启恢复、禁止扩权、端点变化与篡改拒绝。
 
 - `backend/test/personalResearch.test.ts`：真实 SDK 对本机模拟模型，委派检索/RAG/复合任务、原文引用、门槛拒绝、部分失败恢复、未结束子任务、Scope、空稿、人工继续、持久预算及角色选择器；不验证真实模型研究质量。
 - `backend/test/modelLoopAgent.test.ts`、`agentDelegation.test.ts`：旧模型定义、Tool 预算、子运行、超时与取消回归。
@@ -134,6 +142,7 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-06 | 1.1.0：按任务确认固定 MCP/OpenAPI 请求，持久确认与参数约束；接受子任务 text 产物 | 新专项、既有研究/委派回归、完整门禁及本地公开服务联调；模型使用受控协议服务 |
 | 2026-11-05 | 增加个人研究插件、资料完成门槛与角色验收；修复人工继续重置委派额度 | 本机模拟模型与真实 SDK/子任务专项、类型/前端检查、全量回归及浏览器验收；真实模型未联调 |
 
 ## 本机模型组合
@@ -162,3 +171,13 @@ flowchart LR
 ## 本机任务体验
 
 本功能发起页使用持久启动回执，立即进入可轮询详情；手动根任务可请求停止，关闭页面后仍可从运行记录找回。停止沿既有执行信号传递，取消后不能继续或接受迟到成功，已保存产物与完成操作保留；子任务由父任务管理。CLI/SDK 与内联审查操作仍使用原同步接口。完整协议见[工作台功能卡](../../platform/workspace/FEATURE.md)；验证：backend/test/runControl.test.ts、localRunApi.test.ts 和本功能既有回归，frontend/src/api.test.mjs。
+
+## 本次固定外部请求
+
+`GET /api/research/tools` 只列实际 Agent 绑定、读取 Tool、HTTP/GET binding 和路由 Schema 同时允许的工具。MCP 的 stdio、仅存在于连接器但未授予 runner 的工具不出现。binding 是可信连接器声明的公开目的地址与配置/远端契约 SHA，不包含 Secret 值；目录指纹再绑定完整 Tool、路由授权 Schema、子 Agent Manifest 与安装 ID，最多 70 项、1 MiB。
+
+任务最多三份 `{toolId, arguments, contractSha256}`，每份参数最多 32 KiB。非空选择只能在新的本机 manual 根研究中以 confirmedExternalRequests=true 提交；Agent 触发不能伪造用户确认。服务端核对当前指纹、读取权限、已装配子 Agent 和实际参数 Schema，先保存私有 personal.research.requests JSON 与 guardrail，再联系模型。JSON 保留当时目的地址与固定参数，verification=recorded_not_executed；界面显示中性说明，详情保留完整结构。
+
+`ModelLoopAgentDefinition.delegationSchema` 只能约束 Manifest 已声明委派：null 隐藏该能力，undefined 保留旧契约，Schema 与原输入 allOf 组合，真正执行时再次校验，不能依赖模型提供者遵守 Schema。研究使用 oneOf/const 固定完整 toolId/arguments，不允许加字段、改参数或 resumeRunId。拒绝记录 DELEGATE_INPUT_NOT_APPROVED guardrail，不创建子 Run 或发送请求。模型可不使用或在四次总委派内重复使用已确认请求，不能据确认记录声称已执行。
+
+无选择也保存空范围标记，暂停继续从同一 Run 恢复，不能追加或改写确认；当前目的地址、路由授权或契约变化时拒绝继续，应新建任务。没有确认标记的旧待继续任务只允许空范围。既有 Session、Checkpoint、Run/Step/Artifact 承担存储，没有新数据库；原生代码不提供 OS 沙箱，读取声明和固定契约不证明外部服务的行为或语义。知识/问题/已确认参数发送给所选模型；只有固定参数可经这两条新委派发送给对应服务，已有其他委派能力边界保持。

@@ -39,6 +39,8 @@ flowchart TD
     T --> STOP[Host 等待在途 Run；进程关闭或远端会话终止尝试与本地流关闭]
     MCPSETUP[匿名 MCP 发现与审查导出] --> MCPRUN[重启后的可信白名单运行；共享预算与证据]
     MCPRUN --> G
+    RFIX[研究页：确认固定工具参数与当前契约] --> RDEL[受常量参数策略约束的子任务]
+    RDEL --> GATEWAY[既有 Native Runner 与共享两次 Tool 预算]
 ```
 
 ## 能力边界
@@ -158,3 +160,9 @@ HTTP 默认加入独立 mcp.setup 接入助手，公开 HTTPS 匿名发现、审
 | 2026-11-05 | 插件 1.1.0 增加受限公开 HTTPS Streamable HTTP，保留 stdio；固定地址和流预算，独立 Context7 HTTP 配置 | HTTP/stdio 专项与类型、后端回归、官方 Context7 实际读取及工作台验收；零模型调用 |
 | 2026-11-05 | 读取示例插件自行贡献导航，复用现有工作台渲染与任务执行 | 插件 Web/站会 API 专项、后端回归、前端检查及默认/空配置/MCP 浏览器验收 |
 | 2026-11-05 | 新增独立本地 MCP 连接插件、标准 Schema 校验与文件读取示例 | stdio 专项、后端回归、官方文件服务真实调用与越界拒绝 |
+
+## 研究任务调用（2026-11-06）
+
+读取工具现在带公开目的地址与配置/契约 SHA 的 binding；不包含 token、Secret 值或任意本地路径，MCP stdio 不发布该 HTTP binding。MCP 连接插件为 1.2.0，mcp.runner / connector.openapi 为 1.1.0；实际读取和路由 Tool 为 1.1.0，原 Native Agent 的输入和两次共享预算不变。路由 Schema 枚举可信配置的授权工具，保留 handler 白名单检查。研究只能通过原 Runner 委派人工确认的完整固定请求，不能从模型生成新参数或扩展服务。确认会绑定目的地址与契约，配置变化必须新建研究；实际服务行为仍须审查。
+
+完整流程见[研究功能卡](../../agents/personal-research/FEATURE.md)。实现：backend/src/agents/personal-research/externalRequests.ts、platform/agents/modelLoopAdapter.ts、platform/tools/contracts.ts；验证：backend/test/researchRequests.test.ts 与原 MCP/OpenAPI/研究/委派回归。新增目录元数据不替代真实成功 Run/Step/Artifact，原导出及运行输入保持。

@@ -72,6 +72,7 @@ export const api = {
   fetchOpenApiTools: () => request(client.get('/openapi-runner/tools')),
   exportOpenApiProfile: (input: { inspectionRunId: string; reviewedReadOnly: boolean; selections: { key: string; serverUrl: string }[]; includePersonalWorkspace?: boolean }) => request(client.post('/openapi-setup/profile', input)),
   fetchMcpTools: () => request(client.get('/mcp-runner/tools')),
+  fetchResearchTools: () => request(client.get('/research/tools')),
   exportMcpProfile: (input: Record<string, unknown>) => request(client.post('/mcp-setup/profile', input)),
   composePluginProfiles: (files: { name: string; yaml: string }[]) => request(client.post('/plugin-profiles/compose', { files })),
   uploadDocument: (file: File) => request(client.post('/documents/uploads', file, { headers: { 'Content-Type': 'application/octet-stream', 'X-Document-Name': encodeURIComponent(file.name) } })),
