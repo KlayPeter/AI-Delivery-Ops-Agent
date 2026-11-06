@@ -14,12 +14,14 @@ last_reviewed: 2026-11-06
 
 插件拥有能力定义与装配逻辑；Host 提供受治理的 Agent、Tool、Skill 和持久化执行服务。当前七个内置 Agent 均由独立插件注册，应用默认组合放在 `agents/plugins/builtins.ts`，Host 不导入具体业务 Agent。
 
-当前阶段覆盖 Agent、Tool、Skill、消息路由、群业务调度、运行后续动作和新闻机器人配置装配。默认组合为十五个插件、七个 Agent；会议纪要和外部 AI Hot 调度插件没有独立 Agent，会议纪要保留 dormant 开关，外部 AI Hot 能力仍需单独安装。审计维护也由独立插件贡献；宿主直接构造的业务服务仍需收尾，不能把本阶段描述为“整个产品已完全插件化”。
+当前阶段覆盖 Agent、Tool、Skill、消息路由、群业务调度、运行后续动作和新闻机器人配置装配。默认组合为十五个插件、七个 Agent；会议纪要和外部 AI Hot 调度插件没有独立 Agent，会议纪要保留 dormant 开关，外部 AI Hot 能力仍需单独安装。审计维护也由独立插件贡献；业务服务已改为应用层按需构造；核心飞书通道仍未独立插件化，不能把本阶段描述为“整个产品已完全插件化”。
 
 ## 实现流程图
 
 ```mermaid
 flowchart TD
+    APP_CONTEXT[应用装配：每次重载创建 Context] --> LAZY_PORTS[插件实际调用时才构造团队服务]
+    LAZY_PORTS --> DOMAIN_OWNER[TaskService / StandupService 等保留领域状态]
     EXTERNAL_OWNER[builtin.ai-hot-schedule：专用安装 API] --> INSTALL_PORT[宿主通用 installExternal 端口]
     INSTALL_PORT --> CATALOG[原 Catalog、安装与 Binding；移除入口保留记录]
     RETENTION_PLUGIN[可选 platform.maintenance] --> RETENTION_TICK[全局 tick：无群也执行；自主检查时刻与每日 Claim]
@@ -119,7 +121,7 @@ flowchart TD
 
 - 原生插件属于宿主代码，本接口不提供 JavaScript 沙箱。
 - 本阶段不自动下载或执行远程仓库，也未承诺 DeepSeek Harness 插件的服务接口兼容。
-- 业务服务的依赖收尾见路线图后续节点。
+- 核心飞书通道的独立装配见路线图后续节点。
 
 ## HTTP 工作台组合
 
@@ -542,3 +544,13 @@ builtin.ai-hot-schedule 同时拥有原 POST /api/agents/ai-hot/install 和原�
 Web 注册仍保留核心命名空间；/api/agents 改为保留 list/install/run 三个实际控制入口，允许不相交的插件子前缀。装配时按实际路径段检查核心路由冲突，静态、参数、通配符和尾斜杠冲突均拒绝，不只比较首层目录；插件间前缀仍禁止重叠。团队特定调度快捷方法移到 agents/dispatcher.ts；旧 platform/bootstrap/scheduledAgentDispatcher.ts 仅兼容转出，HTTP 组合层使用应用路径，通用 Host 没有导入 AI Hot 工厂。
 
 代码：agents/external/aiHotApi.ts、aiHotAgent.ts；agents/plugins/aiHotSchedule.ts；agents/dispatcher.ts；platform/plugins/contracts.ts / web.ts；platform/bootstrap/agentHost.ts；platform/workspace/api.ts；index.ts 移除专用路由。验证：aiHotPlugin.test.ts（安装/移除/恢复、零写入拒绝、缺端口与在途停止）；pluginWeb.test.ts（实际路径冲突和并存）；原 SDK 调度/安装与 Web 回归。此批只验证安装协议与保存，不请求真实外部 Agent 服务。
+
+## 应用服务与回复查询收尾（2026-11-06）
+
+index 不再直接构造 TAPD、旧 LLM/意图解析、邮件、看板或项目看板服务；agents/context.ts 在每个配置重载的新 Context 中按需缓存它们。空组合、个人默认及 Echo 原生插件启动/独立执行均不访问这些 getter。MessageHandler 删除未使用的独立邮件实例。旧团队手动任务 HTTP 实现移到 agents/jobsApi.ts，平台旧路径仅兼容转出；入口复用原 pluginJobs 选项与执行规则，依旧先验证所属插件才创建业务 Job。
+
+ContextResolver 只保留通用消息祖先遍历和共享 Bot Context 读取；任务表、任务更新及 AI 结果的任务推断由 builtin.task.context 的 lookupContext 贡献调用 domains/task/replyContext.ts。先前空注册表也会扫描任务的问题已复现并修复。lookupContext 只允许在 context 阶段声明函数，按该阶段优先级选择首个非空结果；整个回复查询纳入 MessageRouteRegistry 在途集合，停机等待完成后释放贡献。原直接消息、更新、AI 字段顺序、父链/循环深度保护保持；兼容的显式任务辅助方法仅由业务调用，不在空入口自动执行。
+
+代码：agents/context.ts、agents/jobsApi.ts、agents/plugins/jobs.ts / task.ts；services/messageHandler/index.ts / ContextResolver.ts / routes.ts；domains/task/replyContext.ts。验证：applicationContext.test.ts、replyContextPlugins.test.ts、messageHandler.test.ts / messagePlugins.test.ts；原调度、手动 Job、日报、周报、站会和看板全量回归。实际 HTTP/全新 SQLite 验证空组合、Echo、仅 AI Hot 安装插件与移除后的组合，旧成功运行与产物逐字保留，所有子进程正常退出，模型始终未配置。
+
+真实应用使用 CORS；核心路由冲突校验同时考虑 HTTP 方法和路径。OPTIONS /* 不阻塞业务 POST/GET；ALL 或 GET/HEAD 与真实路由相交仍拒绝。pluginWeb.test.ts 已加入实际 cors() 配置和方法用例，避免只用简化路由通过单测却无法启动。剩余边界见 docs/PLUGIN_MIGRATION_AUDIT.md：飞书入站/投递仍是固定平台通道，不能宣称任意通信适配器均可作为插件替换。

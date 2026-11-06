@@ -3,7 +3,7 @@ feature_id: meeting-summary
 name: 会议纪要
 status: dormant
 agent_mapping: []
-last_reviewed: 2026-11-05
+last_reviewed: 2026-11-06
 ---
 
 # 会议纪要
@@ -20,6 +20,7 @@ last_reviewed: 2026-11-05
 
 ```mermaid
 flowchart TD
+    LAZY_CONTEXT[应用 Context：插件实际使用才构造服务] --> LEGACY_SERVICE[原领域服务与已配置 Adapter]
     PL["Cordis: builtin.meeting-summary"] --> A
     PL --> WEB[隐藏归档页与纪要 API]
     WEB --> READ[本机检查、群筛选、服务端分页与受限 Markdown 读取]
@@ -142,3 +143,9 @@ flowchart TD
 | 2026-11-05 | 同步公开版外部 API 预算、幂等投递和报告降级基础设施，业务开关与能力入口保持原语义 | 后端全量回归、类型检查 |
 | 2026-07-22 | 补充 dormant 状态、摘要事实和邮件外发规则，精简文档结构 | CodeGraph 与消息路由测试 |
 | 2026-07-22 | 建立 dormant 功能卡并记录重新启用边界 | CodeGraph 架构审查 |
+
+## 应用装配代码地图更新（2026-11-06）
+
+agents/context.ts 按需提供 TAPD、意图解析、看板、项目看板和已启用邮件 Adapter；index 不再直接创建，显式配置重载后创建新 Context。agents/jobsApi.ts 拥有原团队手动 Job HTTP 实现，平台旧路径仅兼容转出；agents/plugins/jobs.ts 复用原 ScheduledJobOptions（services/jobs.ts 仅导出该既有类型）透传 sendToGroup，不改变生成、发送、幂等、统计或领域状态归属。移除插件仍在创建 Job 前拒绝。MessageHandler 删除的邮件字段从未用于发送，纪要继续使用 Context 的邮件端口且维持 dormant 生成开关。
+
+验证：applicationContext.test.ts 确认空/个人/Echo 启动不构造团队服务、单 Context 复用及重载配置隔离；原 pluginWeb、schedulePlugins、jobExecution、messageHandler 与全量业务回归。实际临时 SQLite/HTTP 组合切换保留原 Echo 历史，不对真实飞书、TAPD、模型或邮箱发起业务验证。

@@ -1,3 +1,4 @@
+import { lookupTaskReplyContext } from '@/domains/task/replyContext';
 import { registerTaskAgent, registerTaskTools, taskAgentManifest } from '@/agents/domain/taskAgent';
 import type { FeaturePlugin } from '@/platform/plugins/contracts';
 import { StatusUpdateHandler } from '@/services/messageHandler/handlers/StatusUpdateHandler';
@@ -29,6 +30,7 @@ export const taskPlugin: FeaturePlugin = {
     messageRoutes: [
         {
             id: 'builtin.task.context', phase: 'context', priority: 100, sources: ['group', 'private'],
+            lookupContext: lookupTaskReplyContext,
             requiresProjectMember: true,
             matches: ({ replyContext }) => taskContexts.has(replyContext?.context_type),
             async handle({ ctx, resolver, message, source, replyContext }) {

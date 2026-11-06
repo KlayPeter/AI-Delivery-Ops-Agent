@@ -3,17 +3,14 @@ import { SourceMessage } from '@/models/types';
 import { ContextResolver } from './ContextResolver';
 import { MessageRouter } from './MessageRouter';
 import { isSystemNoise } from './utils';
-import { EmailAdapter } from '@/adapters/email';
 
 export class MessageHandler {
     private ctx: HandlerContext;
     private resolver: ContextResolver;
-    private email: EmailAdapter;
 
     constructor(ctx: HandlerContext) {
         this.ctx = ctx;
         this.resolver = new ContextResolver(ctx);
-        this.email = ctx.config.email && ctx.config.email.enabled ? new EmailAdapter(ctx.config.email) : new EmailAdapter({ enabled: false, host: '', port: 465, secure: true, user: '', pass: '', from_address: '', to_addresses: [] }, true);
     }
 
     async handleEvent(payload: any): Promise<any> {

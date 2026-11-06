@@ -203,6 +203,8 @@ HTTP 默认装配个人知识、采集、验收、工具接入、研究、配方
 
 | 代码路径或对象 | 必须更新的 Feature ID |
 | --- | --- |
+| `backend/src/agents/context.ts`、`backend/src/agents/jobsApi.ts`、`backend/src/agents/plugins/jobs.ts` | `message-routing`、`task-management`、`standup-management`、`daily-summary`、`weekly-report`、`project-visibility`、`meeting-summary`、`configuration-scheduling`、`agent-platform`、`plugin-runtime`、`operations-observability`、`local-agent-workspace` |
+| `backend/src/domains/task/replyContext.ts`、`MessageRoute.lookupContext` | `task-management`、`message-routing`、`agent-platform`、`plugin-runtime`、`operations-observability` |
 | `backend/src/agents/dispatcher.ts`、`backend/src/agents/external/aiHotApi.ts`、`backend/src/agents/plugins/aiHotSchedule.ts` | `agent-platform`、`plugin-runtime`、`operations-observability`、`configuration-scheduling`、`local-agent-workspace` |
 | `backend/src/agents/plugins/maintenance.ts`、`backend/src/core/dataRetention.ts` | `operations-observability`、`configuration-scheduling`、`plugin-runtime`、`agent-platform`；默认组合变化追加 `local-agent-workspace` |
 | `backend/src/platform/workspace/**`、`frontend/src/pages/workspace/**`、`frontend/src/layouts/MainLayout.tsx`、`frontend/src/App.tsx`、`frontend/src/index.css` | `local-agent-workspace`、`operations-observability`；来源/配置契约变化追加对应功能；助手开关追加 `plugin-profile-composer`、`github-skill-workbench`、`openapi-workbench` |

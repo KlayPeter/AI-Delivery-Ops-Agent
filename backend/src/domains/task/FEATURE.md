@@ -21,6 +21,9 @@ Task Agent 负责理解“用户想做什么”，`TaskService` 负责决定“�
 
 ```mermaid
 flowchart TD
+    REPLY[引用消息与通用祖先遍历] --> LOOKUP[已装配 context 路由的 lookupContext]
+    LOOKUP --> TASK_LOOKUP[builtin.task：直接任务、更新、AI 结果推断]
+    TASK_LOOKUP --> REPLY_GUARD[首个上下文；在途查询结束后才能释放插件]
     DIRECTORY[可选 builtin.directory] --> MEMBERS[动态群成员配置；停用保留最近状态]
     PL["Cordis: builtin.task"] --> B
     PL --> MR["插件消息路由与帮助"]
@@ -270,3 +273,9 @@ flowchart LR
 ```
 
 通讯录依赖（2026-11-06）：成员自动刷新与 /api/feishu 现由 builtin.directory 拥有，团队默认包含；自定义组合需要时显式选择。未装配则继续读取已配置成员，不隐式查询飞书或删除历史。领域服务的成员筛选和业务统计规则保持。来源、失败保护与验证见 [配置与调度功能卡](../../core/configuration-scheduling/FEATURE.md)；专项为 backend/test/directoryPlugin.test.ts 与原领域回归。
+
+## 回复查询与应用服务装配（2026-11-06）
+
+任务回复推断迁到 domains/task/replyContext.ts，由 builtin.task.context.lookupContext 装配；任务、更新和来源消息中的 AI 字段依次回溯，保留原 task_id/taskId/task.id 的首个有效字符串顺序。空注册表和卸载后不再自动读取任务/任务更新来猜测回复上下文；通用已保存 Bot Context 与消息祖先遍历仍属于消息层。查询纳入注册表在途集合，停机等待后释放。任务的创建、状态、TAPD 同步与数据归属未改。
+
+应用 Context 在 agents/context.ts 按需提供旧团队服务；每次显式配置重载使用新 Context，避免继续复用旧 TAPD/模型适配实例。MessageHandler 不再构造未使用的邮件 Adapter。手动 Job 的应用入口位于 agents/jobsApi.ts，旧平台路径仅兼容转出；依旧由已安装插件授权，领域规则不变。代码另见 agents/plugins/task.ts / jobs.ts、services/messageHandler/routes.ts / ContextResolver.ts / index.ts；验证 applicationContext.test.ts、replyContextPlugins.test.ts、messageHandler.test.ts、messagePlugins.test.ts 及原领域/Job 全量回归。

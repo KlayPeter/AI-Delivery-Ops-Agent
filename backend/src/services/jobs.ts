@@ -46,7 +46,7 @@ interface OverdueDeliverySummary {
     rejected: number;
 }
 
-interface ScheduledJobOptions {
+export interface ScheduledJobOptions {
     sendToGroup?: boolean;
 }
 

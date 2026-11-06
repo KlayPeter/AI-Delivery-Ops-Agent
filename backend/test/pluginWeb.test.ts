@@ -1,3 +1,4 @@
+import { cors } from '@elysiajs/cors';
 import { expect, test } from 'bun:test';
 import { Elysia } from 'elysia';
 import { PluginWebRegistry, apiRoutesOverlap, type WebContribution } from '@/platform/plugins/web';
@@ -90,7 +91,7 @@ test('third-party Web API keeps POST bodies, core routes and OpenAPI paths witho
         ctx.delivery.web.register({ id: 'test.web', pages: [page], api: { prefix: '/api/example', routes: [{ method: 'POST', path: '/api/example/input' }], handle: request => app.handle(request) } });
     });
     const host = new AgentHost(context, 1000, undefined, [], { plugins: [feature] }); await host.initialize();
-    const app = new Elysia().use(createApiDocumentation()).get('/api/config', () => ({ core: true })).use(createPluginApi(host));
+    const app = new Elysia().use(cors()).use(createApiDocumentation()).get('/api/config', () => ({ core: true })).use(createPluginApi(host));
     try {
         expect(() => createPluginApi(host, [{ path: '/api/example/:id' }])).toThrow('existing application route');
         const result = await app.handle(request('/api/example/input', { text: 'body preserved' }));
@@ -187,4 +188,16 @@ test('core route reservations allow sibling plugin prefixes while rejecting stat
     const host = { web: registry } as AgentHost;
     expect(() => createPluginApi(host, [{ path: '/api/agents' }, { path: '/api/agents/install' }])).not.toThrow();
     for (const path of ['/api/agents/:id/install', '/api/agents/*', '/api/agents/example/install/']) expect(() => createPluginApi(host, [{ path }])).toThrow('existing application route');
+});
+
+
+test('core CORS preflight does not block other plugin methods; ALL and GET/HEAD collisions remain rejected', () => {
+    const registry = new PluginWebRegistry();
+    registry.register({ id: 'test.methods', api: { prefix: '/api/example', routes: [{ method: 'POST', path: '/api/example/input' }], handle: () => Response.json({}) } });
+    const host = { web: registry } as AgentHost;
+    expect(() => createPluginApi(host, [{ method: 'OPTIONS', path: '/*' }])).not.toThrow();
+    expect(() => createPluginApi(host, [{ method: 'ALL', path: '/*' }])).toThrow();
+    expect(() => createPluginApi(host, [{ method: 'POST', path: '/api/example/:id' }])).toThrow();
+    const read = new PluginWebRegistry(); read.register({ id: 'test.read', api: { prefix: '/api/example', routes: [{ method: 'GET', path: '/api/example/input' }], handle: () => Response.json({}) } });
+    expect(() => createPluginApi({ web: read } as AgentHost, [{ method: 'HEAD', path: '/api/example/input' }])).toThrow();
 });

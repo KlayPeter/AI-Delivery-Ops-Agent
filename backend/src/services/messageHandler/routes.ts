@@ -20,6 +20,7 @@ export interface MessageRoute {
     matches?: (request: MessageRouteRequest) => boolean;
     handle: (request: MessageRouteRequest) => Promise<any>;
     prepare?: (request: MessageRouteRequest) => void;
+    lookupContext?: (ctx: HandlerContext, messageId: string) => Promise<any>;
     help?: string;
     requiresProjectMember?: boolean;
     acceptsUnmentionedReply?: (replyContext: any) => boolean;
@@ -44,10 +45,11 @@ export class MessageRouteRegistry {
             || route.sources.some(source => source !== 'group' && source !== 'private')
             || typeof route.handle !== 'function'
             || (route.phase !== undefined && route.phase !== 'context' && route.phase !== 'message')
-            || (route.phase === 'context' && typeof route.matches !== 'function')) {
+            || (route.phase === 'context' && typeof route.matches !== 'function')
+            || (route.lookupContext !== undefined && route.phase !== 'context')) {
             throw new Error(`Invalid message route: ${route.id}`);
         }
-        for (const field of ['matches', 'prepare', 'acceptsUnmentionedReply'] as const) {
+        for (const field of ['matches', 'prepare', 'acceptsUnmentionedReply', 'lookupContext'] as const) {
             if (route[field] !== undefined && typeof route[field] !== 'function') throw new Error(`Invalid message route ${field}: ${route.id}`);
         }
         if (route.help !== undefined && (typeof route.help !== 'string' || !route.help.trim())) throw new Error(`Invalid message route help: ${route.id}`);

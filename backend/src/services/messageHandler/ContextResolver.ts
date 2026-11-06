@@ -7,12 +7,15 @@ export class ContextResolver {
     constructor(private ctx: HandlerContext) {}
 
     async resolveReplyContext(message: SourceMessage): Promise<any> {
-        const visited = new Set<string>();
-        for (const msgId of [message.parent_id, message.root_id]) {
-            const context = await this.resolveContextFromMessageId(msgId, visited);
-            if (context) return context;
-        }
-        return null;
+        const resolve = async () => {
+            const visited = new Set<string>();
+            for (const msgId of [message.parent_id, message.root_id]) {
+                const context = await this.resolveContextFromMessageId(msgId, visited);
+                if (context) return context;
+            }
+            return null;
+        };
+        return this.ctx.messageRoutes ? this.ctx.messageRoutes.run(resolve) : resolve();
     }
 
     private async resolveContextFromMessageId(messageId?: string | null, visited: Set<string> = new Set(), depth: number = 0): Promise<any> {
@@ -22,59 +25,18 @@ export class ContextResolver {
         const context = await this.ctx.store.getBotMessageContext(messageId);
         if (context) return context;
 
-        const directTask = await this.taskFromSourceMessage(messageId);
-        if (directTask) return this.contextFromTask(directTask);
-
-        const updateTask = await this.taskFromUpdateMessage(messageId);
-        if (updateTask) return this.contextFromTask(updateTask);
-
+        for (const route of this.ctx.messageRoutes?.list(undefined, 'context') || []) {
+            const inferred = await route.lookupContext?.(this.ctx, messageId);
+            if (inferred) return inferred;
+        }
         const sourceMessage = await this.ctx.store.getSourceMessage(messageId);
         if (!sourceMessage) return null;
-
-        const aiTaskId = this.extractTaskId(sourceMessage.ai_result);
-        if (aiTaskId) {
-            const task = await this.ctx.store.getTask(aiTaskId);
-            if (task) return this.contextFromTask(task);
-        }
 
         for (const nextId of [sourceMessage.parent_id, sourceMessage.root_id]) {
             if (!nextId || nextId === messageId) continue;
             const chainedContext = await this.resolveContextFromMessageId(nextId, visited, depth + 1);
             if (chainedContext) return chainedContext;
         }
-        return null;
-    }
-
-    private async taskFromSourceMessage(messageId: string): Promise<any> {
-        for (const task of await this.ctx.store.listTasks(true)) {
-            if (task.source_message_id === messageId) return task;
-        }
-        return null;
-    }
-
-    private async taskFromUpdateMessage(messageId: string): Promise<any> {
-        for (const update of await this.ctx.store.listTaskUpdates()) {
-            if (update.source_message_id !== messageId) continue;
-            const task = await this.ctx.store.getTask(update.task_id);
-            if (task) return task;
-        }
-        return null;
-    }
-
-    private contextFromTask(task: any): any {
-        return {
-            context_type: "task_thread",
-            task_id: task.id,
-            task_title: task.title,
-            metadata: { tapd_story_id: task.tapd_story_id }
-        };
-    }
-
-    private extractTaskId(value: any): string | null {
-        if (!value || typeof value !== "object") return null;
-        if (typeof value.task_id === "string" && value.task_id) return value.task_id;
-        if (typeof value.taskId === "string" && value.taskId) return value.taskId;
-        if (value.task && typeof value.task.id === "string" && value.task.id) return value.task.id;
         return null;
     }
 

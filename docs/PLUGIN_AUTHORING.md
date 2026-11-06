@@ -1,6 +1,6 @@
 # 功能插件规范 v1
 
-当前 SDK 面向本仓库内或由部署者审查的 TypeScript 原生插件。使用 Cordis 4.1.0，协议版本为 `1.0`。现阶段提供 Agent、Tool、Skill、消息路由、群业务调度和运行后续动作的独立装配、依赖校验和资源清理；页面、业务 API 与审计维护也由插件贡献；业务服务构造继续按路线图收尾。
+当前 SDK 面向本仓库内或由部署者审查的 TypeScript 原生插件。使用 Cordis 4.1.0，协议版本为 `1.0`。现阶段提供 Agent、Tool、Skill、消息路由、群业务调度和运行后续动作的独立装配、依赖校验和资源清理；页面、业务 API 与审计维护也由插件贡献；旧业务服务已按需移到应用装配，固定飞书入站/投递通道继续按路线图收尾。
 
 ## 包结构
 
@@ -371,3 +371,9 @@ knowledge.watch 使用该端口调度 Native 引用复核；requirePersonalVersi
 可信插件可通过可选 ctx.delivery.installExternal(manifest, options) 复用 Host 的通用安装服务；它不是模型 Tool 授权，也不自动调用远端。builtin.ai-hot-schedule 已拥有原专用安装 URL，移除插件关闭接口/调度，保留 Catalog 与通用管理能力。团队快捷 Dispatcher 位于 agents/dispatcher.ts，旧平台路径仅兼容转出。
 
 插件间 API 前缀不重叠。核心 /api/agents、/api/agents/install、/api/agents/run 保留；其余独立子前缀可以由插件拥有。createPluginApi 还按实际应用路由校验路径段，参数和通配符相交、尾斜杠同路径均拒绝；不会因为同一首级目录就拒绝完全不相交的子路径。其余保留核心命名空间规则不变。
+
+## 插件回复上下文查询
+
+context 阶段的消息路由可声明 lookupContext(ctx, messageId)，返回上下文或 null。注册时必须提供函数并显式使用 phase: context；查询按该阶段 priority 执行，首个非空结果停止继续推断。共享层保留 Bot Context 和有深度/循环保护的消息祖先遍历；业务表读取应归所属插件。整个查询受 MessageRouteRegistry 在途跟踪保护，停止拒绝新查询、等待已接受查询后释放贡献。builtin.task 为现有使用者，空组合不再隐式扫描任务。
+
+兼容团队服务采用应用层 agents/context.ts 的按需实例，原业务状态由领域服务拥有。原生插件仍是可信宿主代码，接口不提供代码沙箱。完整现状与唯一剩余的固定通道收尾见[迁移审计](PLUGIN_MIGRATION_AUDIT.md)。

@@ -42,8 +42,14 @@ are deferred while the local product is being validated.
 - [x] Let the existing AI Hot plugin own its dedicated installer URL and schedule;
   use the generic Host installer and preserve persisted packages when removed.
   Keep application-specific dispatcher helpers outside the platform implementation.
-- [ ] Move remaining business entrypoints, integrations, runtime services, triggers and UI
-  contributions behind plugin registration, preserving current behavior.
+- [x] Keep legacy service construction lazy in application composition, recreate it
+  on configuration reload, and keep team HTTP/dispatcher facades outside platform
+  implementations; preserve their old SDK import paths.
+- [x] Let the task plugin own automatic task reply inference and drain accepted
+  context lookups; an empty registry no longer scans legacy task state.
+- [ ] Extract the remaining fixed Feishu ingress/delivery transport from Host and
+  application bootstrap; preserve bot routing, readiness and reliable Outbox behavior.
+  See the [migration audit](docs/PLUGIN_MIGRATION_AUDIT.md) for acceptance criteria.
 - [x] Provide explicit empty, knowledge, release, community-tool and team profiles;
   the HTTP workspace also has a default no-credential sample composition.
 - [x] Verify missing dependencies, disabled plugins, setup failure and cleanup in

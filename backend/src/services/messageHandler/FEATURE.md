@@ -21,6 +21,9 @@ last_reviewed: 2026-11-06
 
 ```mermaid
 flowchart TD
+    REPLY[引用消息与通用祖先遍历] --> LOOKUP[已装配 context 路由的 lookupContext]
+    LOOKUP --> TASK_LOOKUP[builtin.task：直接任务、更新、AI 结果推断]
+    TASK_LOOKUP --> REPLY_GUARD[首个上下文；在途查询结束后才能释放插件]
     BOT_ENTRY_PLUGIN[所选插件注册默认 Bot 的确定性入口] --> BOT_ENTRY_GATE[有效私聊文本与可派发能力]
     BOT_ENTRY_GATE --> BOT_ENTRY_ORDER[唯一优先级；首个命中选择 Capability]
     BOT_ENTRY_ORDER --> BOT_ENTRY_RUN[原 bot-scoped Trigger 与 Host]
@@ -64,7 +67,7 @@ flowchart TD
 
 ## 核心规则
 
-运行时消息入口由各功能插件贡献，主编排 Agent 及其兜底/恢复路由归 `builtin.orchestrator`。`MessageRouter`、`ContextRouter` 不再导入内置业务 Handler。页面、业务 API、调度与基础服务尚未全部迁为插件贡献。
+运行时消息入口由各功能插件贡献，主编排 Agent 及其兜底/恢复路由归 `builtin.orchestrator`。`MessageRouter`、`ContextRouter` 不再导入内置业务 Handler。业务入口、页面与调度按插件装配，应用 Context 按需提供领域端口；飞书平台通道仍为固定边界。
 
 1. **引用上下文优先。** 用户回复任务卡片、机器人追问或历史消息时，系统先恢复引用链，再判断当前文字；不能只看当前一句话。
 2. **一次消息只选择一条主链路。** `ContextRouter` 或某个 Handler 返回结果后，后续 Handler 不再执行，防止一条消息同时创建任务又触发日报。
@@ -190,3 +193,9 @@ MessageRouteRegistry 新增 registerBotEntry / resolveBotEntry。每条入口声
 builtin.ai-news 1.1.0 在 apply 中注册入口和本次 Host 独立的意图会话缓存，保留新闻开关、共用/独立应用判断、否定/任务排除和三十分钟续问。index.ts 只调用通用解析，不导入新闻意图或 Capability。共享 Feishu 入站层的非文本与失败提示改为通用任务措辞，适用于其他插件。已有 Host 在恢复后禁用缺少能力绑定的独立 Bot，避免读取凭据或建立连接；这部分实现保持，新增跨 Host 恢复回归。
 
 代码：backend/src/services/messageHandler/routes.ts、backend/src/platform/plugins/contracts.ts / runtime.ts、backend/src/agents/plugins/aiNews.ts、backend/src/platform/bots/feishuBotMessageIngress.ts、backend/src/index.ts。验证：backend/test/botEntryPlugins.test.ts（注册/优先级/准入、真实新闻插件与会话隔离、独立插件经真实 Host 的 Run/Artifact、持久 Bot 移除/恢复与零凭据调用），pluginRuntime.test.ts（正常释放与失败回滚），multiBotIngress.test.ts（默认/独立 Bot、泛用提示与失败），以及既有 messagePlugins.test.ts / aiNewsRadar.test.ts。没有新增 Agent、默认插件或外部连接方式。
+
+## 回复查询与应用服务装配（2026-11-06）
+
+任务回复推断迁到 domains/task/replyContext.ts，由 builtin.task.context.lookupContext 装配；任务、更新和来源消息中的 AI 字段依次回溯，保留原 task_id/taskId/task.id 的首个有效字符串顺序。空注册表和卸载后不再自动读取任务/任务更新来猜测回复上下文；通用已保存 Bot Context 与消息祖先遍历仍属于消息层。查询纳入注册表在途集合，停机等待后释放。任务的创建、状态、TAPD 同步与数据归属未改。
+
+应用 Context 在 agents/context.ts 按需提供旧团队服务；每次显式配置重载使用新 Context，避免继续复用旧 TAPD/模型适配实例。MessageHandler 不再构造未使用的邮件 Adapter。手动 Job 的应用入口位于 agents/jobsApi.ts，旧平台路径仅兼容转出；依旧由已安装插件授权，领域规则不变。代码另见 agents/plugins/task.ts / jobs.ts、services/messageHandler/routes.ts / ContextResolver.ts / index.ts；验证 applicationContext.test.ts、replyContextPlugins.test.ts、messageHandler.test.ts、messagePlugins.test.ts 及原领域/Job 全量回归。

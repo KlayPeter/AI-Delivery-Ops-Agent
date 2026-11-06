@@ -12,10 +12,13 @@ const startInput = runInput.extend({ triggerId: z.string().uuid() });
 const resumeInput = runInput.omit({ capability: true });
 const actionInput = z.object({ triggerId: z.string().uuid().optional() }).strict();
 
-export function createPluginApi(host: AgentHost, applicationRoutes: readonly { path: string }[] = []) {
+export function createPluginApi(host: AgentHost, applicationRoutes: readonly { path: string; method?: string }[] = []) {
     const api = new Elysia({ name: 'plugin-web-api' });
     for (const route of host.web.routes()) {
-        if (applicationRoutes.some(existing => apiRoutesOverlap(existing.path, route.path))) throw new Error(`Plugin API overlaps an existing application route: ${route.path}`);
+        const conflict = applicationRoutes.find(existing => (!existing.method || existing.method === 'ALL' || route.method === 'ALL'
+            || existing.method === route.method || (['GET', 'HEAD'].includes(existing.method) && ['GET', 'HEAD'].includes(route.method)))
+            && apiRoutesOverlap(existing.path, route.path));
+        if (conflict) throw new Error(`Plugin API overlaps an existing application route: ${conflict.method || 'ALL'} ${conflict.path}`);
         api.route(route.method, route.path, ({ request }) => host.handlePluginRequest(request), { parse: 'none' });
     }
     return api.all('/api/*', ({ request }) => host.handlePluginRequest(request), { parse: 'none' });

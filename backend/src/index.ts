@@ -1,3 +1,5 @@
+import { createDeliveryOpsContext } from './agents/context';
+import { pluginJobs } from './agents/plugins/jobs';
 import { createDeliveryOpsHost } from './agents/host';
 import { DELIVERY_OPS_CAPABILITY } from './agents/orchestrator/deliveryOpsAgent';
 import { Elysia } from 'elysia';
@@ -5,21 +7,12 @@ import { cors } from '@elysiajs/cors';
 import { AppConfig, loadConfig } from './core/config';
 import { PrismaStore } from './core/storage';
 import { FeishuAdapter } from './adapters/feishu';
-import { TapdAdapter } from './adapters/tapd';
-import { LLMAdapter } from './adapters/llm';
-import { EmailAdapter } from './adapters/email';
-import { DashboardService } from './services/dashboard';
-import { ProjectDashboardService } from './services/projectDashboard';
-import { DashboardImageService } from './services/dashboardImage';
-import { MessageIntentParser } from './services/messageIntent';
 import { MessageHandler } from './services/messageHandler';
 import { MessageRouteRegistry } from './services/messageHandler/routes';
 import { ScheduleRegistry } from './platform/scheduling/registry';
 import { InProcessScheduler } from './core/scheduler';
 import { ScheduledAgentDispatcher } from './agents/dispatcher';
 import { AgentHost } from './platform/bootstrap/agentHost';
-import { ScheduledJobs } from './services/jobs';
-import dayjs from 'dayjs';
 import * as path from 'path';
 import { normalizeLogQuery } from './core/logQuery';
 import { livenessReport, readinessReport } from './core/health';
@@ -32,15 +25,13 @@ import { DEFAULT_BOT_INSTANCE_ID } from './platform/runtime/scope';
 import { isLocalWorkspaceRequest, LocalConnections } from './platform/workspace/connections';
 import { loadWorkspacePlugins } from './platform/workspace/composition';
 import { createWorkspaceApi, createPluginApi } from './platform/workspace/api';
-import { createManualJobsApi } from './platform/workspace/jobsApi';
+import { createManualJobsApi } from './agents/jobsApi';
 
 const localConnections = new LocalConnections(path.join(loadConfig().data_path, 'connections.json'));
 await localConnections.initialize();
 let config = loadConfig();
 let store = new PrismaStore(config.data_path);
 let feishu: FeishuAdapter;
-let dashboard: DashboardService;
-let emailAdapter: EmailAdapter | null;
 let handler: MessageHandler;
 let agentHost: AgentHost | undefined;
 let scheduledAgents: ScheduledAgentDispatcher | undefined;
@@ -62,20 +53,12 @@ async function reloadConfig(): Promise<void> {
     config = loadConfig(await store.getDynamicConfig());
     feishu = new FeishuAdapter(config.feishu, false, knownNamesFromConfig(config));
     feishu.setAuditCallback((action, payload) => { store.appendAuditLog(action, payload).catch(console.error); });
-    dashboard = new DashboardService(store, config.data_path, config.project.name, config.runtime.public_base_url);
-    const projectDashboard = new ProjectDashboardService({ config, store, tapd, dashboard, renderer: new DashboardImageService() });
-    emailAdapter = config.email && config.email.enabled ? new EmailAdapter(config.email, false) : null;
-    handler = new MessageHandler({
+    handler = new MessageHandler(createDeliveryOpsContext({
         config,
         store,
         feishu,
-        tapd,
-        email: emailAdapter,
-        dashboard,
-        projectDashboard,
         messageRoutes,
         schedules,
-        intentParser,
         agentOrchestrator: {
             isAvailable: () => agentHost?.isModelAvailable() === true && agentHost.canDispatch(DELIVERY_OPS_CAPABILITY),
             handle: (message, source, replyContext) => agentHost!.handleMessage(message, source, replyContext),
@@ -86,12 +69,9 @@ async function reloadConfig(): Promise<void> {
             runManual: (capability, groupId, input, triggerId) =>
                 scheduledAgents!.runManual(capability, groupId, input, triggerId),
         },
-    });
+    }));
     agentHost?.refreshBot();
 }
-let tapd = new TapdAdapter(config.tapd);
-let llm = new LLMAdapter(config.ai);
-let intentParser = new MessageIntentParser(llm);
 
 await reloadConfig();
 
@@ -363,7 +343,7 @@ const app = new Elysia()
             pageSize
         };
     })
-    .use(createManualJobsApi(agentHost!, () => ({ config, store }), sendToGroup => new ScheduledJobs(config, store, feishu, dashboard, tapd, llm, { sendToGroup })));
+    .use(createManualJobsApi(agentHost!, () => ({ config, store }), sendToGroup => pluginJobs(() => (handler as any).ctx, { sendToGroup })));
 
 app.use(createPluginApi(agentHost!, app.routes))
     .listen({
