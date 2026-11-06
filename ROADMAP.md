@@ -34,6 +34,9 @@ are deferred while the local product is being validated.
   Team SDK/profile add this plugin while keeping seven Agents and prior sync rules.
 - [x] Contribute group business schedules through feature plugins, preserving calendar,
   retry, idempotency and shared project sync; drain active ticks before teardown.
+- [x] Move the existing team configuration page and API into builtin.configuration;
+  preserve URLs, mask secrets, reject malformed replacement payloads before writes,
+  distinguish persisted-but-not-reloaded state, and close both entries when absent.
 - [ ] Move remaining business entrypoints, integrations, runtime services, triggers and UI
   contributions behind plugin registration, preserving current behavior.
 - [x] Provide explicit empty, knowledge, release, community-tool and team profiles;

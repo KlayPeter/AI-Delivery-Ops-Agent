@@ -5,7 +5,6 @@ import { MainLayout } from '@/layouts/MainLayout';
 import { isLegacyDashboardSearch } from '@/pages/workspace/input';
 
 // 页面组件
-import ConfigPage from '@/pages/ConfigPage';
 import LogsPage from '@/pages/LogsPage';
 import DebugPage from '@/pages/DebugPage';
 import ContextsPage from '@/pages/ContextsPage';
@@ -38,7 +37,6 @@ function App() {
             <Route path="logs" element={<LogsPage />} />
             <Route path="debug" element={<DebugPage />} />
             <Route path="contexts" element={<ContextsPage />} />
-            <Route path="config" element={<ConfigPage />} />
             {/* 兼容已被推送到群里的包含具体 .html 文件名的旧版本长链接 */}
             <Route path="*" element={<PluginPage />} />
           </Route>

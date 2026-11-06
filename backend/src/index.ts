@@ -3,7 +3,6 @@ import { DELIVERY_OPS_CAPABILITY } from './agents/orchestrator/deliveryOpsAgent'
 import { Elysia } from 'elysia';
 import { cors } from '@elysiajs/cors';
 import { AppConfig, loadConfig } from './core/config';
-import { maskedConfig } from './core/configuration-scheduling/publicConfig';
 import { PrismaStore } from './core/storage';
 import { FeishuAdapter } from './adapters/feishu';
 import { TapdAdapter } from './adapters/tapd';
@@ -247,18 +246,6 @@ const app = new Elysia()
                 { workspaceId: String(input.workspaceId || 'workspace-default'), botInstanceId: String(input.botInstanceId || 'bot-default') },
             ),
         };
-    })
-    .get('/api/config', () => maskedConfig(config))
-    .post('/api/config', async ({ body, set }) => {
-        try {
-            const payload = body as any;
-            await store.saveDynamicConfig(payload);
-            await reloadConfig();
-            return { ok: true, message: "配置保存成功", config: maskedConfig(config) };
-        } catch (e: any) {
-            set.status = 500;
-            return { error: '保存配置失败', details: e.message || String(e) };
-        }
     })
     .get('/api/logs', async ({ query, set }) => {
         let normalized;

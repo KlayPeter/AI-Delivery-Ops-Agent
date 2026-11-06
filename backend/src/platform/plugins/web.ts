@@ -26,8 +26,8 @@ export interface WebContribution {
     api?: { prefix: string; routes: readonly { method: string; path: string }[]; handle: ApiHandler };
 }
 // Existing bundled routes stay reserved until their owning plugins migrate them.
-const reservedPages = new Set(['/', '/runs', '/agents', '/plugins', '/connections', '/logs', '/debug', '/contexts', '/config']);
-const reservedApis = ['/api/workspace', '/api/config', '/api/agents', '/api/agent-runs', '/api/bots', '/api/jobs', '/api/health', '/api/logs', '/api/contexts', '/api/swagger'];
+const reservedPages = new Set(['/', '/runs', '/agents', '/plugins', '/connections', '/logs', '/debug', '/contexts']);
+const reservedApis = ['/api/workspace', '/api/agents', '/api/agent-runs', '/api/bots', '/api/jobs', '/api/health', '/api/logs', '/api/contexts', '/api/swagger'];
 const contains = (prefix: string, path: string) => path === prefix || path.startsWith(prefix + '/');
 
 export class PluginWebRegistry {

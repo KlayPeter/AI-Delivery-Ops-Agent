@@ -14,7 +14,7 @@ last_reviewed: 2026-11-06
 
 插件拥有能力定义与装配逻辑；Host 提供受治理的 Agent、Tool、Skill 和持久化执行服务。当前七个内置 Agent 均由独立插件注册，应用默认组合放在 `agents/plugins/builtins.ts`，Host 不导入具体业务 Agent。
 
-当前阶段覆盖 Agent、Tool、Skill、消息路由、群业务调度、运行后续动作和新闻机器人配置装配。默认组合为十三个插件、七个 Agent；会议纪要和外部 AI Hot 调度插件没有独立 Agent，会议纪要保留 dormant 开关，外部 AI Hot 能力仍需单独安装。全局维护、业务 API、页面和基础服务还未全部改为插件贡献；不能把本阶段描述为“整个产品已完全插件化”。
+当前阶段覆盖 Agent、Tool、Skill、消息路由、群业务调度、运行后续动作和新闻机器人配置装配。默认组合为十四个插件、七个 Agent；会议纪要和外部 AI Hot 调度插件没有独立 Agent，会议纪要保留 dormant 开关，外部 AI Hot 能力仍需单独安装。全局维护、业务 API、页面和基础服务还未全部改为插件贡献；不能把本阶段描述为“整个产品已完全插件化”。
 
 ## 实现流程图
 
@@ -118,7 +118,7 @@ flowchart TD
 
 ## HTTP 工作台组合
 
-团队 SDK 默认仍为十三个插件、七个 Agent；HTTP 通过 workspace/composition.ts 默认只加载个人来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收、MCP 接入助手、个人研究及任务配方，共十五个插件、九个 Agent。GitHub 配置后增加连接和发布插件，为 17 个插件、10 个 Agent。原团队组合用 profiles/agents/team.yaml 显式选择，未声明 base: personal 的显式文件完全覆盖默认，不隐式叠加个人能力；历史数据保留。页面从真实已装配贡献显示，团队分区仅在可见团队页面或手动任务存在时出现；默认没有团队业务 API/手动任务。来源设置仍在默认个人组合中保存并重启生效。
+团队 SDK 默认仍为十四个插件、七个 Agent；HTTP 通过 workspace/composition.ts 默认只加载个人来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收、MCP 接入助手、个人研究及任务配方，共十五个插件、九个 Agent。GitHub 配置后增加连接和发布插件，为 17 个插件、10 个 Agent。原团队组合用 profiles/agents/team.yaml 显式选择，未声明 base: personal 的显式文件完全覆盖默认，不隐式叠加个人能力；历史数据保留。页面从真实已装配贡献显示，团队分区仅在可见团队页面或手动任务存在时出现；默认没有团队业务 API/手动任务。来源设置仍在默认个人组合中保存并重启生效。
 
 ## 核心规则
 
@@ -507,4 +507,15 @@ WebContribution 新增可选 runLinks（唯一 id、label、站内 path、applie
 flowchart TD
     RUN_LINK_PLUGIN[功能插件贡献 runLinks] --> RUN_LINK_PAGE[已装配的目标页面]
     RUN_LINK_PAGE --> RUN_LINK_REVIEW[成功根运行进入所属功能的审查页]
+```
+
+
+## 团队配置入口归属（2026-11-06）
+
+builtin.configuration 拥有原 /config 与 GET/POST /api/config，团队默认十四插件七 Agent，个人/空组合不安装。共享 Web 注册释放这两个旧保留地址，实际冲突仍由注册表与应用路由检查；卸载关闭入口，数据保留。配置插件没有独立 Agent 或计划任务，完整契约与测试见 [配置功能卡](../../core/configuration-scheduling/FEATURE.md)。
+
+```mermaid
+flowchart TD
+    CONFIG_PLUGIN[builtin.configuration] --> CONFIG_CONTRIBUTION[原配置页面与 API 的可释放贡献]
+    CONFIG_CONTRIBUTION --> CONFIG_GUARD[本机请求、声明路由和动态字段检查]
 ```

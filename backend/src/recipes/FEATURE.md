@@ -143,3 +143,8 @@ flowchart TD
     RECIPE_REVIEW -- 否 --> RECIPE_DENY[返回原功能重新审查]
     RECIPE_REVIEW -- 是 --> RECIPE_CONTRACT[原执行与输入指纹核验]
 ```
+
+
+## 共用正文读取（2026-11-06）
+
+原插件内部 readInput 移到 platform/workspace/requestBody.ts，与配置入口复用；配方仍为 40 KiB、十秒、流式超限取消和中断检查。readJsonInput 的大小参数由可信调用者固定，客户端不能扩大；业务、来源核验与写入语义保持。runRecipes.test.ts 原流限制和来源测试继续回归，configurationPlugin.test.ts 另覆盖共享读取的超限/中断路径。

@@ -94,6 +94,9 @@ test('navigation keeps home tasks direct while custom and redirected plugin entr
   assert.equal(navigationSection(custom, custom.path), 'extensions');
   assert.equal(navigationSection(activePluginPage([custom], '/', '?capability=example.read'), '/'), 'extensions');
   assert.equal(navigationSection(team, team.path), 'team');
+  assert.equal(navigationSection({ ...team, path: '/config', view: { kind: 'builtin', id: 'team-configuration' } }, '/config'), 'manage');
+  assert.equal(navigationSection({ ...team, path: '/config', view: { kind: 'builtin', id: 'team-configuration' } }, '/config/'), 'manage');
+  assert.equal(navigationSection(undefined, '/logs/'), 'manage');
   assert.equal(navigationSection(undefined, '/debug'), 'team');
   for (const path of ['/agents', '/plugins']) assert.equal(navigationSection(undefined, path), 'extensions');
   for (const path of ['/logs', '/contexts', '/config']) assert.equal(navigationSection(undefined, path), 'manage');

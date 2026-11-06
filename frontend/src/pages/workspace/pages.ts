@@ -25,9 +25,10 @@ export const activePluginPage = (pages: PluginPage[] = [], pathname: string, sea
   || (pathname === '/' ? pages.find(page => page.view.kind === 'agent' && page.view.capability === new URLSearchParams(search).get('capability')) : undefined);
 
 export function navigationSection(page: PluginPage | undefined, pathname: string): string | undefined {
-  if (page?.section === 'team' || pathname === '/debug') return 'team';
-  if (['/agents', '/plugins'].includes(pathname) || (page?.section === 'workspace' && !homeTasks([page]).length)) return 'extensions';
-  if (['/logs', '/contexts', '/config'].includes(pathname)) return 'manage';
+  const path = page?.path || pathname.replace(/\/$/, '') || '/';
+  if (['/logs', '/contexts', '/config'].includes(path)) return 'manage';
+  if (page?.section === 'team' || path === '/debug') return 'team';
+  if (['/agents', '/plugins'].includes(path) || (page?.section === 'workspace' && !homeTasks([page]).length)) return 'extensions';
 }
 
 export function homeTasks(pages: PluginPage[] = []) {

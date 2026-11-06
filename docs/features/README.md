@@ -106,6 +106,8 @@ flowchart LR
     RULES --> QC[原记录结构验收与版本比较]
     O --> QC
     QC --> O
+    FP --> CONFIG_OWNER[builtin.configuration：原团队配置页与 API]
+    CONFIG_OWNER --> CONFIG_SAVE[动态字段验证、事务保存与重载状态]
     WATCH[可选知识复核计划：用户选择、CAS 与计时器] --> KI
     O --> REANSWER[插件站内链接：原问题与当前来源模型确认]
     REANSWER --> NEW_ANSWER[原 RAG 创建独立新回答并关联原结果]

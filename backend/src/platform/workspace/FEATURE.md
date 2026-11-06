@@ -43,7 +43,7 @@ flowchart TD
     FILE --> MANUAL_LOCAL[独立启动：保留手动重启提示]
     MANUAL_LOCAL --> BOOT
     BOOT --> PL[HTTP 组合选择：默认个人或显式文件]
-    PL -- 显式 team.yaml --> TEAM[按需选择既有团队组合：十三插件七 Agent]
+    PL -- 显式 team.yaml --> TEAM[按需选择既有团队组合：十四插件七 Agent]
     TEAM --> DIRECTORY[显式 builtin.directory：五项通讯录 API 与全局成员同步]
     DIRECTORY --> WEB
     TEAM --> WEB
@@ -137,7 +137,7 @@ flowchart TD
 5. 本地连接字段采用 allowlist；密钥只返回已配置布尔值。省略字段保留当前值，null 仅用于明确清除密钥；空凭据的飞书可保持未连接，部分凭据拒绝保存。
 6. 配置写入独占创建的临时文件、flush、原子 rename，文件权限 0600；读取拒绝符号链接、硬链接和共享权限文件。配置为本机明文，不声称加密。连接更新串行合并，失败保留原文件。
 7. 保存不改变在途任务的配置。重启时本地文件覆盖同名环境值；模型供应商/地址/名称和 TAPD 项目/地址/工作项环境值优先于旧 config.json。页面持续提示待重启状态。
-8. HTTP 入口通过 loadWorkspacePlugins 默认只选择示例 Markdown 来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收、MCP 接入助手、个人研究及任务配方，合计十五个插件、九个 Agent。选择公开网页时替换来源组合。明确保存 GitHub 仓库后再增装 GitHub/发布两个插件，合计 17 个插件、10 个 Agent；清空仓库并重启停用。SDK 团队工厂仍为十三个插件、七个 Agent，HTTP 可用 profiles/agents/team.yaml 显式选择该组合。未声明 base: personal 的显式 AGENT_PLUGINS_FILE 完全管理组合，不自动叠加页面知识配置。
+8. HTTP 入口通过 loadWorkspacePlugins 默认只选择示例 Markdown 来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收、MCP 接入助手、个人研究及任务配方，合计十五个插件、九个 Agent。选择公开网页时替换来源组合。明确保存 GitHub 仓库后再增装 GitHub/发布两个插件，合计 17 个插件、10 个 Agent；清空仓库并重启停用。SDK 团队工厂仍为十四个插件、七个 Agent，HTTP 可用 profiles/agents/team.yaml 显式选择该组合。未声明 base: personal 的显式 AGENT_PLUGINS_FILE 完全管理组合，不自动叠加页面知识配置。
 9. 知识请求保留无 chat/conversation 的个人手动 Scope。检索不调用模型，生成回答使用当前宿主模型并发送所选片段；证据沿用来源和引用核验协议。
 10. 结果 Markdown 不执行 HTML，不自动加载远端图片；原文链接仅允许 HTTP/HTTPS 和 Obsidian open。原始 JSON 放在详情，不作为主要操作入口。
 11. 首页新工作台保留 `?groupId` / `?dashboardId` 的既有看板入口，以及旧根目录 HTML 长链接；这些入口都核对看板插件是否装配，项目看板使用 `/dashboard` 导航。
@@ -571,4 +571,15 @@ MainLayout 按 homeTasks 的首页任务顺序把对应可见个人页面留在�
 flowchart TD
     NAV[已装配页面与当前路由] --> PRIMARY[常用任务与连接直接可达]
     NAV --> SECONDARY[工具与插件或运行管理：按需展开]
+```
+
+
+## 团队配置入口归属（2026-11-06）
+
+原 /config 固定 React 路由改由实际插件页面解析为 team-configuration，只有 builtin.configuration 装配时提供。MainLayout 按实际管理页面贡献显示一次配置项，配置单独装配不产生空的团队菜单；团队业务页面继续保留。index 不再挂载 /api/config，个人/空组合请求返回 404。共享 requestBody.ts 提供有界 JSON 读取，配方保持 40 KiB、配置 1 MiB，均十秒并响应中断；异常不进入 Store。实现和测试统一见 [配置功能卡](../../core/configuration-scheduling/FEATURE.md)，前端 pages.test.mjs 覆盖管理分组优先于团队分组。
+
+```mermaid
+flowchart TD
+    CONFIG_PAGE[实际 /config 页面贡献] --> CONFIG_VIEW[原配置组件的惰性加载]
+    CONFIG_VIEW --> CONFIG_API[原 URL 的插件 API；缺插件关闭]
 ```

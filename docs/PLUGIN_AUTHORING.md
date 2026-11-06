@@ -45,7 +45,7 @@ await host.stop();
 AGENT_PLUGINS_FILE=profiles/agents/team.yaml bun run dev
 ```
 
-团队 SDK 未指定插件时仍为十三个插件、七个 Agent；HTTP 工作台默认只装配选定知识来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收、MCP 接入助手、个人研究及任务配方，共十五个插件、九个 Agent；配置 GitHub 发布组合后为 17 个插件、10 个 Agent。HTTP 不再隐式装配团队能力；使用 profiles/agents/team.yaml 可显式选择十个团队功能插件及三个模型插件。会议纪要和外部 AI Hot 调度插件没有独立 Agent。会议纪要仍受原有模块开关控制，外部 AI Hot 能力仍需另行安装。示例还包括 `profiles/agents/native-demo.yaml`、`profiles/agents/empty.yaml` 和 `backend/examples/plugins.collectors.yaml`，分别选择 Echo 模板、零业务插件和采集/资料库三个插件。显式插件文件完全决定组合；未装配的插件页面和 API 不开放，基础服务仍由应用拥有。
+团队 SDK 未指定插件时仍为十四个插件、七个 Agent；HTTP 工作台默认只装配选定知识来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收、MCP 接入助手、个人研究及任务配方，共十五个插件、九个 Agent；配置 GitHub 发布组合后为 17 个插件、10 个 Agent。HTTP 不再隐式装配团队能力；使用 profiles/agents/team.yaml 可显式选择十一个团队功能插件及三个模型插件。会议纪要和外部 AI Hot 调度插件没有独立 Agent。会议纪要仍受原有模块开关控制，外部 AI Hot 能力仍需另行安装。示例还包括 `profiles/agents/native-demo.yaml`、`profiles/agents/empty.yaml` 和 `backend/examples/plugins.collectors.yaml`，分别选择 Echo 模板、零业务插件和采集/资料库三个插件。显式插件文件完全决定组合；未装配的插件页面和 API 不开放，基础服务仍由应用拥有。
 
 ```yaml
 apiVersion: '1.0'
@@ -209,6 +209,8 @@ manualJobs 声明现有 Legacy Job 名称的所有者，不添加任意命令或
 页面信息不是访问控制，也不能代替服务端数据范围校验。当前已迁移站会、看板、甘特、周报与隐藏纪要页面/API，以及原有手动任务授权，其他业务页面/API 与基础服务仍待迁移；navigation=false 仅隐藏菜单，直接路由仍依赖对应贡献；不代表授权或业务生成开关。没有运行中热卸载。一个功能插件可注册多个唯一 Web 贡献来拥有多个 API 前缀，例如 builtin.dashboard 同时注册 /api/dashboards 与 /api/human-gantt；注册会统一回滚和释放。旧看板根查询和 HTML 链接通过同一页面注册表检查所有者。
 
 当前界面将首页已知任务保留在主导航，其他可见个人插件页面收进「工具与插件」。作者无需新增分组字段；未知 builtin 或 kind=agent 页面仍保留入口，通用能力链接按对应插件页面展开分组。navigation=false 继续隐藏菜单，不改变直接路由的安装校验。
+
+builtin.configuration 是保留旧地址迁移的实例：拥有 /config（team-configuration 视图）与 GET/POST /api/config；个人/空组合不提供这两个入口。GET 仍脱敏，POST 仅接收 runtime/schedule/groups 动态字段；旧客户端回传完整 AppConfig 会被拒绝。无宿主重载时只读，持久化与重载失败分别报告。配置贡献与数据保留的完整边界见 backend/src/core/configuration-scheduling/FEATURE.md。
 
 ## 标准 JSON Schema
 

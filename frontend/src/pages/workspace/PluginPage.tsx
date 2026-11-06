@@ -4,6 +4,7 @@ import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useWorkspace } from './state';
 import { findPluginPage, pluginAgentHref } from './pages';
 
+const ConfigPage = lazy(() => import('@/pages/ConfigPage'));
 const StandupsPage = lazy(() => import('@/pages/StandupsPage'));
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
 const HumanGanttPage = lazy(() => import('@/pages/HumanGanttPage'));
@@ -36,6 +37,7 @@ export default function PluginPage() {
   const page = findPluginPage(data?.pages, pathname, search);
   if (page?.view.kind === 'agent') return <Navigate replace to={pluginAgentHref(page.view.capability)} />;
   if (page?.view.kind === 'builtin' && page.view.id === 'profile-composer') return <ProfileComposerPage />;
+  if (page?.view.kind === 'builtin' && page.view.id === 'team-configuration') return <ConfigPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'standups') return <StandupsPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'dashboard') return <DashboardPage />;
   if (page?.view.kind === 'builtin' && page.view.id === 'human-gantt') return <HumanGanttPage />;

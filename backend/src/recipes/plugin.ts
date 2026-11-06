@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { FeaturePlugin } from '@/platform/plugins/contracts';
 import { RunRecipeService } from './service';
+import { readJsonInput } from '@/platform/workspace/requestBody';
 
 export const recipeConfig = z.object({ capabilities: z.array(z.string().regex(/^[a-z][a-z0-9.-]*$/).max(160)).max(30).default([
     'knowledge.markdown.retrieve', 'knowledge.web.retrieve', 'knowledge.answer', 'personal.research', 'knowledge.page.capture', 'knowledge.impact.check', 'docs.context7.lookup', 'docs.context7.research', 'release.prepare', 'mcp.tools.run',
@@ -18,8 +19,7 @@ export const runRecipesPlugin: FeaturePlugin = {
                     const path = new URL(request.url).pathname;
                     try {
                         if (request.method === 'GET' && path === '/api/recipes') return Response.json({ recipes: await service.list(), capabilities: config.capabilities });
-                        if (request.method === 'POST' && Number(request.headers.get('content-length')) > 40000) return Response.json({ error: '请求超过大小限制' }, { status: 413 });
-                        const read = () => readInput(request);
+                        const read = () => readJsonInput(request, 40000);
                         if (request.method === 'POST' && path === '/api/recipes') return Response.json({ recipe: await service.create(await read()) });
                         const receipt = /^\/api\/recipes\/launches\/([^/]+)$/.exec(path);
                         if (receipt && request.method === 'GET') return Response.json({ receipt: await service.receipt(receipt[1]!) });
@@ -34,25 +34,3 @@ export const runRecipesPlugin: FeaturePlugin = {
     },
 };
 export default runRecipesPlugin;
-
-async function readInput(request: Request) {
-    const reader = request.body?.getReader();
-    if (!reader) throw new Error('缺少请求正文');
-    const chunks: Uint8Array[] = []; let size = 0, timedOut = false;
-    const cancel = () => { void reader.cancel().catch(() => {}); };
-    const timer = setTimeout(() => { timedOut = true; cancel(); }, 10000);
-    request.signal.addEventListener('abort', cancel, { once: true });
-    try {
-        while (true) {
-            request.signal.throwIfAborted();
-            const { done, value } = await reader.read();
-            request.signal.throwIfAborted();
-            if (timedOut) throw Object.assign(new Error('读取请求超时'), { status: 408 });
-            if (done) break;
-            size += value.byteLength;
-            if (size > 40000) { cancel(); throw Object.assign(new Error('请求超过大小限制'), { status: 413 }); }
-            chunks.push(value);
-        }
-        return JSON.parse(Buffer.concat(chunks).toString('utf8'));
-    } finally { clearTimeout(timer); request.signal.removeEventListener('abort', cancel); reader.releaseLock(); }
-}

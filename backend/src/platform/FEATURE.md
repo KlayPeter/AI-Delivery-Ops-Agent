@@ -145,11 +145,11 @@ flowchart TD
 
 ## 本地工作台
 
-HTTP 应用首页提供任务、运行详情、Agent/插件清单和连接表单，复用现有 Host；本地请求固定默认 workspace/bot，最终结果不投递会话。HTTP 默认组合数量见[工作台功能卡](workspace/FEATURE.md)与[首页装配表](../../../README.md#能力与插件)，首页数量由回归对照实际声明校验；团队 SDK 组合保持十三个插件、七个 Agent。管理 API 校验回环 Host/Origin；这不是多人认证。站会、看板、甘特、周报与隐藏纪要页面/API 已按插件装配；旧根查询和 HTML 链接同样核对所有者，甘特计划继续由 TaskService 保存。
+HTTP 应用首页提供任务、运行详情、Agent/插件清单和连接表单，复用现有 Host；本地请求固定默认 workspace/bot，最终结果不投递会话。HTTP 默认组合数量见[工作台功能卡](workspace/FEATURE.md)与[首页装配表](../../../README.md#能力与插件)，首页数量由回归对照实际声明校验；团队 SDK 组合保持十四个插件、七个 Agent。管理 API 校验回环 Host/Origin；这不是多人认证。站会、看板、甘特、周报与隐藏纪要页面/API 已按插件装配；旧根查询和 HTML 链接同样核对所有者，甘特计划继续由 TaskService 保存。
 
 ## 核心规则
 
-团队 SDK 组合为十三个插件、七个 Agent。各插件拥有自己的消息指令与引用贡献；Router 无业务默认项，空组合无消息和群业务调度功能。私聊组合中的成员门槛继续保留，不表示已提供逐路由授权或 RBAC。
+团队 SDK 组合为十四个插件、七个 Agent。各插件拥有自己的消息指令与引用贡献；Router 无业务默认项，空组合无消息和群业务调度功能。私聊组合中的成员门槛继续保留，不表示已提供逐路由授权或 RBAC。
 
 原生插件现在可调用宿主 Orchestrator 和 Tool Gateway 组合受治理管线。知识回答用一个检索 Tool 和一次无 Tool 的模型生成，在发布前核验引用；两个个人知识插件均不进入默认团队组合。`allowHumanInput: false` 关闭模型执行器的默认人工输入函数，其他 Agent 保持原有默认暂停恢复行为。
 
@@ -595,4 +595,15 @@ knowledge.answer 1.1.0 复用原 Native Agent、Tool Gateway、模型端口及�
 flowchart TD
     RUN_LINK[插件声明站内链接] --> RUN_REVIEW[功能核对原问题与当前环境]
     RUN_REVIEW --> RUN_NATIVE[原 Native Runtime 的独立新根运行]
+```
+
+
+## 团队配置入口归属（2026-11-06）
+
+团队配置作为独立 builtin.configuration 注册页面/API，不新增 Agent。宿主继续提供可选 reloadConfiguration；无该服务的 SDK 在写前拒绝，已接受请求由原在途集合排空后释放。团队 SDK/显式组合为十四插件七 Agent，默认个人组合保持。验证为 configurationPlugin.test.ts、pluginConfiguration.test.ts 与 workspaceComposition.test.ts；详细状态和数据边界见 [配置功能卡](../core/configuration-scheduling/FEATURE.md)。
+
+```mermaid
+flowchart TD
+    CONFIG_SCOPE[插件拥有团队配置入口] --> CONFIG_RELOAD[共享宿主重载服务]
+    CONFIG_RELOAD --> CONFIG_DRAIN[原在途跟踪与停止释放]
 ```

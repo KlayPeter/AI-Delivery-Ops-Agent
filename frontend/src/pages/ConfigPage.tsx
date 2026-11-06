@@ -253,7 +253,7 @@ const ConfigPage = () => {
       message.success('配置保存成功，定时器会在 30 秒内读取新配置');
       setOriginalConfig(mergedConfig);
     } catch (err: any) {
-      message.error('保存配置失败：' + err.message);
+      message.error(err.message || '配置操作未完成');
     } finally {
       setSaving(false);
     }

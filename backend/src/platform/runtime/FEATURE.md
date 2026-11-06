@@ -677,3 +677,15 @@ flowchart TD
     MANAGE_ROUTE[原日志或上下文路由] --> MANAGE_OPEN[自动展开运行管理并保留选中项]
     MANAGE_OPEN --> ORIGINAL_READ[原有读取与范围规则]
 ```
+
+
+## 团队配置入口归属（2026-11-06）
+
+配置写入区分 Store 失败（saved=false）和已持久化但重载失败（saved=true），客户端显示服务端实际状态；不虚报未写入，也不新增业务 Run。无重载能力时在读取正文前拒绝；有界正文读取共用 requestBody.ts，超限/中断不写入。关闭 Host 排空已接受的配置请求后释放 API；原群配置与执行记录保留。代码与六项专项见 [配置功能卡](../../core/configuration-scheduling/FEATURE.md)。
+
+```mermaid
+flowchart TD
+    CONFIG_SAVE[动态配置事务] --> CONFIG_SAVED{持久化成功?}
+    CONFIG_SAVED -- 否 --> CONFIG_NO_SAVE[saved=false]
+    CONFIG_SAVED -- 是 --> CONFIG_APPLY[宿主重载；失败明确 saved=true]
+```

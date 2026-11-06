@@ -38,7 +38,7 @@ test('Web contributions validate ownership boundaries, reject duplicate entries 
     const dispose = registry.register(entry);
     expect(() => registry.register(entry)).toThrow('Duplicate');
     expect(() => registry.register({ id: 'test.other', pages: [page] })).toThrow('page');
-    expect(() => registry.register({ id: 'test.reserved', pages: [{ ...page, path: '/config' }] })).toThrow('reserved');
+    expect(() => registry.register({ id: 'test.reserved', pages: [{ ...page, path: '/connections' }] })).toThrow('reserved');
     expect(() => registry.register({ id: 'test.jobs', manualJobs: ['standup-summary'] })).toThrow('manual job');
     expect(() => registry.register({ id: 'test.bad', api: { ...entry.api!, prefix: '/api/workspace' } })).toThrow();
     expect(() => registry.register({ id: 'test.bad', api: { ...entry.api!, prefix: '/api/example/nested', routes: [{ method: 'GET', path: '/api/example/nested' }] } })).toThrow('Overlapping');

@@ -44,6 +44,7 @@ test('HTTP default loads personal plugins without implicit team agents, routes o
         expect(host.web.pages().every(page => page.section === 'workspace')).toBe(true);
         expect(host.web.manualJobs()).toEqual([]);
         expect(host.web.routes().some(route => route.path.startsWith('/api/standups'))).toBe(false);
+        expect((await host.handlePluginRequest(new Request('http://localhost/api/config'))).status).toBe(404);
         expect((await host.web.handle(new Request('http://localhost/api/standups'))).status).toBe(404);
         expect((await host.web.handle(new Request('http://localhost/api/feishu/groups'))).status).toBe(404);
         expect(host.schedules.list().some(entry => entry.kind === 'global-poll')).toBe(false);
@@ -54,9 +55,9 @@ test('HTTP default loads personal plugins without implicit team agents, routes o
 test('explicit team and empty files fully replace the default composition', async () => {
     process.env.KNOWLEDGE_KIND = 'web'; process.env.KNOWLEDGE_URLS = '';
     process.env.AGENT_PLUGINS_FILE = profile('team');
-    expect((await loadWorkspacePlugins(directory)).plugins).toHaveLength(13);
+    expect((await loadWorkspacePlugins(directory)).plugins).toHaveLength(14);
     const team = await loadWorkspacePlugins(directory, profile('team'));
-    expect(team.plugins).toHaveLength(13); expect(team.plugins.every(plugin => ['builtin.', 'model.'].some(prefix => plugin.manifest.id.startsWith(prefix)))).toBe(true);
+    expect(team.plugins).toHaveLength(14); expect(team.plugins.every(plugin => ['builtin.', 'model.'].some(prefix => plugin.manifest.id.startsWith(prefix)))).toBe(true);
     const host = await createHost(undefined, profile('team'));
     try {
         await host.initialize();

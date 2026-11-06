@@ -70,7 +70,7 @@ AGENT_PLUGINS_FILE=plugins.skills-personal.local.yaml bun run local
 AGENT_PLUGINS_FILE=profiles/agents/team.yaml bun run dev
 ```
 
-该组合保留七个团队 Agent 和十三个插件（含三个模型提供者），包含任务、站会、日报、周报、看板及原有九项手动任务；不是默认个人组合的叠加开关。前端据实际贡献显示团队页面和业务任务；默认个人组合没有这些入口，其站会/看板/周报插件 API 也不可用。`/config` 等核心管理接口仍由宿主提供，隐藏导航不构成额外授权。通讯录的五项 `/api/feishu` 接口与自动成员同步现由 `builtin.directory` 拥有；移除插件即停止这些入口和读取，已有成员配置保留。
+该组合保留七个团队 Agent 和十四个插件（含三个模型提供者），包含任务、站会、日报、周报、看板及原有九项手动任务；不是默认个人组合的叠加开关。前端据实际贡献显示团队页面和业务任务；默认个人组合没有这些入口，其站会/看板/周报插件 API 也不可用。`builtin.configuration` 拥有原 `/config` 页面和 `/api/config`；个人、空组合或移除该插件后，页面与 API 一起关闭。通讯录的五项 `/api/feishu` 接口与自动成员同步现由 `builtin.directory` 拥有；移除插件即停止这些入口和读取，已有成员配置保留。
 
 「连接与模型」的飞书、TAPD 仍可填写；凭据只保存连接配置，不会安装任务/报告 Agent。已保存的飞书凭据会在重启后尝试连接；使用群聊/私聊业务前请先选择提供对应能力的组合。
 

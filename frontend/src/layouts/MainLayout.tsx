@@ -7,29 +7,32 @@ import { useWorkspace } from '@/pages/workspace/state';
 import { activePluginPage, hasTeamNavigation, homeTasks, navigationSection, type PluginPage } from '@/pages/workspace/pages';
 
 const link = (path: string, label: string) => <Link to={path}>{label}</Link>;
-const pluginIcons: Record<string, React.ReactNode> = { 'knowledge-reviews': <HistoryOutlined aria-hidden />, knowledge: <DatabaseOutlined aria-hidden />, standups: <CheckSquareOutlined aria-hidden />, dashboard: <DashboardOutlined aria-hidden />, 'human-gantt': <ScheduleOutlined aria-hidden />, 'weekly-reports': <FileTextOutlined aria-hidden />, 'meeting-summaries': <FileTextOutlined aria-hidden /> };
+const pluginIcons: Record<string, React.ReactNode> = { 'team-configuration': <SettingOutlined aria-hidden />, 'knowledge-reviews': <HistoryOutlined aria-hidden />, knowledge: <DatabaseOutlined aria-hidden />, standups: <CheckSquareOutlined aria-hidden />, dashboard: <DashboardOutlined aria-hidden />, 'human-gantt': <ScheduleOutlined aria-hidden />, 'weekly-reports': <FileTextOutlined aria-hidden />, 'meeting-summaries': <FileTextOutlined aria-hidden /> };
 const pluginLinks = (pages: PluginPage[], section: PluginPage['section']) => pages.filter(page => page.section === section && page.navigation !== false).map(page => ({ key: page.path, icon: page.view.kind === 'builtin' ? pluginIcons[page.view.id] || <RobotOutlined aria-hidden /> : <RobotOutlined aria-hidden />, label: link(page.path, page.label) }));
-const items = (pages: PluginPage[], manualJobs: string[]) => [
-  { key: '/', icon: <AppstoreOutlined aria-hidden />, label: link('/', '工作台') },
-  { key: '/runs', icon: <HistoryOutlined aria-hidden />, label: link('/runs', '运行记录') },
-  ...homeTasks(pages).flatMap(task => pluginLinks(pages.filter(page => page.path === task.path), 'workspace')),
-  { key: '/connections', icon: <ApiOutlined aria-hidden />, label: link('/connections', '连接与模型') },
-  { key: 'extensions', label: '工具与插件', icon: <AppstoreOutlined aria-hidden />, children: [
-    ...pluginLinks(pages.filter(page => navigationSection(page, page.path) === 'extensions'), 'workspace'),
-    { key: '/agents', icon: <RobotOutlined aria-hidden />, label: link('/agents', 'Agent') },
-    { key: '/plugins', icon: <AppstoreOutlined aria-hidden />, label: link('/plugins', '插件') },
-  ] },
-  ...(hasTeamNavigation(pages, manualJobs) ? [{ type: 'divider' as const },
-  { key: 'team', label: '团队交付', icon: <ScheduleOutlined aria-hidden />, children: [
-    ...pluginLinks(pages, 'team'),
-    ...(manualJobs.length ? [{ key: '/debug', icon: <CodeOutlined aria-hidden />, label: link('/debug', '业务任务') }] : []),
-  ] }] : []),
-  { key: 'manage', label: '运行管理', icon: <SettingOutlined aria-hidden />, children: [
-    ...(hasTeamNavigation(pages, manualJobs) ? [{ key: '/config', icon: <SettingOutlined aria-hidden />, label: link('/config', '定时与团队配置') }] : []),
-    { key: '/logs', icon: <UnorderedListOutlined aria-hidden />, label: link('/logs', '审计日志') },
-    { key: '/contexts', icon: <DatabaseOutlined aria-hidden />, label: link('/contexts', '上下文') },
-  ] },
-];
+const items = (pages: PluginPage[], manualJobs: string[]) => {
+  const teamPages = pages.filter(page => navigationSection(page, page.path) === 'team');
+  return [
+    { key: '/', icon: <AppstoreOutlined aria-hidden />, label: link('/', '工作台') },
+    { key: '/runs', icon: <HistoryOutlined aria-hidden />, label: link('/runs', '运行记录') },
+    ...homeTasks(pages).flatMap(task => pluginLinks(pages.filter(page => page.path === task.path), 'workspace')),
+    { key: '/connections', icon: <ApiOutlined aria-hidden />, label: link('/connections', '连接与模型') },
+    { key: 'extensions', label: '工具与插件', icon: <AppstoreOutlined aria-hidden />, children: [
+      ...pluginLinks(pages.filter(page => navigationSection(page, page.path) === 'extensions'), 'workspace'),
+      { key: '/agents', icon: <RobotOutlined aria-hidden />, label: link('/agents', 'Agent') },
+      { key: '/plugins', icon: <AppstoreOutlined aria-hidden />, label: link('/plugins', '插件') },
+    ] },
+    ...(hasTeamNavigation(teamPages, manualJobs) ? [{ type: 'divider' as const },
+    { key: 'team', label: '团队交付', icon: <ScheduleOutlined aria-hidden />, children: [
+      ...pluginLinks(teamPages, 'team'),
+      ...(manualJobs.length ? [{ key: '/debug', icon: <CodeOutlined aria-hidden />, label: link('/debug', '业务任务') }] : []),
+    ] }] : []),
+    { key: 'manage', label: '运行管理', icon: <SettingOutlined aria-hidden />, children: [
+      ...pluginLinks(pages.filter(page => navigationSection(page, page.path) === 'manage'), 'team'),
+      { key: '/logs', icon: <UnorderedListOutlined aria-hidden />, label: link('/logs', '审计日志') },
+      { key: '/contexts', icon: <DatabaseOutlined aria-hidden />, label: link('/contexts', '上下文') },
+    ] },
+  ];
+};
 const titles: Record<string, string> = { '/': '工作台', '/runs': '运行记录', '/agents': 'Agent', '/plugins': '插件', '/connections': '连接与模型', '/config': '定时与团队配置', '/logs': '审计日志', '/contexts': '上下文', '/debug': '业务任务' };
 
 export const MainLayout = () => {

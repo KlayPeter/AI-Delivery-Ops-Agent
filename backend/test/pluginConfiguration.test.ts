@@ -15,7 +15,8 @@ describe('trusted plugin configuration', () => {
     test('loads the shipped team, empty and native template profiles', async () => {
         const root = path.resolve(import.meta.dir, '../profiles/agents');
         const team = await loadPluginConfiguration(path.join(root, 'team.yaml'), deliveryTeamPlugins);
-        expect(team.plugins).toHaveLength(13);
+        expect(team.plugins).toHaveLength(14);
+        expect(team.plugins.filter(plugin => plugin.manifest.id === 'builtin.configuration')).toHaveLength(1);
         expect(team.plugins.filter(plugin => plugin.manifest.id === 'builtin.directory')).toHaveLength(1);
         expect((await loadPluginConfiguration(path.join(root, 'empty.yaml'), deliveryTeamPlugins)).plugins).toEqual([]);
         const demo = await loadPluginConfiguration(path.join(root, 'native-demo.yaml'), deliveryTeamPlugins);
@@ -73,7 +74,7 @@ describe('trusted plugin configuration', () => {
             await expect(loadPluginConfiguration(file)).rejects.toThrow('本机工作台'); expect(calls).toBe(0);
             await writeFile(file, JSON.stringify({ apiVersion: '1.0', base: 'personal', plugins: [] }));
             const loaded = await loadPluginConfiguration(file, [], base);
-            expect(calls).toBe(1); expect(loaded.base).toBe('personal'); expect(loaded.plugins).toHaveLength(13); expect(loaded.config['builtin.task']).toEqual({ label: 'base config' });
+            expect(calls).toBe(1); expect(loaded.base).toBe('personal'); expect(loaded.plugins).toHaveLength(deliveryTeamPlugins.length); expect(loaded.config['builtin.task']).toEqual({ label: 'base config' });
             await writeFile(file, JSON.stringify({ apiVersion: '1.0', base: 'personal', plugins: [{ module: 'builtin.task', config: { label: 'override attempt' } }] }));
             await expect(loadPluginConfiguration(file, [], base)).rejects.toThrow('Duplicate plugin');
             await writeFile(file, JSON.stringify({ apiVersion: '1.0', base: 'arbitrary-file.yaml', plugins: [{ module: './untrusted.ts' }] }));

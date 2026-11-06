@@ -25,7 +25,7 @@ flowchart TD
     LF --> BOOT[重启注入环境配置]
     BOOT --> PH
     PERSONAL[HTTP 默认个人组合：十五插件九 Agent] --> PH
-    TEAM[显式 team.yaml：十三插件七 Agent] --> PH
+    TEAM[显式 team.yaml：十四插件七 Agent] --> PH
     PC["可信插件配置 / 重启生效"] --> PH["Agent、Tool、Skill、消息与群调度装配"]
     PH --> COL[可选网页/文档插件及其页面、上传 API]
     COL --> E
@@ -35,7 +35,10 @@ flowchart TD
     WMATCH -- 否 --> W404[404；不解析正文或调用插件]
     VIS --> E
     PH --> E
-    A["Config Page / API"] --> B["Schema 校验与持久化"]
+    PH --> CONFIG_PLUGIN[builtin.configuration：原页面与 API]
+    CONFIG_PLUGIN --> A[原 Config Page / API]
+    A --> BODY[有界 JSON、完整动态字段与群成员身份检查]
+    BODY --> B[持久化后重载；失败区分已保存和未保存]
     DIRECTORY[可选 builtin.directory；个人与空组合不装配] --> DAPI[五项本机通讯录 API]
     DAPI -- 手动写入前 --> RELOAD{宿主提供配置重载?}
     RELOAD -- 否 --> UNSUPPORTED[503；不读取或写入]
@@ -99,13 +102,25 @@ flowchart TD
 
 默认个人组合增加网页收集和文档导入；文档 Python 路径仅来自可信插件配置，应用不自动安装依赖，不继承模型/Azure 凭据。移除插件关闭对应页面与 API；没有新增业务计划或后台清理任务。上传过期只在下次上传时清理。
 
+## 团队配置插件（2026-11-06）
+
+builtin.configuration 拥有原 /config 页面和 GET/POST /api/config，使用已打包 team-configuration 视图。团队 SDK 与 team.yaml 默认包含该插件，合计十四插件、七 Agent；个人和空组合不装配。移除插件后页面、导航与 API 同时关闭；保存的系统设置、群/成员与 Run 不删除。builtin.directory 独立控制通讯录 API 与自动同步，配置插件自身不注册 Agent、Tool 或定时任务。
+
+POST 仅接受完整的 runtime/schedule 对象和 groups 数组；groups 是完整替换快照，空数组会清空群配置，群 chat_id 与提供的成员 open_id 必须非空；现有前端已只发送这三个字段。错误/缺失字段、非法 JSON、超过 1 MiB 或读取十秒超时均在 Store 前拒绝，避免把错误请求当空群配置。旧客户端不能直接回传 GET 的整份脱敏 AppConfig；应只提交动态字段。字段的时间、日历与模块归一化仍沿用原配置加载器及 Store，不宣称新增了完整的计划语言校验。
+
+读取始终使用 maskedConfig，HEAD 按 GET 处理。无 reloadConfiguration 的 SDK 宿主保留只读入口，POST 返回 503 且不消费正文或写入。保存调用原 saveDynamicConfig 的事务；存储失败返回 saved=false，持久化成功但重载失败返回 saved=true 与明确提示，禁止将这两种状态合并成“从未保存”。成功后返回原 ok/message/config 形状。主 index 不再注册业务配置 API，实际插件路由仍经过本机 Host/Origin 与声明检查，Host 停止先等待已接受的写入，再释放贡献。
+
+代码地图：agents/plugins/configuration.ts、builtins.ts、profiles/agents/team.yaml；本目录 configApi.ts/publicConfig.ts；platform/workspace/requestBody.ts 共用有界正文读取，配方继续使用原 40 KiB/十秒限制；frontend/src/App.tsx、pages/workspace/PluginPage.tsx、pages.ts、layouts/MainLayout.tsx 和 pages/ConfigPage.tsx。配置入口只根据实际页面贡献出现在运行管理，其他团队业务菜单不会重复配置项。
+
+验证：configurationPlugin.test.ts 六项覆盖脱敏与实际保存、停用/缺重载、非法/超限/中断请求零写入、存储与重载失败区分、在途清理与跨 Host 保留；pluginConfiguration.test.ts、workspaceComposition.test.ts、pluginWeb.test.ts 与 runRecipes.test.ts 回归组合及共享读取。隔离 HTTP/浏览器验证个人关闭、团队保存、只移除配置插件后的关闭及重新装配后恢复原设置；未使用真实飞书凭据验证目录权限、消息投递、模型或邮件业务。
+
 ## 核心规则
 
-`AGENT_PLUGINS_FILE` 属于重启生效的可信代码装配配置，选择 Agent、Tool、Skill、确定性消息与群业务调度贡献。团队 SDK/显式团队组合为十个功能插件和三个模型插件，继续提供七个 Agent；移除插件关闭其指令、引用、帮助和群业务计划。builtin.directory 同时拥有通讯录 API 与自动群同步；全局维护、其余 Web 入口与飞书连接尚未全部跟随。动态业务配置重载复用同一个消息注册表，不重复装配路由。
+`AGENT_PLUGINS_FILE` 属于重启生效的可信代码装配配置，选择 Agent、Tool、Skill、确定性消息与群业务调度贡献。团队 SDK/显式团队组合为十一个功能插件和三个模型插件，继续提供七个 Agent；移除插件关闭其指令、引用、帮助和群业务计划。builtin.directory 同时拥有通讯录 API 与自动群同步；全局维护、其余 Web 入口与飞书连接尚未全部跟随。动态业务配置重载复用同一个消息注册表，不重复装配路由。
 
 自动调度统一通过 `backend/src/core/scheduleCalendar.ts` 判断群级 `schedule.calendar`。指定日期的触发/暂停优先于基础策略；`workdays` 使用中国工作日（含调休），`every_day` 不限制节假日，`selected_dates` 仅执行指定触发日。日期放行不绕过模块开关、任务开关或原定时刻，手动触发不受该日历限制。未配置或 `legacy` 保留原有 `workdays_only` 规则及周报、承诺到期提醒的例外；无效日期与非布尔覆盖值在读取配置时丢弃。
 
-1. **配置先校验再持久化。** Cron、时区、群、Bot、模块开关和外部服务参数必须通过服务端 Schema；前端校验只改善体验。飞书发送与模型重试次数统一限制为 0–3，非法值回退安全默认值。
+1. **动态配置先校验再持久化。** 配置插件要求 runtime/schedule 对象和 groups 数组；群 chat_id 与提供的成员 open_id 必须非空，格式不正确时不进入 Store。时间、日历等仍使用既有配置规范化和领域校验；前端校验只改善体验。飞书发送与模型重试次数统一限制为 0–3，非法值回退安全默认值。
 2. **保存成功只代表配置已持久化。** Scheduler 当前按轮询周期读取新配置，页面提示约 30 秒内生效；配置 API 不能把未来的调度执行描述成已经成功。
 3. **Scheduler 只执行插件贡献。** 群计划、日期资格、周五/跨午夜/工作窗口和模块开关由所属插件声明。 到点后写入 Job/Trigger 记录，再调用对应 Agent 或领域服务；Scheduler 不复制日报、站会和看板规则。
 4. **每个群独立调度。** 群配置、时区、计划和 Bot Binding 共同确定运行 Scope，一个群失败不阻塞其他群。
@@ -136,7 +151,7 @@ Debug 与 /api/jobs 统一使用 PluginWebRegistry 的 manualJobs。站会声明
 
 ## 默认个人与按需团队
 
-HTTP 不再隐式加载团队插件。团队导航与定时配置入口仅在可见团队页面或已授权手动任务存在时显示；核心 /api/config 仍由宿主提供，此处是展示规则，不是 API 授权。默认个人组合没有团队业务任务/站会、看板及周报插件 API。飞书/TAPD 仍可填写并保存连接，但使用相应业务需要显式选择 profiles/agents/team.yaml；切换同一目录保留配置与历史。验证：backend/test/workspaceComposition.test.ts、frontend/src/pages/workspace/pages.test.mjs 与浏览器个人/团队切换。
+HTTP 不再隐式加载团队插件。团队业务导航由可见团队页面或手动任务决定；定时配置入口与 /api/config 现由 builtin.configuration 拥有，仅在装配该插件时提供。默认个人组合没有团队业务任务/站会、看板及周报插件 API。飞书/TAPD 仍可填写并保存连接，但使用相应业务需要显式选择 profiles/agents/team.yaml；切换同一目录保留配置与历史。验证：backend/test/workspaceComposition.test.ts、frontend/src/pages/workspace/pages.test.mjs 与浏览器个人/团队切换。
 
 ## 用户能力
 

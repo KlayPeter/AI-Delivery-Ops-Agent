@@ -13,3 +13,4 @@ plugins:
   - module: builtin.meeting-summary
   - module: builtin.ai-hot-schedule
   - module: builtin.directory
+  - module: builtin.configuration
