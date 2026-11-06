@@ -48,7 +48,7 @@ async function fixture() {
     const yaml = parseYaml(profile.yaml); expect(yaml.base).toBe('personal'); expect(yaml.plugins).toHaveLength(2); expect(profile.yaml).not.toContain(directory);
     await writeFile(profileFile, profile.yaml, { flag: 'wx' });
     await expect(loadPluginConfiguration(profileFile)).rejects.toThrow('本机工作台');
-    const selection = await loadWorkspacePlugins(config.data_path, profileFile); expect(selection.plugins).toHaveLength(17);
+    const selection = await loadWorkspacePlugins(config.data_path, profileFile); expect(selection.plugins).toHaveLength(18);
     const requests: any[] = []; let mode = 'success', entered!: () => void, release!: () => void;
     const pending = new Promise<void>(resolve => { release = resolve; }), started = new Promise<void>(resolve => { entered = resolve; });
     const server = Bun.serve({ hostname: '127.0.0.1', port: 0, async fetch(request) {

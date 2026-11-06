@@ -197,10 +197,10 @@ test('the optional example loads over personal without changing the default or a
     try {
         const file = path.resolve(import.meta.dir, '../examples/plugins.knowledge-watch-personal.yaml');
         const selected = await loadWorkspacePlugins('/tmp/watch-composition-test', file);
-        expect(selected.plugins).toHaveLength(16);
+        expect(selected.plugins).toHaveLength(17);
         expect(selected.plugins.reduce((count, plugin) => count + (plugin.agents?.length || 0), 0)).toBe(9);
         expect(selected.plugins.some(plugin => plugin.manifest.id === 'knowledge.watch')).toBe(true);
-        expect((await loadWorkspacePlugins('/tmp/watch-composition-test', '')).plugins).toHaveLength(15);
+        expect((await loadWorkspacePlugins('/tmp/watch-composition-test', '')).plugins).toHaveLength(16);
     } finally {
         if (previous === undefined) delete process.env.KNOWLEDGE_KIND; else process.env.KNOWLEDGE_KIND = previous;
         if (github === undefined) delete process.env.RELEASE_GITHUB_REPOSITORY; else process.env.RELEASE_GITHUB_REPOSITORY = github;

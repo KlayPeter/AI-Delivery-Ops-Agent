@@ -20,12 +20,15 @@ last_reviewed: 2026-11-06
 
 ```mermaid
 flowchart TD
+    RETENTION_PLUGIN[可选 platform.maintenance] --> RETENTION_TICK[全局 tick：无群也执行；自主检查时刻与每日 Claim]
+    RETENTION_TICK --> RETENTION_SERVICE[原 DataRetentionService：批量审计及白名单临时键]
+    RETENTION_SERVICE --> RETENTION_KEEP[保留 Run、Step、Artifact 与业务事实]
     KWP[可选知识工作台插件] --> LC[本机连接与知识表单]
     LC --> LF[私有文件·校验·原子保存]
     LF --> BOOT[重启注入环境配置]
     BOOT --> PH
-    PERSONAL[HTTP 默认个人组合：十五插件九 Agent] --> PH
-    TEAM[显式 team.yaml：十四插件七 Agent] --> PH
+    PERSONAL[HTTP 默认个人组合：十六插件九 Agent] --> PH
+    TEAM[显式 team.yaml：十五插件七 Agent] --> PH
     PC["可信插件配置 / 重启生效"] --> PH["Agent、Tool、Skill、消息与群调度装配"]
     PH --> COL[可选网页/文档插件及其页面、上传 API]
     COL --> E
@@ -104,7 +107,7 @@ flowchart TD
 
 ## 团队配置插件（2026-11-06）
 
-builtin.configuration 拥有原 /config 页面和 GET/POST /api/config，使用已打包 team-configuration 视图。团队 SDK 与 team.yaml 默认包含该插件，合计十四插件、七 Agent；个人和空组合不装配。移除插件后页面、导航与 API 同时关闭；保存的系统设置、群/成员与 Run 不删除。builtin.directory 独立控制通讯录 API 与自动同步，配置插件自身不注册 Agent、Tool 或定时任务。
+builtin.configuration 拥有原 /config 页面和 GET/POST /api/config，使用已打包 team-configuration 视图。团队 SDK 与 team.yaml 默认包含该插件，合计十五插件、七 Agent；个人和空组合不装配。移除插件后页面、导航与 API 同时关闭；保存的系统设置、群/成员与 Run 不删除。builtin.directory 独立控制通讯录 API 与自动同步，配置插件自身不注册 Agent、Tool 或定时任务。
 
 POST 仅接受完整的 runtime/schedule 对象和 groups 数组；groups 是完整替换快照，空数组会清空群配置，群 chat_id 与提供的成员 open_id 必须非空；现有前端已只发送这三个字段。错误/缺失字段、非法 JSON、超过 1 MiB 或读取十秒超时均在 Store 前拒绝，避免把错误请求当空群配置。旧客户端不能直接回传 GET 的整份脱敏 AppConfig；应只提交动态字段。字段的时间、日历与模块归一化仍沿用原配置加载器及 Store，不宣称新增了完整的计划语言校验。
 
@@ -116,7 +119,7 @@ POST 仅接受完整的 runtime/schedule 对象和 groups 数组；groups 是完
 
 ## 核心规则
 
-`AGENT_PLUGINS_FILE` 属于重启生效的可信代码装配配置，选择 Agent、Tool、Skill、确定性消息与群业务调度贡献。团队 SDK/显式团队组合为十一个功能插件和三个模型插件，继续提供七个 Agent；移除插件关闭其指令、引用、帮助和群业务计划。builtin.directory 同时拥有通讯录 API 与自动群同步；全局维护、其余 Web 入口与飞书连接尚未全部跟随。动态业务配置重载复用同一个消息注册表，不重复装配路由。
+`AGENT_PLUGINS_FILE` 属于重启生效的可信代码装配配置，选择 Agent、Tool、Skill、确定性消息与群业务调度贡献。团队 SDK/显式团队组合为十二个功能/平台插件和三个模型插件，继续提供七个 Agent；移除插件关闭其指令、引用、帮助和群业务计划。builtin.directory 同时拥有通讯录 API 与自动群同步；审计维护由 platform.maintenance 独立贡献；专用外部 Agent 安装与业务服务构造仍有宿主耦合。动态业务配置重载复用同一个消息注册表，不重复装配路由。
 
 自动调度统一通过 `backend/src/core/scheduleCalendar.ts` 判断群级 `schedule.calendar`。指定日期的触发/暂停优先于基础策略；`workdays` 使用中国工作日（含调休），`every_day` 不限制节假日，`selected_dates` 仅执行指定触发日。日期放行不绕过模块开关、任务开关或原定时刻，手动触发不受该日历限制。未配置或 `legacy` 保留原有 `workdays_only` 规则及周报、承诺到期提醒的例外；无效日期与非布尔覆盖值在读取配置时丢弃。
 
@@ -307,3 +310,13 @@ Host 可选 reloadConfiguration 只供可信原生插件重载应用配置；HTT
 ## 运行链接与调度授权边界（2026-11-06）
 
 共享 WebContribution 新增 runLinks，只贡献成功根运行到已装配页面的导航；不注册 manualJobs、定时器或新的调度权限。声明校验与释放覆盖于 backend/test/pluginWeb.test.ts；知识重新回答由用户明确发起个人 manual 根运行，详见 [知识回答](../../knowledge/answer/FEATURE.md)。
+
+## 审计维护插件（2026-11-06）
+
+原维护任务现由 platform.maintenance 拥有，注册 maintenance.cleanup / global-tick，不新增 Agent。个人默认十六插件/九 Agent、GitHub 组合十八插件/十 Agent、团队 SDK/profile 十五插件/七 Agent；显式空组合或未包含该插件的独立文件不再隐式清理。base: personal 继承维护插件；可用 MAINTENANCE_ENABLED=false 关闭执行。安装插件不改变原九十天保留、03:30 Asia/Shanghai、每批五百条/最多二十批的默认策略。
+
+Scheduler 先执行到期 global-poll，再执行每 tick 的 global-tick，随后处理既有 Outbox 和逐群任务；同一阶段按 priority 排序。global-tick 无 group、不受低频轮询间隔或群日历限制，插件自己判断时刻、领取每日键和记录结果。维护失败保留失败凭证并继续其他任务；全局贡献抛出错误仍走 scheduler_poll_failed。停止先拒绝并等待在途 tick，再释放贡献，不删除历史。
+
+DataRetentionService 策略未改：只删除严格早于保留边界的审计和 scheduled:/maintenance:/feishu:event:/history-sync: 四类有效过期键；不扩展到 Agent Run、Step、Artifact、业务消息或未知/无有效时间键。审计与临时键共用单次批数预算，可能分多日消化积压；每日失败不在同日自动重试。
+
+代码地图：backend/src/agents/plugins/maintenance.ts、builtins.ts；platform/scheduling/registry.ts；core/scheduler.ts / dataRetention.ts；platform/workspace/knowledge.ts；profiles/agents/team.yaml。验证：maintenancePlugin.test.ts（空组合零清理、时刻/批量/跨 Host 每日去重、关闭、失败隔离、在途停止与阶段顺序），maintenanceScheduler.test.ts 显式安装维护贡献，dataRetention.test.ts 保留策略不变；workspaceComposition.test.ts / pluginConfiguration.test.ts 及导出组合测试同步数量。另在全新临时 SQLite 中生成真实 Echo Run，验证分批清理、四类临时键、历史三条 Run/Step/Artifact 字节不变与卸载释放；不使用模型或个人库。

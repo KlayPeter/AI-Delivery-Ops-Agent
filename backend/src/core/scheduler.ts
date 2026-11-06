@@ -1,10 +1,8 @@
 import { loadConfig } from './config';
-import { DataRetentionService } from './dataRetention';
 import { MessageHandler } from '@/services/messageHandler';
 import { utcNowIso } from '@/models/types';
 import type { ScheduledAgentDispatcher } from '@/platform/bootstrap/scheduledAgentDispatcher';
-import { zonedClock } from './scheduleTime';
-import type { GroupScheduleContext } from '@/platform/scheduling/registry';
+import type { GroupSchedule, GroupScheduleContext } from '@/platform/scheduling/registry';
 
 export class InProcessScheduler {
     private getHandler: () => MessageHandler;
@@ -65,25 +63,26 @@ export class InProcessScheduler {
         ctx.config = loadConfig(await ctx.store.getDynamicConfig());
         const results: Record<string, string> = {};
         const resources = new Map<unknown, unknown>();
-        const entries = ctx.schedules?.list() || [];
-        for (const entry of entries) {
-            if (entry.kind !== 'global-poll' || this.globalPollIntervalMs <= 0
-                || now.getTime() - (this.lastGlobalPollAt.get(entry.id) || 0) < this.globalPollIntervalMs) continue;
-            this.lastGlobalPollAt.set(entry.id, now.getTime());
+        const entries: GroupSchedule[] = ctx.schedules?.list() || [];
+        const globalEntries = [...entries.filter(entry => entry.kind === 'global-poll'), ...entries.filter(entry => entry.kind === 'global-tick')];
+        for (const entry of globalEntries) {
+            if (entry.kind === 'global-poll') {
+                if (this.globalPollIntervalMs <= 0 || now.getTime() - (this.lastGlobalPollAt.get(entry.id) || 0) < this.globalPollIntervalMs) continue;
+                this.lastGlobalPollAt.set(entry.id, now.getTime());
+            }
             try { Object.assign(results, await entry.run({ ctx, now, resources, agents: this.agentJobs })); }
             catch (error: any) {
                 results[entry.id] = 'failed';
                 await ctx.store.appendAuditLog('scheduler_poll_failed', { job_name: entry.id, error: error?.message || String(error) });
             }
         }
-        await this.runMaintenanceIfDue(ctx, now);
         if (this.agentJobs) await this.agentJobs.flushDeliveries();
         for (const group of ctx.config.groups) {
             const groupId = group.chat_id;
             if (!groupId) continue;
             const context: GroupScheduleContext = { ctx, group, now, resources, agents: this.agentJobs };
             for (const entry of entries) {
-                if (entry.kind === 'global-poll') continue;
+                if (entry.kind === 'global-poll' || entry.kind === 'global-tick') continue;
                 const jobName = entry.id;
                 if (entry.kind === 'poll') {
                     try { Object.assign(results, await entry.run(context)); }
@@ -140,41 +139,6 @@ export class InProcessScheduler {
             }
         }
         return results;
-    }
-
-    private async runMaintenanceIfDue(ctx: any, now: Date): Promise<void> {
-        const config = ctx.config?.maintenance;
-        if (!config?.enabled) return;
-        if (typeof ctx.store.deleteAuditLogsBefore !== 'function') return;
-        const clock = zonedClock(now, config.cleanup_timezone);
-        if (!clock || clock.time !== config.cleanup_time) return;
-        const key = `maintenance:cleanup:${clock.date}`;
-        const claimed = await ctx.store.claimIdempotencyKey(key, {
-            status: 'running',
-            started_at: now.toISOString(),
-        });
-        if (!claimed) return;
-
-        try {
-            const result = await new DataRetentionService(ctx.store, config).run(now);
-            await ctx.store.setIdempotencyKey(key, {
-                status: 'completed',
-                completed_at: new Date().toISOString(),
-                result,
-            });
-            await ctx.store.appendAuditLog('maintenance_cleanup_completed', result);
-        } catch (error: any) {
-            const message = error?.message || String(error);
-            await Promise.resolve(ctx.store.setIdempotencyKey(key, {
-                status: 'failed',
-                failed_at: new Date().toISOString(),
-                error: message,
-            })).catch(() => {});
-            await Promise.resolve(ctx.store.appendAuditLog('maintenance_cleanup_failed', {
-                at: now.toISOString(),
-                error: message,
-            })).catch(() => {});
-        }
     }
 
     private async runJobWithRetry(handler: MessageHandler, jobName: string, groupId: string, day: Date, context: GroupScheduleContext): Promise<{ payload: any; attempts: number }> {

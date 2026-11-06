@@ -70,7 +70,7 @@ AGENT_PLUGINS_FILE=plugins.skills-personal.local.yaml bun run local
 AGENT_PLUGINS_FILE=profiles/agents/team.yaml bun run dev
 ```
 
-该组合保留七个团队 Agent 和十四个插件（含三个模型提供者），包含任务、站会、日报、周报、看板及原有九项手动任务；不是默认个人组合的叠加开关。前端据实际贡献显示团队页面和业务任务；默认个人组合没有这些入口，其站会/看板/周报插件 API 也不可用。`builtin.configuration` 拥有原 `/config` 页面和 `/api/config`；个人、空组合或移除该插件后，页面与 API 一起关闭。通讯录的五项 `/api/feishu` 接口与自动成员同步现由 `builtin.directory` 拥有；移除插件即停止这些入口和读取，已有成员配置保留。
+该组合保留七个团队 Agent 和十五个插件（含三个模型提供者），包含任务、站会、日报、周报、看板及原有九项手动任务；不是默认个人组合的叠加开关。前端据实际贡献显示团队页面和业务任务；默认个人组合没有这些入口，其站会/看板/周报插件 API 也不可用。`builtin.configuration` 拥有原 `/config` 页面和 `/api/config`；个人、空组合或移除该插件后，页面与 API 一起关闭。通讯录的五项 `/api/feishu` 接口与自动成员同步现由 `builtin.directory` 拥有；移除插件即停止这些入口和读取，已有成员配置保留。
 
 「连接与模型」的飞书、TAPD 仍可填写；凭据只保存连接配置，不会安装任务/报告 Agent。已保存的飞书凭据会在重启后尝试连接；使用群聊/私聊业务前请先选择提供对应能力的组合。
 
@@ -109,3 +109,7 @@ KNOWLEDGE_PROVIDER=ollama KNOWLEDGE_MODEL='<已有模型名>' bun run src/script
 在「插件 → 接入与组合 → 组合已有配置」选择已审查并下载的 Skill、MCP、OpenAPI YAML，各一份。校验后核对来源、工具与完整配置，再下载到 backend/；按页面命令从仓库根目录重启。个人知识来源和连接设置沿用本机，已有运行记录保留；不会自动合并当前自定义组合。完整步骤与限制见[插件配置组合](PLUGIN_PROFILES.md)。
 
 首次还没有能力配置时，在同页「启用接入助手」勾选 GitHub Skill/OpenAPI，点击「保存并应用」，直接打开出现的接入链接；取消勾选并应用可停用。选择在本机私有保存，任务进行中时先等待结束。自定义插件文件仍使用高级导出并由原文件控制。此时只是打开发现与审查入口；逐项审查后导出的能力文件，才交给「组合已有配置」。默认 MCP 发现助手可直接使用。
+
+## 审计数据保留
+
+个人与团队预设包含 platform.maintenance：每天 03:30（Asia/Shanghai）按原策略清理九十天前审计和四类临时去重键，默认每批五百条、最多二十批，不清理运行、步骤、产物或业务数据。需要保留全部审计时设置 MAINTENANCE_ENABLED=false 并重启；独立 AGENT_PLUGINS_FILE 只有显式包含该插件才会清理，空组合不会清理。base: personal 继承个人预设中的维护插件。

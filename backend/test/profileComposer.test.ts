@@ -41,7 +41,7 @@ test('downloaded setup profile loads real inspection pages and preserves a perso
         const before = (await host.getLocalRunDetails(result.execution!.run.id))!;
         expect(before.run.status).toBe('succeeded'); await host.stop();
         const profile = exportSetupProfile({ assistants: ['skills', 'openapi'] }); await writeFile(file, profile.yaml);
-        const selected = await loadWorkspacePlugins(directory, file); expect(selected.plugins).toHaveLength(17);
+        const selected = await loadWorkspacePlugins(directory, file); expect(selected.plugins).toHaveLength(18);
         host = create(selected); await host.initialize();
         expect(await host.listAgents()).toHaveLength(11);
         expect(host.web.pages().map(page => page.path)).toEqual(expect.arrayContaining(['/skills', '/openapi-setup', '/knowledge', '/plugin-profiles']));
@@ -162,7 +162,7 @@ test('downloaded canonical output loads with the real personal preset and retain
         for (const key of keys) delete process.env[key];
         const result = composeProfiles({ files: [skill(), openapi()] }); await writeFile(file, result.yaml);
         const selected = await loadWorkspacePlugins(directory, file);
-        expect(selected.base).toBe('personal'); expect(selected.plugins).toHaveLength(19);
+        expect(selected.base).toBe('personal'); expect(selected.plugins).toHaveLength(20);
         expect(selected.plugins.filter(plugin => plugin.manifest.id === 'mcp.setup')).toHaveLength(1);
         host = new AgentHost(() => ({ store: new InMemoryPersistentKeyValueStore(), config: { ...buildConfig({}), data_path: directory }, feishu: {}, tapd: {} } as any), 1000, undefined, [], { plugins: selected.plugins, pluginConfig: selected.config });
         await host.initialize(); expect(await host.listAgents()).toHaveLength(13);

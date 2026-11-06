@@ -37,6 +37,8 @@ are deferred while the local product is being validated.
 - [x] Move the existing team configuration page and API into builtin.configuration;
   preserve URLs, mask secrets, reject malformed replacement payloads before writes,
   distinguish persisted-but-not-reloaded state, and close both entries when absent.
+- [x] Move audit retention into optional platform.maintenance; an empty profile does
+  no cleanup. Preserve due clocks, daily receipts, limits and non-target history.
 - [ ] Move remaining business entrypoints, integrations, runtime services, triggers and UI
   contributions behind plugin registration, preserving current behavior.
 - [x] Provide explicit empty, knowledge, release, community-tool and team profiles;

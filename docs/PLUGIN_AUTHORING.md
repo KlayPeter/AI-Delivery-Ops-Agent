@@ -1,6 +1,6 @@
 # 功能插件规范 v1
 
-当前 SDK 面向本仓库内或由部署者审查的 TypeScript 原生插件。使用 Cordis 4.1.0，协议版本为 `1.0`。现阶段提供 Agent、Tool、Skill、消息路由、群业务调度和运行后续动作的独立装配、依赖校验和资源清理；页面、全局维护、业务 API 与基础服务的完整插件化继续按路线图迁移。
+当前 SDK 面向本仓库内或由部署者审查的 TypeScript 原生插件。使用 Cordis 4.1.0，协议版本为 `1.0`。现阶段提供 Agent、Tool、Skill、消息路由、群业务调度和运行后续动作的独立装配、依赖校验和资源清理；页面、业务 API 与审计维护也由插件贡献；剩余专用安装入口和业务服务构造继续按路线图收尾。
 
 ## 包结构
 
@@ -45,7 +45,7 @@ await host.stop();
 AGENT_PLUGINS_FILE=profiles/agents/team.yaml bun run dev
 ```
 
-团队 SDK 未指定插件时仍为十四个插件、七个 Agent；HTTP 工作台默认只装配选定知识来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收、MCP 接入助手、个人研究及任务配方，共十五个插件、九个 Agent；配置 GitHub 发布组合后为 17 个插件、10 个 Agent。HTTP 不再隐式装配团队能力；使用 profiles/agents/team.yaml 可显式选择十一个团队功能插件及三个模型插件。会议纪要和外部 AI Hot 调度插件没有独立 Agent。会议纪要仍受原有模块开关控制，外部 AI Hot 能力仍需另行安装。示例还包括 `profiles/agents/native-demo.yaml`、`profiles/agents/empty.yaml` 和 `backend/examples/plugins.collectors.yaml`，分别选择 Echo 模板、零业务插件和采集/资料库三个插件。显式插件文件完全决定组合；未装配的插件页面和 API 不开放，基础服务仍由应用拥有。
+团队 SDK 未指定插件时仍为十五个插件、七个 Agent；HTTP 工作台默认只装配选定知识来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收、MCP 接入助手、个人研究及任务配方，共十六个插件、九个 Agent；配置 GitHub 发布组合后为 18 个插件、10 个 Agent。HTTP 不再隐式装配团队能力；使用 profiles/agents/team.yaml 可显式选择十二个功能/平台插件及三个模型插件。会议纪要和外部 AI Hot 调度插件没有独立 Agent。会议纪要仍受原有模块开关控制，外部 AI Hot 能力仍需另行安装。示例还包括 `profiles/agents/native-demo.yaml`、`profiles/agents/empty.yaml` 和 `backend/examples/plugins.collectors.yaml`，分别选择 Echo 模板、零业务插件和采集/资料库三个插件。显式插件文件完全决定组合；未装配的插件页面和 API 不开放，基础服务仍由应用拥有。
 
 ```yaml
 apiVersion: '1.0'
@@ -136,20 +136,23 @@ matches 是同步判断，只做确定性选择，不执行网络或写入；依
 
 ## 群业务调度贡献
 
-协议见 `backend/src/platform/scheduling/registry.ts`。每条贡献有唯一 `id`、唯一数值 `priority` 和 `kind`，按优先级从高到低执行，不依赖插件装配顺序。
+协议见 `backend/src/platform/scheduling/registry.ts`。每条贡献有唯一 `id`、唯一数值 `priority` 和 `kind`，同一阶段按优先级从高到低执行，不依赖插件装配顺序；阶段依次为 global-poll、global-tick、Outbox、逐群任务。
 
 - `kind: 'timed'` 的纯函数 `plan(context)` 返回 `{day, date, time}`，不满足日期、时刻、资格或开关条件时返回 `null`。插件拥有这些业务规则；共用日历工具保留全局工作日兜底和群覆盖。`run` 接收相同上下文、明确业务日期和 `retryAttempt`。
 - 默认由 Scheduler 使用 `scheduled:id:group:date:time` 原子领取并记录执行结果。`agent: true` 仅在提供 Agent Dispatcher 时将幂等交给 Agent Trigger Store；执行函数必须实际通过对应 Runtime 派发，不能借此跳过幂等。
 - 临时执行错误最多额外重试一次，遵守 `retryAfterMs`；`retryable: false` 不重试。重复 Trigger 与带警告完成沿用原语义，计划错误单独记录且不执行。
 - `kind: 'poll'` 在每轮逐群调用，函数拥有自身的到期检查、领取与结果记录方式，不套用分钟计划 Claim 或通用重试。站会承诺提醒复用原来的领域幂等及错误审计。其他插件抛出的轮询错误被隔离，不阻塞其余贡献。
 - `kind: 'global-poll'` 在逐群任务前按轮询间隔调用一次，无 `group`，无群时也可执行。Scheduler 第三个构造参数为该低频间隔（秒，原成员同步参数位置保持；SDK 默认一小时，HTTP 六小时，非正值禁用），各贡献分别记录尝试时间；失败记录 `scheduler_poll_failed` 并继续其他贡献，不套用群计划 Claim 或自动重试。
+- `kind: 'global-tick'` 每 tick 调用一次，无 `group`，无群时仍执行，不受第三个低频轮询间隔影响。插件自己检查时刻、幂等与结果记录；错误复用全局轮询隔离，不套用群计划 Claim 或自动重试。
 - 每轮共享 `resources` Map，插件可按稳定键惰性复用资源。内置 `scheduledPluginJobs` 让多群扫描复用同一个 `ScheduledJobs`，不重复创建 TAPD 同步上下文。资源只在本轮使用，不跨轮保存私有业务事实。
 
-应用组合层创建共享 `ScheduleRegistry`，传给 `HandlerContext.schedules` 与 `AgentHostOptions.schedules`。无注册表或空列表时不隐式运行群业务任务；全局维护及 Outbox Worker 当前仍为基础服务。默认十项定时任务、一项站会轮询与一项通讯录全局轮询由功能插件贡献；`builtin.ai-hot-schedule` 只负责外部 AI Hot 调度，不自动安装外部服务。
+应用组合层创建共享 `ScheduleRegistry`，传给 `HandlerContext.schedules` 与 `AgentHostOptions.schedules`。无注册表或空列表时不隐式运行群业务或审计清理任务；Outbox Worker 仍属于通用投递服务。默认十项定时任务、一项站会轮询与一项通讯录全局轮询和一项维护 global-tick 由功能插件贡献；`builtin.ai-hot-schedule` 只负责外部 AI Hot 调度，不自动安装外部服务。
 
 团队组合的 `builtin.directory` 独立拥有五项 `/api/feishu` 群/成员 API 和自动群成员同步，不增加 Agent。删除该插件同时关闭接口和后台读取，保留既有目录与群配置。个人默认与空组合均不装配；旧自定义组合若需要自动刷新成员，应显式加入 `builtin.directory`。
 
 原生宿主可通过 `AgentHostOptions.reloadConfiguration` 提供配置重载回调，暴露为可选 `ctx.delivery.reloadConfiguration`；HTTP 应用沿用原重建配置/Adapter 流程。手动同步若缺少回调，会在外部读取和写入前返回 503；读取 API 与计划同步仍可用。同步修改后返回的配置继续脱敏；同步已写入而重载失败时返回错误，不能把错误当作回滚。该端口属于可信原生插件服务，不是模型 Tool 权限。
+
+platform.maintenance 复用原审计与临时键保留策略，无 Agent/页面。个人和团队预设包含它；独立显式配置需要自行加入。base: personal 继承它，可用 MAINTENANCE_ENABLED=false 关闭执行；不会清理 Run/Step/Artifact 或未知键。配置默认与完整边界见[运行功能卡](../backend/src/platform/runtime/FEATURE.md#审计维护插件2026-11-06)。
 
 ## 运行后续动作与状态面板
 

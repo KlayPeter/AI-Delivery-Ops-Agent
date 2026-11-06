@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { InProcessScheduler } from '@/core/scheduler';
+import { maintenancePlugin } from '@/agents/plugins/maintenance';
+import { ScheduleRegistry } from '@/platform/scheduling/registry';
 
 function fixture(failCleanup: boolean = false) {
     const claims = new Set<string>();
@@ -29,9 +31,12 @@ function fixture(failCleanup: boolean = false) {
         listRawIdempotencyRecords: async (): Promise<Array<{ key: string; value: string }>> => [],
         deleteIdempotencyKeys: async () => 0,
     };
+    const schedules = new ScheduleRegistry();
+    for (const schedule of maintenancePlugin.schedules!) schedules.register(schedule);
     const handler: any = {
         ctx: {
             store,
+            schedules,
             config: {},
             feishu: {},
             tapd: {},

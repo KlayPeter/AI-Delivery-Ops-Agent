@@ -33,7 +33,7 @@ const createHost = async (store = new InMemoryPersistentKeyValueStore(), file = 
 
 test('HTTP default loads personal plugins without implicit team agents, routes or manual jobs', async () => {
     const selected = await loadWorkspacePlugins(directory, '');
-    expect(selected.plugins).toHaveLength(15);
+    expect(selected.plugins).toHaveLength(16);
     expect(selected.plugins.some(plugin => plugin.manifest.id.startsWith('builtin.'))).toBe(false);
     const host = await createHost();
     try {
@@ -55,9 +55,9 @@ test('HTTP default loads personal plugins without implicit team agents, routes o
 test('explicit team and empty files fully replace the default composition', async () => {
     process.env.KNOWLEDGE_KIND = 'web'; process.env.KNOWLEDGE_URLS = '';
     process.env.AGENT_PLUGINS_FILE = profile('team');
-    expect((await loadWorkspacePlugins(directory)).plugins).toHaveLength(14);
+    expect((await loadWorkspacePlugins(directory)).plugins).toHaveLength(15);
     const team = await loadWorkspacePlugins(directory, profile('team'));
-    expect(team.plugins).toHaveLength(14); expect(team.plugins.every(plugin => ['builtin.', 'model.'].some(prefix => plugin.manifest.id.startsWith(prefix)))).toBe(true);
+    expect(team.plugins).toHaveLength(15); expect(team.plugins.every(plugin => plugin.manifest.id === 'platform.maintenance' || ['builtin.', 'model.'].some(prefix => plugin.manifest.id.startsWith(prefix)))).toBe(true);
     const host = await createHost(undefined, profile('team'));
     try {
         await host.initialize();
@@ -80,7 +80,7 @@ test('an explicit personal base retains actual source settings, adds plugins and
     await writeFile(file, JSON.stringify({ apiVersion: '1.0', base: 'personal', plugins: [{ module: path.resolve(import.meta.dir, '../examples/plugins/echo.ts') }] }));
     process.env.AGENT_PLUGINS_FILE = file;
     const selection = await loadWorkspacePlugins(directory), config = { ...buildConfig({}), data_path: directory };
-    expect(selection.base).toBe('personal'); expect(selection.plugins).toHaveLength(16);
+    expect(selection.base).toBe('personal'); expect(selection.plugins).toHaveLength(17);
     const host = new AgentHost(() => ({ store: new InMemoryPersistentKeyValueStore(), config, feishu: {}, tapd: {} } as any), 1000, undefined, [], { plugins: selection.plugins, pluginConfig: selection.config });
     try {
         const result = await host.runLocal('knowledge.markdown.retrieve', { operation: 'search', query: 'API 迁移说明', limit: 5 }, randomUUID());
@@ -100,7 +100,7 @@ test('an explicit personal base retains actual source settings, adds plugins and
     expect(library.config['knowledge.markdown']!.root).not.toContain(process.env.DATA_DIR!);
     process.env.RELEASE_GITHUB_REPOSITORY = 'example/project';
     const github = await loadWorkspacePlugins(directory);
-    expect(github.plugins).toHaveLength(18); expect(github.config['connector.github']!.repository).toBe('example/project');
+    expect(github.plugins).toHaveLength(19); expect(github.config['connector.github']!.repository).toBe('example/project');
     await writeFile(file, JSON.stringify({ apiVersion: '1.0', base: 'personal', plugins: [{ module: 'knowledge.markdown' }] }));
     await expect(loadWorkspacePlugins(directory)).rejects.toThrow('Duplicate plugin');
 });
@@ -125,7 +125,7 @@ test('switching profiles preserves successful run artifacts and does not re-enab
 test('mixed HTTP selection composes both sources, matching answer/research/impact, and the optional mixed release port', async () => {
     process.env.KNOWLEDGE_KIND = 'mixed'; process.env.KNOWLEDGE_ROOT = path.join(import.meta.dir, '../examples/knowledge-vault'); process.env.KNOWLEDGE_URLS = 'https://example.com/policy';
     const selection = await loadWorkspacePlugins(directory, '');
-    expect(selection.plugins).toHaveLength(17);
+    expect(selection.plugins).toHaveLength(18);
     expect(selection.plugins.find(plugin => plugin.manifest.id === 'knowledge.answer')!.manifest.requires).toEqual(['knowledge.mixed']);
     const host = new AgentHost(() => ({ config: { ...buildConfig({}), data_path: directory }, store: new InMemoryPersistentKeyValueStore(), feishu: {}, tapd: {} } as any), 1000, undefined, [], {
         plugins: selection.plugins.map(plugin => plugin.manifest.id === 'knowledge.web' ? createKnowledgeWebPlugin(async () => ({ url: 'https://example.com/policy', body: Buffer.from('# API policy\nAPI needs migration notes.'), contentType: 'text/markdown' })) : plugin), pluginConfig: selection.config,
@@ -137,7 +137,7 @@ test('mixed HTTP selection composes both sources, matching answer/research/impac
         expect((result.execution!.result.data as any).hits.some((hit: any) => hit.sourceKind === 'web')).toBe(true);
     } finally { await host.stop(); }
     process.env.RELEASE_GITHUB_REPOSITORY = 'example/project';
-    const release = await loadWorkspacePlugins(directory, ''); expect(release.plugins).toHaveLength(19);
+    const release = await loadWorkspacePlugins(directory, ''); expect(release.plugins).toHaveLength(20);
     expect(release.plugins.find(plugin => plugin.manifest.id === 'release.prepare')?.manifest.requires).toContain('knowledge.mixed');
     const demo = await loadWorkspacePlugins(directory, profile('knowledge-mixed-demo'));
     expect(demo.plugins).toHaveLength(11); expect(demo.plugins.reduce((sum, plugin) => sum + (plugin.agents?.length || 0), 0)).toBe(7); expect(demo.plugins.find(plugin => plugin.manifest.id === 'personal.research')?.manifest.requires).toContain('knowledge.mixed');
@@ -159,7 +159,7 @@ test('saved assistant choices activate bundled inspectors on reload, remove clea
         expect(settings.snapshot()).toEqual(saved);
         await host.stop(); settings = new LocalConnections(file); await settings.initialize();
         host = await createHost(store); await host.initialize();
-        expect(host.listPlugins()).toHaveLength(17); expect(await host.listAgents()).toHaveLength(11);
+        expect(host.listPlugins()).toHaveLength(18); expect(await host.listAgents()).toHaveLength(11);
         for (const capability of ['skills.github.inspect', 'openapi.spec.inspect', 'knowledge.markdown.retrieve']) expect(host.canDispatch(capability)).toBe(true);
         for (const capability of ['skills.prompt.run', 'openapi.tools.run', 'mcp.tools.run']) expect(host.canDispatch(capability)).toBe(false);
         const after = (await host.getLocalRunDetails(original.run.id))!;
@@ -167,7 +167,7 @@ test('saved assistant choices activate bundled inspectors on reload, remove clea
         const custom = path.join(root, 'custom.yaml');
         await writeFile(custom, JSON.stringify({ apiVersion: '1.0', base: 'personal', plugins: [{ module: path.resolve(import.meta.dir, '../src/connectors/skill-workbench/setupPlugin.ts') }] }));
         const explicit = await loadWorkspacePlugins(directory, custom);
-        expect(explicit.plugins).toHaveLength(16);
+        expect(explicit.plugins).toHaveLength(17);
         expect(explicit.plugins.some(plugin => plugin.manifest.id === 'openapi.setup')).toBe(false);
         process.env.AGENT_PLUGINS_FILE = custom;
         await expect(settings.save({ PLUGIN_SETUP_ASSISTANTS: '' })).rejects.toThrow('配置文件管理');
@@ -175,7 +175,7 @@ test('saved assistant choices activate bundled inspectors on reload, remove clea
         delete process.env.AGENT_PLUGINS_FILE;
         await settings.save({ PLUGIN_SETUP_ASSISTANTS: '' }); await host.stop();
         settings = new LocalConnections(file); await settings.initialize(); host = await createHost(store); await host.initialize();
-        expect(host.listPlugins()).toHaveLength(15); expect(await host.listAgents()).toHaveLength(9);
+        expect(host.listPlugins()).toHaveLength(16); expect(await host.listAgents()).toHaveLength(9);
         for (const capability of ['skills.github.inspect', 'openapi.spec.inspect']) expect(host.canDispatch(capability)).toBe(false);
         expect(settings.snapshot().restartRequired).toBe(false);
         const final = (await host.getLocalRunDetails(original.run.id))!;

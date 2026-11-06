@@ -32,6 +32,7 @@ import skillSetupPlugin from '@/connectors/skill-workbench/setupPlugin';
 import openapiSetupPlugin from '@/connectors/openapi/setup';
 import { createPersonalResearchPlugin } from '@/agents/personal-research/plugin';
 import { runRecipesPlugin } from '@/recipes/plugin';
+import { maintenancePlugin } from '@/agents/plugins/maintenance';
 
 export function workspaceKnowledge(dataPath = buildConfig({}).data_path, includeSavedAssistants = true): PluginSelection {
     const assistants = includeSavedAssistants ? setupAssistantIds.parse(lines(process.env.PLUGIN_SETUP_ASSISTANTS || '')) : [];
@@ -46,7 +47,7 @@ export function workspaceKnowledge(dataPath = buildConfig({}).data_path, include
     });
     if (web || mixed) config['knowledge.web'] = webSourceConfig.parse({ urls: lines(process.env.KNOWLEDGE_URLS || ''), sourceId: 'workspace-web' });
     const selected = {
-        plugins: [...standardModelPlugins, ...(mixed ? [knowledgeMarkdownPlugin, knowledgeWebPlugin, knowledgeMixedPlugin] : [web ? knowledgeWebPlugin : knowledgeMarkdownPlugin]),
+        plugins: [...standardModelPlugins, maintenancePlugin, ...(mixed ? [knowledgeMarkdownPlugin, knowledgeWebPlugin, knowledgeMixedPlugin] : [web ? knowledgeWebPlugin : knowledgeMarkdownPlugin]),
             mixed ? knowledgeMixedAnswerPlugin : web ? knowledgeWebAnswerPlugin : knowledgeAnswerPlugin,
             mixed ? knowledgeMixedImpactPlugin : web ? knowledgeWebImpactPlugin : knowledgeImpactPlugin,
             createKnowledgeWorkspacePlugin(kind as 'sample' | 'markdown' | 'web' | 'library' | 'mixed'), webCapturePlugin, markItDownPlugin, knowledgeLibraryPlugin, pluginChecksPlugin, mcpSetupPlugin,

@@ -203,6 +203,7 @@ HTTP 默认装配个人知识、采集、验收、工具接入、研究、配方
 
 | 代码路径或对象 | 必须更新的 Feature ID |
 | --- | --- |
+| `backend/src/agents/plugins/maintenance.ts`、`backend/src/core/dataRetention.ts` | `operations-observability`、`configuration-scheduling`、`plugin-runtime`、`agent-platform`；默认组合变化追加 `local-agent-workspace` |
 | `backend/src/platform/workspace/**`、`frontend/src/pages/workspace/**`、`frontend/src/layouts/MainLayout.tsx`、`frontend/src/App.tsx`、`frontend/src/index.css` | `local-agent-workspace`、`operations-observability`；来源/配置契约变化追加对应功能；助手开关追加 `plugin-profile-composer`、`github-skill-workbench`、`openapi-workbench` |
 | `backend/src/services/messageHandler/**` | `message-routing`；按 Handler 语义追加对应业务功能 |
 | `backend/src/services/taskService.ts`、`backend/src/domains/task/**`、任务 Handler/Tool | `task-management`；涉及甘特图时追加 `project-visibility` |

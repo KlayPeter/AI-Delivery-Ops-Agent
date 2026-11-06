@@ -24,6 +24,9 @@ export type GroupSchedule = { id: string; priority: number } & ({
     kind: 'global-poll';
     run: (context: ScheduleContext) => Promise<Record<string, string>>;
 } | {
+    kind: 'global-tick';
+    run: (context: ScheduleContext) => Promise<Record<string, string>>;
+} | {
     kind: 'poll';
     run: (context: GroupScheduleContext) => Promise<Record<string, string>>;
 });
@@ -35,7 +38,7 @@ export class ScheduleRegistry {
 
     register(schedule: GroupSchedule): () => void {
         if (!/^[a-z][a-z0-9.-]*$/.test(schedule.id) || !Number.isFinite(schedule.priority)
-            || typeof schedule.run !== 'function' || !['timed', 'poll', 'global-poll'].includes(schedule.kind)
+            || typeof schedule.run !== 'function' || !['timed', 'poll', 'global-poll', 'global-tick'].includes(schedule.kind)
             || (schedule.kind === 'timed' && (typeof schedule.plan !== 'function'
                 || (schedule.agent !== undefined && typeof schedule.agent !== 'boolean')))) {
             throw new Error(`Invalid group schedule: ${schedule.id}`);

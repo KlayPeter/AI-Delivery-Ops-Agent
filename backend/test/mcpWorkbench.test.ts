@@ -155,7 +155,7 @@ test('a personal MCP export preserves knowledge and recipes without registering 
         expect(parse(exported.yaml).plugins).toHaveLength(2); await writeFile(file, exported.yaml);
         await expect(loadPluginConfiguration(file)).rejects.toThrow('本机工作台');
         const selection = await loadWorkspacePlugins(directory, file);
-        expect(selection.base).toBe('personal'); expect(selection.plugins).toHaveLength(17);
+        expect(selection.base).toBe('personal'); expect(selection.plugins).toHaveLength(18);
         expect(selection.plugins.filter(plugin => plugin.manifest.id === 'mcp.setup')).toHaveLength(1);
         const config = { ...buildConfig({}), data_path: directory };
         h = new AgentHost(() => ({ store, config, feishu: {}, tapd: {} } as any), 1000, undefined, [], { plugins: selection.plugins.map(plugin => plugin.manifest.id === 'connector.mcp' ? createMcpPlugin(f.network) : plugin), pluginConfig: selection.config });

@@ -10,9 +10,11 @@ import { meetingSummaryPlugin } from './meetingSummary';
 import { aiHotSchedulePlugin } from './aiHotSchedule';
 import { directoryPlugin } from './directory';
 import { configurationPlugin } from './configuration';
+import { maintenancePlugin } from './maintenance';
 
 export const deliveryTeamPlugins = [
     ...standardModelPlugins,
+    maintenancePlugin,
     configurationPlugin,
     directoryPlugin, aiNewsPlugin, dailySummaryPlugin, dashboardPlugin, weeklyReportPlugin, taskPlugin, standupPlugin, orchestratorPlugin, meetingSummaryPlugin, aiHotSchedulePlugin,
 ] as const;
