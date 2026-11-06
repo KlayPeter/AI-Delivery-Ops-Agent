@@ -561,3 +561,14 @@ flowchart TD
     RUN_LINKS[宿主透出已装配 runLinks] --> REVIEW_PAGE[旧结果进入知识确认页]
     REVIEW_PAGE --> REANSWER_RUN[现有启动回执与新结果详情]
 ```
+
+
+## 常用任务与扩展导航（2026-11-06）
+
+MainLayout 按 homeTasks 的首页任务顺序把对应可见个人页面留在主导航；其他个人插件页面、Agent 与插件列表归入「工具与插件」，日志/上下文和按需团队配置归入「运行管理」。两个分组默认折叠，navigationSection 根据 activePluginPage 与当前路由推导所属分组，深链接和 Agent 重定向后自动展开。原插件显隐、团队授权、API 和执行行为保持，没有新增配置、持久化或依赖。实现为 frontend/src/layouts/MainLayout.tsx 与 pages/workspace/pages.ts；pages.test.mjs 增加任务/自定义/重定向/团队/管理/移除来源分组回归。桌面与375px浏览器覆盖键盘展开、移动选择关闭及 Escape 焦点返回。
+
+```mermaid
+flowchart TD
+    NAV[已装配页面与当前路由] --> PRIMARY[常用任务与连接直接可达]
+    NAV --> SECONDARY[工具与插件或运行管理：按需展开]
+```

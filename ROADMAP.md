@@ -47,6 +47,8 @@ are deferred while the local product is being validated.
   research draft and review earlier evidence, showing only contributed pages.
   Release preparation appears when its plugin is installed; the Agent composer
   remains under an advanced disclosure and explicit capability links still work.
+  Secondary plugin pages and Agent/plugin catalogs are grouped under Tools and Plugins;
+  runtime management is collapsed separately, with deep-link sections opened automatically.
 - [ ] Validate one technical-plan maintenance scenario with 3–5 independent users:
   compare the same task manually and with the product, record useful output,
   review time, false alarms and second-week reuse. Invitations are maintainer-led.

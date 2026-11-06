@@ -1,6 +1,6 @@
 import { test } from 'bun:test';
 import assert from 'node:assert/strict';
-import { findPluginPage, pluginAgentHref, activePluginPage, agentPageHref, hasTeamNavigation, defaultCapability, homeTasks } from './pages.ts';
+import { findPluginPage, pluginAgentHref, activePluginPage, agentPageHref, hasTeamNavigation, defaultCapability, homeTasks, navigationSection } from './pages.ts';
 
 test('default capability uses installed active agents and preserves explicit unavailable links', () => {
   const personal = [{ status: 'inactive', capabilities: ['delivery.ops.orchestrate'] }, { status: 'active', capabilities: ['knowledge.markdown.retrieve'] }];
@@ -84,4 +84,20 @@ test('home tasks use contributed visible workspace pages and keep unknown, hidde
   assert.deepEqual(homeTasks([release, review, research, page]).map(task => task.path), ['/my-notes', '/research', '/reviews', '/release']);
   assert.deepEqual(homeTasks([agent, unknown]), []);
   assert.deepEqual(homeTasks(), []);
+});
+
+test('navigation keeps home tasks direct while custom and redirected plugin entries remain in their own section', () => {
+  const notes = { path: '/my-notes', label: '笔记', section: 'workspace', view: { kind: 'builtin', id: 'knowledge' } };
+  const custom = { ...notes, path: '/my-reader', view: { kind: 'agent', capability: 'example.read' } };
+  const team = { ...notes, path: '/standups', section: 'team', view: { kind: 'builtin', id: 'standups' } };
+  assert.equal(navigationSection(notes, notes.path), undefined);
+  assert.equal(navigationSection(custom, custom.path), 'extensions');
+  assert.equal(navigationSection(activePluginPage([custom], '/', '?capability=example.read'), '/'), 'extensions');
+  assert.equal(navigationSection(team, team.path), 'team');
+  assert.equal(navigationSection(undefined, '/debug'), 'team');
+  for (const path of ['/agents', '/plugins']) assert.equal(navigationSection(undefined, path), 'extensions');
+  for (const path of ['/logs', '/contexts', '/config']) assert.equal(navigationSection(undefined, path), 'manage');
+  for (const path of ['/', '/runs', '/connections', '/missing']) assert.equal(navigationSection(undefined, path), undefined);
+  assert.equal(navigationSection(undefined, custom.path), undefined);
+  assert.equal(navigationSection({ ...notes, view: { kind: 'builtin', id: 'third-party' } }, '/my-notes'), 'extensions');
 });

@@ -666,3 +666,14 @@ flowchart TD
     REVIEW_RECEIPT[新根 Run 的审查 Step] --> REANSWER_EXECUTION[现有检索与模型步骤]
     REANSWER_EXECUTION --> REANSWER_PROVENANCE[新结果关联原记录；原记录保持]
 ```
+
+
+## 常用任务与扩展导航（2026-11-06）
+
+日志与上下文入口归入默认折叠的「运行管理」，打开其原有路由时自动展开；本机模型连接仍直接可达。当前菜单分组由路由推导，不新增 Store/Run/审计写入或改变读权限。MainLayout.tsx 和 pages.ts 为实现；pages.test.mjs 与本机浏览器验证，隔离实例十条原根 Run 的 run/steps/artifacts、插件/页面清单和连接设置均保持。
+
+```mermaid
+flowchart TD
+    MANAGE_ROUTE[原日志或上下文路由] --> MANAGE_OPEN[自动展开运行管理并保留选中项]
+    MANAGE_OPEN --> ORIGINAL_READ[原有读取与范围规则]
+```

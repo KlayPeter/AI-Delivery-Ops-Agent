@@ -208,6 +208,8 @@ manualJobs 声明现有 Legacy Job 名称的所有者，不添加任意命令或
 
 页面信息不是访问控制，也不能代替服务端数据范围校验。当前已迁移站会、看板、甘特、周报与隐藏纪要页面/API，以及原有手动任务授权，其他业务页面/API 与基础服务仍待迁移；navigation=false 仅隐藏菜单，直接路由仍依赖对应贡献；不代表授权或业务生成开关。没有运行中热卸载。一个功能插件可注册多个唯一 Web 贡献来拥有多个 API 前缀，例如 builtin.dashboard 同时注册 /api/dashboards 与 /api/human-gantt；注册会统一回滚和释放。旧看板根查询和 HTML 链接通过同一页面注册表检查所有者。
 
+当前界面将首页已知任务保留在主导航，其他可见个人插件页面收进「工具与插件」。作者无需新增分组字段；未知 builtin 或 kind=agent 页面仍保留入口，通用能力链接按对应插件页面展开分组。navigation=false 继续隐藏菜单，不改变直接路由的安装校验。
+
 ## 标准 JSON Schema
 
 Agent、Tool 和 Skill 的输入输出共用标准 JSON Schema 校验，支持联合类型、引用、额外字段与边界约束；不自动下载远端引用。校验错误使用标准实现文案，调用方应按错误 code 判断，避免依赖完整错误句子。不同 Schema 即使使用同一 $id 也隔离校验。MCP 工具的原始 inputSchema 保留，structuredContent 另按上游 outputSchema 核验。

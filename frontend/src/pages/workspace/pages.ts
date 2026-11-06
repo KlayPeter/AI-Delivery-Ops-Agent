@@ -24,6 +24,12 @@ export const agentPageHref = (pages: PluginPage[] = [], capability: string) => p
 export const activePluginPage = (pages: PluginPage[] = [], pathname: string, search: string) => findPluginPage(pages, pathname, search)
   || (pathname === '/' ? pages.find(page => page.view.kind === 'agent' && page.view.capability === new URLSearchParams(search).get('capability')) : undefined);
 
+export function navigationSection(page: PluginPage | undefined, pathname: string): string | undefined {
+  if (page?.section === 'team' || pathname === '/debug') return 'team';
+  if (['/agents', '/plugins'].includes(pathname) || (page?.section === 'workspace' && !homeTasks([page]).length)) return 'extensions';
+  if (['/logs', '/contexts', '/config'].includes(pathname)) return 'manage';
+}
+
 export function homeTasks(pages: PluginPage[] = []) {
   const tasks = [
     { id: 'knowledge', title: '问自己的资料', description: '检索笔记和网页原文，按需生成带引用的回答。' },
