@@ -112,7 +112,7 @@ HTTP 默认装配个人知识、采集、验收、工具接入、研究、配方
 | --- | --- | --- | --- | --- |
 | `knowledge-watch` | 正式本机 schedule 的知识引用复核、旧计划保护与独立运行凭证 | active（显式安装） | 控制面插件，复用 `native.knowledge-impact` | [查看](../../backend/src/knowledge/watch/FEATURE.md) |
 | `plugin-profile-composer` | Skill/OpenAPI 助手启用及已审查能力的校验、预览与组合导出 | active | 控制面插件，无独立 Agent | [查看](../../backend/src/connectors/profile-workbench/FEATURE.md) |
-| `local-launcher` | 首次初始化、前后端启动与本次进程清理 | active | 本地脚本，无独立 Agent | [查看](../../scripts/local/FEATURE.md) |
+| `local-launcher` | 首次初始化、前后端启动、配置应用与本次进程清理 | active | 本地脚本，无独立 Agent | [查看](../../scripts/local/FEATURE.md) |
 | `mixed-knowledge` | 笔记与网页并行检索、跨来源引用与独立版本复核 | active | `native.knowledge-mixed` | [查看](../../backend/src/knowledge/mixed/FEATURE.md) |
 | `model-providers` | 模型提供者插件、配置诊断与无密钥本机 Ollama | active | 宿主模型端口，无独立 Agent | [查看](../../backend/src/platform/models/FEATURE.md) |
 | `github-skill-workbench` | GitHub Skill 审查、个人基底组合与历史知识快照文本任务 | active（显式安装） | `native.skill-inspector` / `native.imported-skill` | [查看](../../backend/src/connectors/skill-workbench/FEATURE.md) |

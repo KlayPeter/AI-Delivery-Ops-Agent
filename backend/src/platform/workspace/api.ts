@@ -21,12 +21,17 @@ export function createPluginApi(host: AgentHost, applicationRoutes: readonly { p
     return api.all('/api/*', ({ request }) => host.handlePluginRequest(request), { parse: 'none' });
 }
 
-export function createWorkspaceApi(host: AgentHost, connections: LocalConnections, _getConfig: () => AppConfig, base?: 'personal') {
+export function createWorkspaceApi(host: AgentHost, connections: LocalConnections, _getConfig: () => AppConfig, base?: 'personal', reload?: () => void) {
+    const instanceId = randomUUID();
+    let reloadRequest: Request | undefined;
     return new Elysia({ prefix: '/api/workspace', name: 'local-agent-workspace' })
         .onBeforeHandle(({ request, set }) => {
             if (!isLocalWorkspaceRequest(request)) {
                 set.status = 403;
                 return { error: '工作台仅接受本机页面请求' };
+            }
+            if (reloadRequest && request.method !== 'GET') {
+                set.status = 503; return { error: '正在应用已保存配置，请稍后重试' };
             }
         })
         .onError(({ error, set }) => {
@@ -43,8 +48,15 @@ export function createWorkspaceApi(host: AgentHost, connections: LocalConnection
                 : plugins.some(plugin => plugin.id === 'knowledge.markdown') ? (sourceSettingsManagedByPluginFile ? 'markdown' : process.env.KNOWLEDGE_KIND || 'sample') : 'none';
             return { agents, runs, plugins, pages: host.web.pages(), manualJobs: host.web.manualJobs(), health: host.health(), modelConfigured: host.isModelAvailable(), modelProviders: host.modelProviders.list(), knowledgeKind, managedByPluginFile, sourceSettingsManagedByPluginFile, ...(base ? { base } : {}) };
         })
-        .get('/connections', () => connections.snapshot())
-        .put('/connections', async ({ body }) => connections.save(body, host.modelProviders.list().map(provider => provider.id)))
+        .get('/connections', () => ({ ...connections.snapshot(), reloadAvailable: Boolean(reload), instanceId }))
+        .put('/connections', async ({ body }) => ({ ...await connections.save(body, host.modelProviders.list().map(provider => provider.id)), reloadAvailable: Boolean(reload), instanceId }))
+        .post('/reload', ({ body, request, set }) => {
+            z.object({}).strict().parse(body);
+            if (!reload) { set.status = 409; return { error: '请从仓库根目录使用 bun run local 启动，或手动重启后端应用配置' }; }
+            if (!host.isIdle()) { set.status = 409; return { error: '配置已保存；请等待当前任务或插件操作结束后再应用' }; }
+            reloadRequest = request;
+            set.status = 202; return { instanceId };
+        }, { afterResponse: ({ request }) => { if (request === reloadRequest) reload!(); } })
         .post('/runs', async ({ body }) => {
             const input = runInput.parse(body);
             const result = await host.runLocal(input.capability, input.input, input.triggerId || randomUUID());

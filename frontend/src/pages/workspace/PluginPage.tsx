@@ -29,9 +29,9 @@ const RecipesPage = lazy(() => import('./RecipesPage'));
 const ProfileComposerPage = lazy(() => import('./ProfileComposerPage'));
 
 export default function PluginPage() {
-  const { data, error, isLoading, mutate } = useWorkspace();
+  const { data, error, isLoading, mutate, applyingConfig } = useWorkspace();
   const { pathname, search } = useLocation();
-  if (error) return <div className="workspace-page"><Alert type="error" title="无法确认页面是否已启用" description="检查本地后端连接后重试。" action={<Button onClick={() => mutate()}>重试</Button>} /></div>;
+  if (error && (!applyingConfig || !data)) return <div className="workspace-page"><Alert type="error" title="无法确认页面是否已启用" description="检查本地后端连接后重试。" action={<Button onClick={() => mutate()}>重试</Button>} /></div>;
   if (isLoading) return <div className="workspace-page"><Skeleton active /></div>;
   const page = findPluginPage(data?.pages, pathname, search);
   if (page?.view.kind === 'agent') return <Navigate replace to={pluginAgentHref(page.view.capability)} />;

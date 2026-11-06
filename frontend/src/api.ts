@@ -1,4 +1,5 @@
 import axios from "axios";
+import { mutate } from 'swr';
 import { rememberRunInput, setInputCapture } from './runInputs.mjs';
 
 const API_BASE = ((import.meta as any).env?.VITE_API_BASE || `http://${window.location.hostname}:8090/api`).replace(/\/$/, "");
@@ -82,6 +83,27 @@ export const api = {
   exportPluginSetup: (assistants: string[]) => request(client.post('/plugin-profiles/setup', { assistants })),
   uploadDocument: (file: File) => request(client.post('/documents/uploads', file, { headers: { 'Content-Type': 'application/octet-stream', 'X-Document-Name': encodeURIComponent(file.name) } })),
   saveConnections: (values: Record<string, string | null>) => request(client.put('/workspace/connections', values)),
+  applyConnections: async (saved: { instanceId?: string; restartRequired: boolean; reloadAvailable?: boolean }) => {
+    if (!saved.restartRequired || !saved.reloadAvailable) return saved;
+    await mutate('local-config-applying', true, false);
+    try {
+      const deadline = Date.now() + 60000;
+      try { await client.post('/workspace/reload', {}, { timeout: 15000 }); }
+      catch (error) { if (axios.isAxiosError(error) && error.response) throw normalizeError(error); }
+      while (Date.now() < deadline) {
+        try {
+          const { data } = await client.get('/workspace/connections', { timeout: 2000 });
+          if (data.instanceId && data.instanceId !== saved.instanceId) {
+            if (data.restartRequired) throw new Error('配置已保存，但仍有其他配置等待应用，请检查后重试。');
+            await mutate('workspace', await request(client.get('/workspace/state', { timeout: 2000 })), false);
+            return data;
+          }
+        } catch (error) { if (!axios.isAxiosError(error) || error.response) throw normalizeError(error); }
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      throw new Error('配置已保存，应用结果尚未确认；请查看本地启动终端，恢复后刷新页面。');
+    } finally { await mutate('local-config-applying', false, false); }
+  },
   runAgent: async (capability: string, input: Record<string, unknown>, triggerId: string) => {
     const result = await request(client.post('/workspace/runs', { capability, input, triggerId }));
     rememberRunInput(result.runId, input);

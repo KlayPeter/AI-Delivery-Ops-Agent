@@ -16,9 +16,12 @@ export interface WorkspaceState {
   health: { started: boolean; initialized: boolean }; modelConfigured: boolean; knowledgeKind: string; managedByPluginFile: boolean; sourceSettingsManagedByPluginFile?: boolean; base?: 'personal';
   pages: PluginPage[]; manualJobs: string[]; modelProviders?: { id: string; name: string }[];
 }
-export interface ConnectionState { values: Record<string, string>; secrets: Record<string, boolean>; restartRequired: boolean }
+export interface ConnectionState { values: Record<string, string>; secrets: Record<string, boolean>; restartRequired: boolean; reloadAvailable?: boolean; instanceId?: string }
 
-export const useWorkspace = () => useSWR<WorkspaceState>('workspace', api.fetchWorkspace, { refreshInterval: 5000 });
+export const useWorkspace = () => {
+  const { data: applyingConfig = false } = useSWR<boolean>('local-config-applying', null);
+  return { ...useSWR<WorkspaceState>('workspace', api.fetchWorkspace, { refreshInterval: 5000 }), applyingConfig };
+};
 export const useConnections = () => useSWR<ConnectionState>('connections', api.fetchConnections, { refreshInterval: data => data?.restartRequired ? 3000 : 0 });
 
 const names: Record<string, string> = {

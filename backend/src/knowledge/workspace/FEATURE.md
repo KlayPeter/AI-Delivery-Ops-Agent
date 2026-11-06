@@ -30,9 +30,9 @@ flowchart TD
     E --> D[运行详情与可选引用复核]
     V --> MATCH{回答插件依赖同一来源且模型已配置?}
     MATCH -- 是 --> A[按需生成引用回答]
-    MATCH -- 同来源但未配置模型 --> GUIDE[解释禁用原因；进入连接与模型，保存后重启]
+    MATCH -- 同来源但未配置模型 --> GUIDE[解释禁用原因；进入连接与模型，保存并应用]
     A --> E
-    W --> CFG[默认或 base personal：私有来源设置，重启生效]
+    W --> CFG[默认或 base personal：私有来源设置；启动器保存并应用]
     P --> STOP[释放页面和 API；历史与来源数据保留]
 ```
 
@@ -56,9 +56,9 @@ flowchart TD
 2. /api/knowledge-workspace 仅提供 GET；返回 kind、pluginId 和 capability，不返回文件根目录、URL 列表或密钥。来源由宿主工厂选择，客户端不能改写。
 3. 默认 HTTP 组合增加本插件；Markdown 与网页来源自身不自动贡献 Web 界面。CLI/SDK 来源能力、SDK 默认团队组合和显式 AGENT_PLUGINS_FILE 语义不变。
 4. /knowledge 由 PluginPage 验证所有者后渲染已打包视图。核心 App/MainLayout 不再固定注册该路由与菜单。移除界面插件关闭描述 API 与入口，来源检索可单独保留。
-5. 来源和回答能力匹配但模型未配置时，解释回答按钮禁用原因，提供“配置模型”链接；配置仍需保存并重启，模型是否实际可用由执行结果确认。页面使用描述中的明确 Capability。知识回答按钮仅在 knowledge.answer 声明同一来源依赖、对应 Agent 活跃且模型已配置时可用；不会根据插件顺序猜测资料去向。
+5. 来源和回答能力匹配但模型未配置时，解释回答按钮禁用原因，提供“配置模型”链接；通过启动器保存并应用（独立启动仍需重启），模型是否实际可用由执行结果确认。页面使用描述中的明确 Capability。知识回答按钮仅在 knowledge.answer 声明同一来源依赖、对应 Agent 活跃且模型已配置时可用；不会根据插件顺序猜测资料去向。
 6. 描述 API 失败时显示重试并禁用检索，不能用旧来源状态冒充就绪。页面不执行第三方脚本或远端界面包。
-7. 默认应用的来源配置由 LocalConnections 保存，重启后切换。未声明 base: personal 的显式插件文件管理组合时禁用页面配置入口并解释以文件为准；显式个人基底仍采用本机设置，允许保存并重启。sourceSettingsManagedByPluginFile 是来源所有权标记，managedByPluginFile 继续表示存在组合文件。
+7. 默认应用的来源配置由 LocalConnections 保存；启动器模式空闲时自动重载后端并确认新实例，独立启动在重启后切换。未声明 base: personal 的显式插件文件管理组合时禁用页面配置入口并解释以文件为准；显式个人基底仍采用本机设置，允许保存并应用。sourceSettingsManagedByPluginFile 是来源所有权标记，managedByPluginFile 继续表示存在组合文件。
 8. 来源文本、引用和结果的验证、权限、数据留存及失败行为遵循各自功能卡；本插件不复制检索实现。
 
 ## 用户能力
@@ -149,3 +149,7 @@ flowchart LR
 选择个人基底接入 Skill 后，知识检索入口与历史仍保留；Skill 页面可显式预览并选择一次成功检索的历史片段，不改变本插件的检索或 RAG 契约。验证：backend/test/workspaceComposition.test.ts、skillKnowledgeContext.test.ts；流程见[Skill 功能卡](../../connectors/skill-workbench/FEATURE.md)。
 
 2026-11-06 首次体验：同来源回答能力可用但模型未配置时，知识页提供直接配置入口；检索仍无需模型。仅修改已打包视图，未改变来源、模型、执行或配置契约。验证：前端既有测试、类型/lint/build 和全新公开克隆的无密钥检索、入口跳转与 375px 本地浏览器检查。
+
+2026-11-06 来源配置体验：KnowledgePage.tsx 保存后请求既有本机控制面重载，只有新实例确认才展示“已应用”，再刷新来源描述和 Agent 状态。忙碌时保留设置并引导到连接页应用；没有启动器则明确保留手动重启。底层检索/回答、来源归属及个人数据权限保持。代码增加 frontend/src/api.ts 的 applyConnections 与启动器/API 链路；验证见 workspace.test.ts、localLauncher.test.ts、frontend/src/api.test.mjs 和本机浏览器记录。
+
+应用中的前端状态由同一 SWR 标记共享：主内容 inert/aria-busy，顶部显示正在应用；插件页在这个已知重载窗口保留已加载界面，避免短暂断线卸载表单。先读取新工作区状态再解除标记，其他普通断线仍显示错误；该 UI 缓存不改变后端插件授权。代码追加 MainLayout.tsx、PluginPage.tsx、state.ts；浏览器复测完成提示保留及恢复后检索。

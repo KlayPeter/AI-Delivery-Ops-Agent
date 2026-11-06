@@ -34,7 +34,13 @@ export default function KnowledgePage() {
   };
   const save = async (values: Record<string, string>) => {
     setSaving(true); setActionError('');
-    try { const next = await api.saveConnections(values); await refreshConnections(next, false); setNotice('知识来源已保存，重启本地后端后生效。'); setSettingsOpen(false); }
+    try {
+      let next = await api.saveConnections(values); await refreshConnections(next, false);
+      setNotice('知识来源已保存。');
+      next = await api.applyConnections(next); await refreshConnections(next, false);
+      await Promise.all([mutate(), refreshSource()]);
+      setNotice(next.restartRequired ? '知识来源已保存，重启本地后端后生效。' : '知识来源已应用。'); setSettingsOpen(false);
+    }
     catch (e) { setActionError(errorMessage(e)); } finally { setSaving(false); }
   };
   return <div className="workspace-page">
@@ -42,7 +48,7 @@ export default function KnowledgePage() {
     {error && <Alert type="error" title="知识配置加载失败" description={error.message} />}
     {sourceError && <Alert type="error" showIcon title="知识来源加载失败" description="无法确认当前插件选择的来源，请重试。" action={<Button onClick={() => refreshSource()}>重试</Button>} />}
     {notice && <Alert type="success" title={notice} showIcon />}
-    {data?.restartRequired && !notice && <Alert type="warning" title="本地配置等待重启后端生效，当前仍使用已加载的来源" showIcon />}
+    {data?.restartRequired && <Alert type="warning" title="本地配置等待应用，当前仍使用已加载的来源" action={<Link to="/connections">应用配置</Link>} showIcon />}
     {sourceSettingsFromFile && <Alert type="info" title="知识插件由自定义插件配置管理" description="请修改插件配置文件并重启本地后端来调整来源。" showIcon />}
     {isLoading || sourceLoading ? <Skeleton active /> : <>
       <section className="knowledge-search">
@@ -50,7 +56,7 @@ export default function KnowledgePage() {
         <label htmlFor="knowledge-query">你想了解什么？</label><Input.TextArea id="knowledge-query" placeholder="输入问题或关键词…" value={query} onChange={e => setQuery(e.target.value)} rows={3} maxLength={500} />
         <div className="form-actions"><Button type="primary" onClick={() => execute()} loading={running} disabled={!retrieval || !query.trim()}>检索原文</Button><Button onClick={() => execute(true)} disabled={running || !query.trim() || !workspace?.modelConfigured || !canAnswer}>生成引用回答</Button></div>
         <p className="muted">检索原文不调用模型。生成回答会将选中片段发送给你配置的模型。</p>
-        {canAnswer && workspace?.modelConfigured === false && <p className="muted">生成引用回答需要模型。<Link to="/connections">配置模型</Link>并重启本地后端后生效。</p>}
+        {canAnswer && workspace?.modelConfigured === false && <p className="muted">生成引用回答需要模型。<Link to="/connections">配置模型</Link>后即可应用。</p>}
         {source && workspace?.plugins.some(plugin => plugin.id === 'knowledge.answer' && !plugin.requires?.includes(source.pluginId)) && <p className="muted">当前回答插件使用其他知识来源，本页仅开放原文检索。请在插件配置中选择相同来源。</p>}
       </section>
       {actionError && <Alert type="error" showIcon title="操作失败" description={actionError} />}
@@ -63,7 +69,7 @@ export default function KnowledgePage() {
         {['markdown', 'mixed'].includes(kind) && <><Form.Item name="KNOWLEDGE_ROOT" label="本机目录" rules={[{ required: true, message: '请填写笔记目录的绝对路径' }]}><Input placeholder="/Users/你的名字/Notes" /></Form.Item><Form.Item name="KNOWLEDGE_VAULT_NAME" label="Obsidian Vault 名称（可选）"><Input /></Form.Item><Form.Item name="KNOWLEDGE_EXCLUDE" label="排除的子目录" extra="每行一个相对目录，如 Private。隐藏文件和符号链接自动跳过。"><Input.TextArea rows={3} /></Form.Item></>}
         {['web', 'mixed'].includes(kind) && <Form.Item name="KNOWLEDGE_URLS" label="公开链接" rules={[{ required: true, message: '请填写链接' }]} extra="每行一个，最多 5 个；读取所选单页。"><Input.TextArea rows={5} placeholder="https://example.com/docs" /></Form.Item>}
         {actionError && <Alert type="error" title={actionError} />}
-        <p className="muted">来源配置保存在本机，重启后端后生效。笔记内容始终只读。</p><Button type="primary" htmlType="submit" loading={saving}>保存来源</Button>
+        <p className="muted">{data.reloadAvailable ? '保存后自动应用来源配置。' : '来源配置保存在本机，重启后端后生效。'}笔记内容始终只读。</p><Button type="primary" htmlType="submit" loading={saving}>{data.reloadAvailable ? '保存并应用' : '保存来源'}</Button>
       </Form>}
     </Drawer>
     <RunDrawer key={runId || 'closed'} runId={runId} onClose={() => setRunId(null)} onSelectRun={setRunId} />

@@ -86,21 +86,45 @@ async function main() {
         for (const file of ['backend/node_modules/@prisma/client/package.json', 'frontend/node_modules/vite/package.json']) {
             try { await access(path.join(root, file)); } catch { throw new Error('本地依赖未就绪，请先在仓库根目录运行 bun run setup:local'); }
         }
-        const session = randomUUID();
-        let announce!: (port: number) => void;
-        const ready = new Promise<number>(resolve => { announce = resolve; });
-        // Run the entry directly so package-script wrappers cannot forward a second stop signal.
-        const server = launch('启动本地后端', [bun, 'src/index.ts'], backend, { ...process.env, HOST: '127.0.0.1', LOCAL_DEV_SESSION: session }, line => {
-            const port = readyPort(line, session); if (port) announce(port);
-        });
-        const timeout = new Promise<never>((_resolve, reject) => { timer = setTimeout(() => reject(new Error('后端在 60 秒内未完成启动；请检查日志、端口与配置。')), 60_000); });
-        const port = await Promise.race([ready, timeout, server.exited.then(code => { throw new Error(`后端提前退出（${code}）；首次使用请运行 bun run setup:local。`); }), stopped.then(() => { throw new Error('启动已中止'); })]);
-        clearTimeout(timer);
+        let client: ReturnType<typeof launch> | undefined;
+        let port: number | undefined;
+        const startServer = async () => {
+            const session = randomUUID();
+            let announce!: (port: number) => void;
+            const ready = new Promise<number>(resolve => { announce = resolve; });
+            // Run the entry directly so package-script wrappers cannot forward a second stop signal.
+            const server = launch('启动本地后端', [bun, 'src/index.ts'], backend, { ...process.env, HOST: '127.0.0.1', LOCAL_DEV_SESSION: session, ...(port ? { PORT: String(port) } : {}) }, line => {
+                const found = readyPort(line, session); if (found) announce(found);
+            });
+            const timeout = new Promise<never>((_resolve, reject) => { timer = setTimeout(() => reject(new Error('后端在 60 秒内未完成启动；请检查日志、端口与配置。')), 60_000); });
+            try {
+                const listening = await Promise.race([ready, timeout,
+                    server.exited.then(code => { throw new Error(`后端提前退出（${code}）；请检查日志与配置。`); }),
+                    ...(client ? [client.exited.then(code => { throw new Error(`前端意外退出（${code}）`); })] : []),
+                    stopped.then(() => { throw new Error('启动已中止'); })]);
+                if (port && listening !== port) throw new Error('后端重新加载后监听地址发生变化');
+                port = listening;
+                return server;
+            } finally { clearTimeout(timer); }
+        };
+        let server = await startServer();
         const api = `http://127.0.0.1:${port}/api`;
         console.log(`[local] 后端已监听 ${api}；前端地址见下方 Vite 输出。Ctrl+C 一起停止。`);
-        const client = launch('启动本地前端', ['pnpm', 'dev', '--host', '127.0.0.1'], frontend, { ...process.env, VITE_API_BASE: api });
-        const result = await Promise.race([server.exited.then(code => ({ label: '后端', code })), client.exited.then(code => ({ label: '前端', code })), stopped.then((): undefined => undefined)]);
-        if (result && !interrupted) throw new Error(`${result.label}意外退出（${result.code}），已停止本次其他服务。`);
+        client = launch('启动本地前端', ['pnpm', 'dev', '--host', '127.0.0.1'], frontend, { ...process.env, VITE_API_BASE: api });
+        while (!interrupted) {
+            const result = await Promise.race([server.exited.then(code => ({ label: '后端', code })), client.exited.then(code => ({ label: '前端', code })), stopped.then((): undefined => undefined)]);
+            if (!result || interrupted) break;
+            if (result.label !== '后端' || result.code !== 75) throw new Error(`${result.label}意外退出（${result.code}），已停止本次其他服务。`);
+            // Exit 75 is reserved for a user-requested configuration reload, never crash recovery.
+            stop(server.child);
+            const deadline = Date.now() + 10_000;
+            while (alive(server.child) && Date.now() < deadline && !interrupted) await new Promise(resolve => setTimeout(resolve, 50));
+            if (alive(server.child)) stop(server.child, true);
+            children.delete(server.child);
+            if (interrupted) break;
+            server = await startServer();
+            console.log('[local] 已重新加载本地配置，前端地址保持不变。');
+        }
     } catch (error) { if (!interrupted) throw error; }
     finally {
         clearTimeout(timer);

@@ -31,7 +31,7 @@ const titles: Record<string, string> = { '/': '工作台', '/runs': '运行记�
 
 export const MainLayout = () => {
   const location = useLocation();
-  const { data, error } = useWorkspace();
+  const { data, error, applyingConfig } = useWorkspace();
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [openSections, setOpenSections] = useState<string[]>([]);
   const pages = data?.pages || [];
@@ -46,9 +46,9 @@ export const MainLayout = () => {
     </Layout.Sider>
     <Layout className="app-body">
       <header className="app-header"><div className="header-location"><Button className="mobile-menu" type="text" aria-label="打开导航" aria-expanded={navigationOpen} aria-controls="mobile-navigation" icon={<MenuOutlined aria-hidden />} onClick={() => setNavigationOpen(true)} /><span className="header-workspace">工作空间</span><span className="header-separator">/</span><span>{activePage?.label || titles[location.pathname] || '页面'}</span></div>
-        <span className="runtime-status" role="status"><span className={data?.health.started && !error ? 'status-dot ready' : 'status-dot'} />{error ? '后端未连接' : data?.health.started ? '本地运行中' : '连接中'}</span>
+        <span className="runtime-status" role="status"><span className={data?.health.started && !error ? 'status-dot ready' : 'status-dot'} />{applyingConfig ? '正在应用配置' : error ? '后端未连接' : data?.health.started ? '本地运行中' : '连接中'}</span>
       </header>
-      <main id="main-content" tabIndex={-1} className={`shell-outlet${activePage?.view.kind === 'builtin' && activePage.view.id === 'human-gantt' ? ' shell-outlet--immersive' : ''}`}><Suspense fallback={<Spin size="large" style={{ display: 'block', margin: '120px auto' }} />}><Outlet /></Suspense></main>
+      <main id="main-content" tabIndex={-1} inert={applyingConfig} aria-busy={applyingConfig} className={`shell-outlet${activePage?.view.kind === 'builtin' && activePage.view.id === 'human-gantt' ? ' shell-outlet--immersive' : ''}`}><Suspense fallback={<Spin size="large" style={{ display: 'block', margin: '120px auto' }} />}><Outlet /></Suspense></main>
     </Layout>
     <Drawer title="导航" placement="left" open={navigationOpen} onClose={() => setNavigationOpen(false)} size={280}><div id="mobile-navigation">{navigation}</div></Drawer>
   </Layout>;

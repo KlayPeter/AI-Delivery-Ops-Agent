@@ -245,3 +245,37 @@ test('mixed source settings validate both boundaries atomically and select both 
     const selected = workspaceKnowledge(directory); expect(selected.plugins.some(plugin => plugin.manifest.id === 'knowledge.mixed')).toBe(true);
     expect(selected.config['knowledge.markdown']!.root).toBe(directory); expect(selected.config['knowledge.web']!.urls).toEqual(['https://example.com/policy']);
 });
+
+
+test('configuration reload is local, explicit, strict and idle-only, acknowledges before the lifecycle callback and blocks further writes', async () => {
+    let release!: () => void, began!: () => void, reloads = 0;
+    const held = new Promise<void>(resolve => { release = resolve; }), started = new Promise<void>(resolve => { began = resolve; });
+    const plugin: FeaturePlugin = { ...echoPlugin, apply(ctx) {
+        const manifest = echoPlugin.agents![0]!.manifest;
+        ctx.delivery.nativeAgents.register(manifest.id, manifest.version, async request => {
+            began(); await held; return { status: 'succeeded', data: request.input, artifacts: [] };
+        });
+    } };
+    const config = buildConfig({}), store = new InMemoryPersistentKeyValueStore();
+    const host = new AgentHost(() => ({ config, store, feishu: {}, tapd: {} } as any), 1000, undefined, [], { plugins: [plugin] });
+    const settings = new LocalConnections(path.join(directory, 'reload.json')); await settings.initialize();
+    const request = (app: ReturnType<typeof createWorkspaceApi>, body: unknown = {}, origin = 'http://localhost:15173') => app.handle(new Request('http://localhost/api/workspace/reload', { method: 'POST', headers: { origin, 'content-type': 'application/json' }, body: JSON.stringify(body) }));
+    expect(host.isIdle()).toBe(false); await host.start(); expect(host.isIdle()).toBe(true);
+    try {
+        const standalone = createWorkspaceApi(host, settings, () => config);
+        expect((await request(standalone)).status).toBe(409);
+        const app = createWorkspaceApi(host, settings, () => config, undefined, () => { reloads++; });
+        const snapshot = await (await app.handle(new Request('http://localhost/api/workspace/connections'))).json() as any;
+        expect(snapshot.reloadAvailable).toBe(true); expect(snapshot.instanceId).toBeString();
+        expect((await request(app, {}, 'https://evil.test')).status).toBe(403);
+        expect((await request(app, { command: 'anything' })).status).toBe(400); expect(reloads).toBe(0);
+        const running = host.runLocal('example.echo', { text: 'held' }, randomUUID()); await started;
+        expect(host.isIdle()).toBe(false); expect((await request(app)).status).toBe(409); expect(reloads).toBe(0);
+        release(); await running;
+        const response = await request(app); expect(response.status).toBe(202);
+        expect(await response.json()).toEqual({ instanceId: snapshot.instanceId });
+        await Bun.sleep(10); expect(reloads).toBe(1);
+        expect((await request(app)).status).toBe(503); expect(reloads).toBe(1);
+    } finally { release(); await host.stop(); }
+    expect(host.isIdle()).toBe(false);
+});

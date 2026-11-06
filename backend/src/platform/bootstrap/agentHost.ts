@@ -154,6 +154,8 @@ export class AgentHost {
         this.initialized = false;
     }
 
+    isIdle(): boolean { return this.initialized && !this.stopped && this.inFlight.size === 0; }
+
     health(): AgentHostHealth {
         return {
             initialized: this.initialized,

@@ -157,7 +157,9 @@ const app = new Elysia()
             return { error: '本地管理 API 仅接受本机页面请求' };
         }
     })
-    .use(createWorkspaceApi(agentHost, localConnections, () => config, pluginSelection.base))
+    .use(createWorkspaceApi(agentHost, localConnections, () => config, pluginSelection.base, process.env.LOCAL_DEV_SESSION ? () => {
+        void shutdown().then(() => process.exit(75), error => { console.error('本地配置应用失败：', error); process.exit(1); });
+    } : undefined))
     .get('/healthz', () => livenessReport())
     .get('/readyz', async ({ set }) => {
         const report = await readinessReport({
@@ -468,14 +470,14 @@ if (process.env.LOCAL_DEV_SESSION) console.log(JSON.stringify({
     hostname: app.server?.hostname, port: app.server?.port,
 }));
 
-let shuttingDown = false;
-async function shutdown(): Promise<void> {
-    if (shuttingDown) return;
-    shuttingDown = true;
-    await scheduler.stop();
-    await botConnections?.stop();
-    await agentHost?.stop();
-    await app.stop();
+let shutdownPromise: Promise<void> | undefined;
+function shutdown(): Promise<void> {
+    return shutdownPromise ??= (async () => {
+        await scheduler.stop();
+        await botConnections?.stop();
+        await agentHost?.stop();
+        await app.stop();
+    })();
 }
 
 process.once('SIGINT', () => { shutdown().finally(() => process.exit(0)); });

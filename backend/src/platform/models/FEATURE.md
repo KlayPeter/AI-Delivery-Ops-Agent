@@ -24,7 +24,7 @@ flowchart LR
     C[可信组合或 YAML] --> P[model.openai / model.google / model.ollama / 自定义插件]
     P --> E[Cordis effect 注册与释放]
     E --> R[ModelProviderRegistry]
-    U[连接表单] --> S[私有保存并重启]
+    U[连接表单] --> S[私有保存；启动器空闲应用或手动重启]
     S --> CFG[AIConfig：供应商、地址、模型]
     CFG --> R
     R --> G[Host ModelGateway]
@@ -44,12 +44,12 @@ flowchart LR
 6. 本机请求通过固定 origin 的 Undici Client 直接建立连接，不受 HTTP_PROXY/HTTPS_PROXY/ALL_PROXY 或云端代理设置影响。仅发送 JSON/Accept/identity 头，不转发保存的云端密钥。拒绝重定向、压缩响应，单次请求和响应各最多 4 MiB；传递取消信号并在 finally 释放连接。
 7. 必须使用 undici/index.js 的安装包入口；本项目验证的 Bun 1.3.13 对 bare undici 使用 fetch shim，且 fetch 的 proxy:false 未按预期绕过环境代理。独立子进程回归同时设置大小写代理变量，真实 SDK 请求只到本机目标。
 8. 云端代理继续使用显式 fetch 选项，不修改全局代理环境。Ollama 不清除旧云密钥，切换回云端时可保留，但本机传输不会发送该密钥。
-9. HTTP 默认为 14 插件/9 Agent，配置 GitHub 后 16/10；团队 SDK 为 12/7。显式配置文件完整覆盖默认组合，空配置保持零模型/业务插件。需生成的公开 YAML 和 CLI 显式装配模型插件；纯采集/检索组合可不安装。
+9. HTTP 默认为 15 插件/9 Agent，配置 GitHub 后 17/10；团队 SDK 为 12/7。显式配置文件完整覆盖默认组合，空配置保持零模型/业务插件。需生成的公开 YAML 和 CLI 显式装配模型插件；纯采集/检索组合可不安装。
 10. 独立 AiSdkModelGateway(getConfig) 保留标准供应商默认值方便 SDK 直接使用；AgentHost 始终显式传自己的空注册表，不能借此隐式恢复已移除的插件。
 
 ## 配置与状态
 
-工作台读取 AI_PROVIDER / AI_API_BASE / AI_MODEL / AI_API_KEY。AI_PROVIDER=ollama 且地址为空时默认 http://127.0.0.1:11434/v1。连接表单保存仅修改现有私有连接文件，重启生效；API 仅接受标准别名或当前装配的自定义供应商 ID，Secret 不完整回显。workspace.state.modelProviders 只包含 ID/名称，modelConfigured 按实际 Host 注册表计算。
+工作台读取 AI_PROVIDER / AI_API_BASE / AI_MODEL / AI_API_KEY。AI_PROVIDER=ollama 且地址为空时默认 http://127.0.0.1:11434/v1。连接表单保存先写入现有私有连接文件；根目录启动器在空闲时自动重载后端并确认新实例，独立启动仍需手动重启；API 仅接受标准别名或当前装配的自定义供应商 ID，Secret 不完整回显。workspace.state.modelProviders 只包含 ID/名称，modelConfigured 按实际 Host 注册表计算。
 
 知识/发布 CLI 继续只读取 KNOWLEDGE_*，不会退回团队 AI_* 凭据。KNOWLEDGE_PROVIDER=ollama 时允许省略 KNOWLEDGE_API_KEY/API_BASE，模型名仍必填；其他提供者仍需显式地址与密钥。
 
@@ -96,3 +96,5 @@ flowchart LR
 ```
 
 实现与限制见[评测功能卡](../../evaluations/FEATURE.md)。代码：backend/src/evaluations/、backend/src/scripts/evaluate.ts、frontend/src/pages/workspace/EvaluationsPage.tsx。验证：backend/test/evaluations.test.ts、既有模型/插件/RAG/工作台回归、前端类型/lint/build 与桌面/375px 浏览器验收。固定样例和本机 HTTP 协议服务不代表真实模型质量；无语义裁判、个人资料评测或历史业务环境回放。
+
+2026-11-06 本机模型配置可“保存并应用”，等待新实例确认后才刷新 modelConfigured。未发连接探测或生成请求，不把“已应用”解释为模型已验证。后台忙碌时保留设置并允许稍后应用。验证：workspace.test.ts、localLauncher.test.ts、frontend/src/api.test.mjs 和既有模型回归；生命周期边界见[本地启动功能卡](../../../../scripts/local/FEATURE.md)。

@@ -42,7 +42,12 @@ async function fixture(extra: Record<string, string> = {}) {
 import { writeFileSync } from 'node:fs';
 writeFileSync('../backend.pid', String(process.pid));
 if (process.env.BACKEND_FAIL) process.exit(7);
-const server = Bun.serve({ hostname: process.env.HOST, port: 0, fetch: () => new Response('owned backend') });
+const server = Bun.serve({ hostname: process.env.HOST, port: Number(process.env.PORT) || 0, fetch: request => {
+    const action = new URL(request.url).pathname;
+    if (action === '/api/reload') setTimeout(() => process.exit(75), 20);
+    if (action === '/api/fail') setTimeout(() => process.exit(7), 20);
+    return new Response('owned backend');
+} });
 console.log(JSON.stringify({ event: 'local-dev-ready', session: 'unrelated', hostname: '127.0.0.1', port: 12345 }));
 if (!process.env.WRONG_MARKER) console.log(JSON.stringify({ event: 'local-dev-ready', session: process.env.LOCAL_DEV_SESSION, hostname: server.hostname, port: server.port }));
 process.once('SIGTERM', () => setTimeout(() => { writeFileSync('../drained', 'yes'); process.exit(0); }, 700));
@@ -143,3 +148,27 @@ processTest('repeated interruption still lets the owned backend finish draining'
     expect(await readFile(path.join(f.directory, 'drained'), 'utf8')).toBe('yes');
     expect(alive(Number(await readFile(path.join(f.directory, 'backend.pid'), 'utf8')))).toBe(false);
 });
+
+processTest('requested reloads reuse the API port and frontend process; ordinary backend crashes still stop both services', async () => {
+    const f = await fixture({ PORT: '0' });
+    try {
+        await waitFor(() => /FRONTEND_READY (\d+)/.test(f.output()));
+        const frontendPort = Number(/FRONTEND_READY (\d+)/.exec(f.output())![1]);
+        const frontendPid = await readFile(path.join(f.directory, 'frontend.pid'), 'utf8');
+        const api = await (await fetch(`http://127.0.0.1:${frontendPort}`)).text();
+        let backendPid = await readFile(path.join(f.directory, 'backend.pid'), 'utf8');
+        for (let count = 1; count <= 2; count++) {
+            await fetch(api + '/reload');
+            await waitFor(() => f.output().split('已重新加载本地配置').length === count + 1);
+            const next = await readFile(path.join(f.directory, 'backend.pid'), 'utf8');
+            expect(next).not.toBe(backendPid); expect(alive(Number(backendPid))).toBe(false); backendPid = next;
+            expect(await readFile(path.join(f.directory, 'frontend.pid'), 'utf8')).toBe(frontendPid);
+            expect(await (await fetch(`http://127.0.0.1:${frontendPort}`)).text()).toBe(api);
+            expect(await (await fetch(api)).text()).toBe('owned backend');
+        }
+        await fetch(api + '/fail'); await waitFor(() => f.output().includes('意外退出'));
+        expect(await f.processHandle.exited).toBe(1);
+        expect(alive(Number(frontendPid))).toBe(false);
+        expect(alive(Number(backendPid))).toBe(false);
+    } finally { await f.stop(); }
+}, 20000);

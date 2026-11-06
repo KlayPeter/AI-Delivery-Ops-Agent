@@ -26,7 +26,11 @@ flowchart TD
     DB --> START
     START --> OWN[会话匹配与实际监听端口]
     OWN --> UI[启动 Vite 并注入实际 API]
-    UI --> STOP[信号或任一退出：停止本次进程组]
+    UI --> APPLY[本机页面保存；空闲时请求应用]
+    APPLY --> EXIT[后端完成响应与正常收尾；专用退出码 75]
+    EXIT --> RESTART[仅重启本次后端；重新握手并保持 API 端口]
+    RESTART --> UI
+    UI --> STOP[信号或其他退出：停止本次进程组]
 ```
 
 ## 能力边界
@@ -40,7 +44,7 @@ flowchart TD
 ### 非目标
 
 - 不安装系统运行时、外部模型或文档转换器，不部署。
-- 不提供后端代码监听或自动重试，不替代运行结果和外部连接诊断。
+- 不提供后端代码监听或崩溃自动重试，不替代运行结果和外部连接诊断。
 - 不管理第三方工具主动脱离本次进程组的后台守护进程。
 
 ## 核心规则与运行逻辑
@@ -50,8 +54,8 @@ flowchart TD
 3. 本地启动前检查必要依赖，缺少时给出初始化提示。直接执行 backend/src/index.ts，避免包脚本包装层重复转发停止信号；固定 HOST=127.0.0.1；保留 PORT、DATA_DIR 与插件选择。
 4. 仅监听成功后，后端在 LOCAL_DEV_SESSION 存在时输出 JSON 标记。前端启动要求 event/session/hostname 匹配、port 为 1–65535 整数；忽略其他日志和超过 8 KiB 的行。60 秒未确认则失败清理。
 5. VITE_API_BASE 显式覆盖为本次后端实际端口，Vite 同样绑定回环；前端实际页面端口由 Vite 输出。
-6. 任一服务结束均停止另一端；异常退出返回非零。SIGINT/SIGTERM 是正常停止。POSIX 为独立进程组，先 SIGTERM 等待最多 10 秒，再强制停止未结束组，不查杀其他端口。中断安装步骤同样受清理管理，停止信号只发一次；收尾完成前持续接收重复中断，避免提前退出丢失强制清理。
-7. 后端源代码、插件与连接更新需要退出并重启；前端热更新保持。
+6. 除配置应用的专用退出码 75 外，任一服务结束均停止另一端；异常退出返回非零。SIGINT/SIGTERM 是正常停止。POSIX 为独立进程组，先 SIGTERM 等待最多 10 秒，再强制停止未结束组，不查杀其他端口。中断安装步骤同样受清理管理，停止信号只发一次；收尾完成前持续接收重复中断，避免提前退出丢失强制清理。
+7. 本机页面保存连接/知识来源后可申请应用；空闲检查通过才响应 202，并在响应之后正常收尾。启动器仅对本次后端退出码 75 重新启动，清理原进程组并再次校验独立会话标记，保持首次实际 API 端口和原 Vite 进程。其他崩溃、重启失败或标记不符仍停止本次服务，不无限重试。后端代码与手写插件组合更新仍需手动重启；前端热更新保持。
 
 ## 用户能力与入口
 
@@ -94,3 +98,5 @@ flowchart TD
 2026-11-06 首次体验复验：从公开 main 的 1267801 新克隆，无项目依赖/配置/数据库，实际执行根 setup:local，浏览器无密钥检索成功；正常停止后本次两个监听端口关闭，local 再启动保留同一 Run/Step/Artifact 与原 .env（0600）。使用普通包缓存，未复用工作目录的 node_modules；记录见 docs/PROJECT_EVIDENCE.md 的“公开 main 全新安装复验”。运行行为保持，验证继续由 backend/test/localLauncher.test.ts、workspaceComposition.test.ts、featureIndex.test.ts 覆盖。
 
 2026-11-06 当前个人预设复验：从公开 main 的 166f98a 全新克隆，实际 setup:local 安装锁定依赖并完成无密钥检索；正常退出关闭本次两个端口，再用 local 重启，API 动态端口变化但前端仍连接本次服务，原 Run/Step/Artifact 和 .env（0600）保持。安装后只加入本批 KnowledgePage.tsx 模型入口提示，启动器与后端源代码保持该提交原样；复用普通包缓存。详见 docs/PROJECT_EVIDENCE.md 的“当前个人预设的全新安装与模型入口”，现有生命周期测试保持。
+
+2026-11-06 配置应用：新增已保存配置的本地后端重载，保留前端进程、端口和现有数据；非启动器模式不提供此能力。代码新增入口为 platform/workspace/api.ts 的 POST /reload、AgentHost.isIdle、index.ts 的共享收尾 Promise 与退出 75。验证：localLauncher.test.ts 真实两次重载/稳定端口/普通崩溃清理，workspace.test.ts 空闲、Origin/输入、响应及重复写保护；前端 api.test.mjs 检查丢失回执、旧实例不能冒充生效和忙碌拒绝。浏览器与数据验收记录见 docs/PROJECT_EVIDENCE.md。
