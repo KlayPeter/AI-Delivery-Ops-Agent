@@ -11,7 +11,7 @@ interface WsClientLike {
     getConnectionStatus?: () => { state: string; reconnectAttempts: number };
 }
 
-interface ConnectionManagerDependencies {
+export interface ConnectionManagerDependencies {
     createClient?: (input: { appId: string; appSecret: string }) => WsClientLike;
     createDispatcher?: (handler: (data: any) => Promise<void>) => any;
     createAdapter?: (config: FeishuConfig) => FeishuAdapter;
@@ -23,6 +23,7 @@ interface AuditStore {
 }
 
 export class FeishuBotConnectionManager {
+    private stopped = false;
     private readonly clients = new Map<string, WsClientLike>();
     private readonly adapters = new Map<string, FeishuAdapter>();
     private readonly processedEvents = new Map<string, number>();
@@ -47,8 +48,13 @@ export class FeishuBotConnectionManager {
 
     async start(): Promise<void> {
         if (this.clients.size) return;
+        this.stopped = false;
         try {
-            for (const bot of this.requiredBots()) await this.startBot(bot);
+            for (const bot of this.requiredBots()) {
+                if (this.stopped) throw new Error('Feishu connections stopped during startup');
+                await this.startBot(bot);
+            }
+            if (this.stopped) throw new Error('Feishu connections stopped during startup');
         } catch (error) {
             await this.stop();
             throw error;
@@ -63,6 +69,7 @@ export class FeishuBotConnectionManager {
     }
 
     async stop(): Promise<void> {
+        this.stopped = true;
         for (const client of this.clients.values()) client.close({ force: true });
         this.clients.clear();
         this.adapters.clear();
@@ -117,6 +124,7 @@ export class FeishuBotConnectionManager {
                 receive_mode: String(bot.config.receiveMode || 'default'),
             });
         } catch (error) {
+            try { client.close({ force: true }); } catch {}
             this.clients.delete(bot.id);
             this.adapters.delete(bot.id);
             throw error;

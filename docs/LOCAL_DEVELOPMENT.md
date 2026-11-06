@@ -70,7 +70,7 @@ AGENT_PLUGINS_FILE=plugins.skills-personal.local.yaml bun run local
 AGENT_PLUGINS_FILE=profiles/agents/team.yaml bun run dev
 ```
 
-该组合保留七个团队 Agent 和十五个插件（含三个模型提供者），包含任务、站会、日报、周报、看板及原有九项手动任务；不是默认个人组合的叠加开关。前端据实际贡献显示团队页面和业务任务；默认个人组合没有这些入口，其站会/看板/周报插件 API 也不可用。`builtin.configuration` 拥有原 `/config` 页面和 `/api/config`；个人、空组合或移除该插件后，页面与 API 一起关闭。通讯录的五项 `/api/feishu` 接口与自动成员同步现由 `builtin.directory` 拥有；移除插件即停止这些入口和读取，已有成员配置保留。
+该组合保留七个团队 Agent 和十六个插件（含三个模型提供者），包含任务、站会、日报、周报、看板及原有九项手动任务；不是默认个人组合的叠加开关。前端据实际贡献显示团队页面和业务任务；默认个人组合没有这些入口，其站会/看板/周报插件 API 也不可用。`builtin.configuration` 拥有原 `/config` 页面和 `/api/config`；个人、空组合或移除该插件后，页面与 API 一起关闭。通讯录的五项 `/api/feishu` 接口与自动成员同步现由 `builtin.directory` 拥有；移除插件即停止这些入口和读取，已有成员配置保留。
 
 「连接与模型」的飞书、TAPD 仍可填写；凭据只保存连接配置，不会安装任务/报告 Agent。已保存的飞书凭据会在重启后尝试连接；使用群聊/私聊业务前请先选择提供对应能力的组合。
 
@@ -113,3 +113,9 @@ KNOWLEDGE_PROVIDER=ollama KNOWLEDGE_MODEL='<已有模型名>' bun run src/script
 ## 审计数据保留
 
 个人与团队预设包含 platform.maintenance：每天 03:30（Asia/Shanghai）按原策略清理九十天前审计和四类临时去重键，默认每批五百条、最多二十批，不清理运行、步骤、产物或业务数据。需要保留全部审计时设置 MAINTENANCE_ENABLED=false 并重启；独立 AGENT_PLUGINS_FILE 只有显式包含该插件才会清理，空组合不会清理。base: personal 继承个人预设中的维护插件。
+
+## 可选飞书通道
+
+团队 team.yaml 已包含 channel.feishu；个人默认不安装。只填写飞书凭据不会在未安装通道的组合中启动 WebSocket。自定义文件可显式增加 `- module: channel.feishu`，同时配置要使用的 Bot/能力与对应功能插件；通道只提供通信，不自动安装任务、站会或知识 Agent。修改组合后重启，当前不支持热替换或同一组合多个通信提供者。
+
+移除通道后原 Outbox 保留、不消耗重试；重新安装才继续投递。readyz 中无必需连接只代表当前组合无需连接，不代表排队消息已经发送。原 SDK initialize 只装配，start 才启动连接；若只使用本地 Agent，无需安装通道或填写凭据。

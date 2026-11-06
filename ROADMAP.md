@@ -47,9 +47,11 @@ are deferred while the local product is being validated.
   implementations; preserve their old SDK import paths.
 - [x] Let the task plugin own automatic task reply inference and drain accepted
   context lookups; an empty registry no longer scans legacy task state.
-- [ ] Extract the remaining fixed Feishu ingress/delivery transport from Host and
-  application bootstrap; preserve bot routing, readiness and reliable Outbox behavior.
-  See the [migration audit](docs/PLUGIN_MIGRATION_AUDIT.md) for acceptance criteria.
+- [x] Put Feishu ingress/delivery and readiness behind channel.feishu and a generic
+  transport lifecycle; stop intake before draining, close failed startup clients,
+  and retain queued Outbox records without attempts when no transport is installed.
+  The current contract supports one transport per composition and Feishu Bot metadata;
+  see the [migration audit](docs/PLUGIN_MIGRATION_AUDIT.md) for evidence and limits.
 - [x] Provide explicit empty, knowledge, release, community-tool and team profiles;
   the HTTP workspace also has a default no-credential sample composition.
 - [x] Verify missing dependencies, disabled plugins, setup failure and cleanup in

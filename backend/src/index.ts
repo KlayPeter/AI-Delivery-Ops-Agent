@@ -4,9 +4,8 @@ import { createDeliveryOpsHost } from './agents/host';
 import { DELIVERY_OPS_CAPABILITY } from './agents/orchestrator/deliveryOpsAgent';
 import { Elysia } from 'elysia';
 import { cors } from '@elysiajs/cors';
-import { AppConfig, loadConfig } from './core/config';
+import { loadConfig } from './core/config';
 import { PrismaStore } from './core/storage';
-import { FeishuAdapter } from './adapters/feishu';
 import { MessageHandler } from './services/messageHandler';
 import { MessageRouteRegistry } from './services/messageHandler/routes';
 import { ScheduleRegistry } from './platform/scheduling/registry';
@@ -18,10 +17,6 @@ import { normalizeLogQuery } from './core/logQuery';
 import { livenessReport, readinessReport } from './core/health';
 import { externalApiHealthSnapshot } from './platform/observability/externalApiHealth';
 import { createApiDocumentation } from './platform/observability/apiDocumentation';
-import { FeishuBotConnectionManager } from './platform/bots/feishuBotConnectionManager';
-import { FeishuBotMessageIngress } from './platform/bots/feishuBotMessageIngress';
-import { EnvironmentSecretResolver } from './platform/secrets/resolver';
-import { DEFAULT_BOT_INSTANCE_ID } from './platform/runtime/scope';
 import { isLocalWorkspaceRequest, LocalConnections } from './platform/workspace/connections';
 import { loadWorkspacePlugins } from './platform/workspace/composition';
 import { createWorkspaceApi, createPluginApi } from './platform/workspace/api';
@@ -31,32 +26,18 @@ const localConnections = new LocalConnections(path.join(loadConfig().data_path, 
 await localConnections.initialize();
 let config = loadConfig();
 let store = new PrismaStore(config.data_path);
-let feishu: FeishuAdapter;
 let handler: MessageHandler;
 let agentHost: AgentHost | undefined;
 let scheduledAgents: ScheduledAgentDispatcher | undefined;
-let botConnections: FeishuBotConnectionManager | undefined;
 const messageRoutes = new MessageRouteRegistry();
 const schedules = new ScheduleRegistry();
 
-function knownNamesFromConfig(current: AppConfig): Record<string, string> {
-    const knownNames: Record<string, string> = {};
-    for (const g of current.groups) {
-        for (const m of g.members) {
-            knownNames[m.open_id] = m.name;
-        }
-    }
-    return knownNames;
-}
-
 async function reloadConfig(): Promise<void> {
     config = loadConfig(await store.getDynamicConfig());
-    feishu = new FeishuAdapter(config.feishu, false, knownNamesFromConfig(config));
-    feishu.setAuditCallback((action, payload) => { store.appendAuditLog(action, payload).catch(console.error); });
     handler = new MessageHandler(createDeliveryOpsContext({
         config,
         store,
-        feishu,
+        isTransportAvailable: () => agentHost?.transports.available === true,
         messageRoutes,
         schedules,
         agentOrchestrator: {
@@ -86,23 +67,6 @@ agentHost = createDeliveryOpsHost(() => (handler as any).ctx, 1000, undefined, [
 await agentHost.initialize();
 await agentHost.start();
 
-const botIngress = new FeishuBotMessageIngress(
-    agentHost,
-    () => handler,
-    store,
-    DEFAULT_BOT_INSTANCE_ID,
-    message => messageRoutes.resolveBotEntry((handler as any).ctx, message, capability => agentHost!.canDispatch(capability)),
-);
-botConnections = new FeishuBotConnectionManager(
-    agentHost.bots,
-    DEFAULT_BOT_INSTANCE_ID,
-    () => config.feishu,
-    new EnvironmentSecretResolver(),
-    store,
-    (bot, adapter, data) => botIngress.handle(bot, adapter, data),
-);
-await botConnections.start();
-
 scheduledAgents = new ScheduledAgentDispatcher(agentHost);
 const globalPollIntervalSeconds = 6 * 60 * 60;
 const scheduler = new InProcessScheduler(() => handler, 30, globalPollIntervalSeconds, scheduledAgents);
@@ -127,8 +91,8 @@ const app = new Elysia()
                 await store.prisma.$queryRawUnsafe('SELECT 1');
             },
             getAgentHostHealth: () => agentHost?.health(),
-            getBotConnections: () => botConnections?.health() || [],
-            requiredBotInstanceIds: botConnections?.requiredBots().map(bot => bot.id) || [],
+            getBotConnections: () => agentHost!.transports.health().connections,
+            requiredBotInstanceIds: agentHost!.transports.health().requiredBotInstanceIds,
         });
         if (!report.ok) set.status = 503;
         return report;
@@ -136,7 +100,7 @@ const app = new Elysia()
     .get('/api/agent-host/health', () => ({
         ok: true,
         host: agentHost!.health(),
-        botConnections: botConnections?.health() || [],
+        botConnections: agentHost!.transports.health().connections,
     }))
     .get('/api/health/external-api-usage', () => ({
         ok: true,
@@ -363,7 +327,6 @@ let shutdownPromise: Promise<void> | undefined;
 function shutdown(): Promise<void> {
     return shutdownPromise ??= (async () => {
         await scheduler.stop();
-        await botConnections?.stop();
         await agentHost?.stop();
         await app.stop();
     })();

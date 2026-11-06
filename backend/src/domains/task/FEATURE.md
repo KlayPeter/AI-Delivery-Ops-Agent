@@ -279,3 +279,13 @@ flowchart LR
 任务回复推断迁到 domains/task/replyContext.ts，由 builtin.task.context.lookupContext 装配；任务、更新和来源消息中的 AI 字段依次回溯，保留原 task_id/taskId/task.id 的首个有效字符串顺序。空注册表和卸载后不再自动读取任务/任务更新来猜测回复上下文；通用已保存 Bot Context 与消息祖先遍历仍属于消息层。查询纳入注册表在途集合，停机等待后释放。任务的创建、状态、TAPD 同步与数据归属未改。
 
 应用 Context 在 agents/context.ts 按需提供旧团队服务；每次显式配置重载使用新 Context，避免继续复用旧 TAPD/模型适配实例。MessageHandler 不再构造未使用的邮件 Adapter。手动 Job 的应用入口位于 agents/jobsApi.ts，旧平台路径仅兼容转出；依旧由已安装插件授权，领域规则不变。代码另见 agents/plugins/task.ts / jobs.ts、services/messageHandler/routes.ts / ContextResolver.ts / index.ts；验证 applicationContext.test.ts、replyContextPlugins.test.ts、messageHandler.test.ts、messagePlugins.test.ts 及原领域/Job 全量回归。
+
+## 飞书通道装配收尾（2026-11-06）
+
+channel.feishu 拥有原入站 Manager/Ingress、路由投递 Adapter 及连接健康信息；Host 只依赖通用 TransportRegistry，index 不再构造这些对象或 FeishuAdapter。应用 Context 的默认飞书 Adapter 按需创建，每次访问都检查通道是否安装（已缓存也不绕过停用），仍保留群成员姓名与审计回调；传入 SDK Adapter 的旧用法兼容。团队 SDK/team.yaml 为十六插件/七 Agent；个人默认仍十六插件/九 Agent，不装配通道。个人或独立文件如需通信，应显式安装 channel.feishu 并配置对应 Bot 与能力，不会因为填写凭据就启动未装配的通道。
+
+initialize 只注册传输，start 在所有 Catalog/Binding 恢复后启动连接，再启动 Worker；停止立即拒绝新消息/调度/Run，先关闭入站，再等待已接受工作和 Worker，最后关闭传输并释放贡献。并发 start 共用启动，stop 共用收尾；启动失败关闭全部已创建客户端，包括启动失败的客户端，停止中的启动不继续打开后续 Bot。默认/专用 Bot、持久化去重、secretRef、群/私聊路由与真实投递回执不变。
+
+移除通道不领取 Outbox、消耗重试或删除队列；重装后可继续原消息，成功后仍沿用原幂等/租约/回执。TransportRegistry 当前限定一个组合一个提供者，BotPlatform 仍仅飞书；不提供多协议并发或热替换。原生插件继续是可信代码。readiness 和 /api/agent-host/health 从实际传输读取连接信息，缺少插件为零必需连接，不代表历史消息已投递。
+
+代码地图：platform/transports/registry.ts；platform/bots/feishuPlugin.ts / feishuBotConnectionManager.ts；platform/plugins/contracts.ts / runtime.ts；platform/bootstrap/agentHost.ts；platform/delivery/worker.ts；agents/context.ts / plugins/builtins.ts、profiles/agents/team.yaml、index.ts。验证：transportPlugins.test.ts 六项、原 multiBotIngress/routedFeishuDelivery/deliveryOutbox/agentHost、组合与前后端门禁；全新 SQLite 证明缺通道零尝试、重装仅投递一次、移除后回执及 Run/Step/Artifact 不变；真实本机 HTTP 以虚构完整飞书配置验证无通道也不连接，并验证无凭据通道就绪，未向真实飞书发送消息。

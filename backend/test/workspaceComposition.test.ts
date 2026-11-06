@@ -55,9 +55,9 @@ test('HTTP default loads personal plugins without implicit team agents, routes o
 test('explicit team and empty files fully replace the default composition', async () => {
     process.env.KNOWLEDGE_KIND = 'web'; process.env.KNOWLEDGE_URLS = '';
     process.env.AGENT_PLUGINS_FILE = profile('team');
-    expect((await loadWorkspacePlugins(directory)).plugins).toHaveLength(15);
+    expect((await loadWorkspacePlugins(directory)).plugins).toHaveLength(16);
     const team = await loadWorkspacePlugins(directory, profile('team'));
-    expect(team.plugins).toHaveLength(15); expect(team.plugins.every(plugin => plugin.manifest.id === 'platform.maintenance' || ['builtin.', 'model.'].some(prefix => plugin.manifest.id.startsWith(prefix)))).toBe(true);
+    expect(team.plugins).toHaveLength(16); expect(team.plugins.every(plugin => plugin.manifest.id === 'platform.maintenance' || plugin.manifest.id === 'channel.feishu' || ['builtin.', 'model.'].some(prefix => plugin.manifest.id.startsWith(prefix)))).toBe(true);
     const host = await createHost(undefined, profile('team'));
     try {
         await host.initialize();

@@ -17,7 +17,7 @@ function context(store: InMemoryPersistentKeyValueStore): any {
         store,
         config: {
             data_path: '/tmp',
-            feishu: { bot_name: 'default', app_id: 'app' },
+            feishu: { bot_name: 'default', app_id: '', app_secret: '' },
             project: { name: 'project' },
             runtime: { public_base_url: '' },
             groups: [],

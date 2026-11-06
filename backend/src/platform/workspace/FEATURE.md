@@ -18,6 +18,9 @@ last_reviewed: 2026-11-06
 
 ```mermaid
 flowchart TD
+    TRANSPORT_PLUGIN[可选 channel.feishu] --> TRANSPORT_PORT[通用 TransportRegistry：连接、投递与就绪]
+    TRANSPORT_PORT --> TRANSPORT_STOP[先停止接入并立即拒绝新任务，再等待在途执行和投递]
+    NO_TRANSPORT[缺少传输插件] --> PENDING_OUTBOX[不领取 Outbox，不消耗重试或删除历史]
     APP_CONTEXT[应用装配：每次重载创建 Context] --> LAZY_PORTS[插件实际调用时才构造团队服务]
     LAZY_PORTS --> DOMAIN_OWNER[TaskService / StandupService 等保留领域状态]
     EXTERNAL_OWNER[builtin.ai-hot-schedule：专用安装 API] --> INSTALL_PORT[宿主通用 installExternal 端口]
@@ -50,7 +53,7 @@ flowchart TD
     FILE --> MANUAL_LOCAL[独立启动：保留手动重启提示]
     MANUAL_LOCAL --> BOOT
     BOOT --> PL[HTTP 组合选择：默认个人或显式文件]
-    PL -- 显式 team.yaml --> TEAM[按需选择既有团队组合：十五插件七 Agent]
+    PL -- 显式 team.yaml --> TEAM[按需选择既有团队组合：十六插件七 Agent]
     TEAM --> DIRECTORY[显式 builtin.directory：五项通讯录 API 与全局成员同步]
     DIRECTORY --> WEB
     TEAM --> WEB
@@ -144,7 +147,7 @@ flowchart TD
 5. 本地连接字段采用 allowlist；密钥只返回已配置布尔值。省略字段保留当前值，null 仅用于明确清除密钥；空凭据的飞书可保持未连接，部分凭据拒绝保存。
 6. 配置写入独占创建的临时文件、flush、原子 rename，文件权限 0600；读取拒绝符号链接、硬链接和共享权限文件。配置为本机明文，不声称加密。连接更新串行合并，失败保留原文件。
 7. 保存不改变在途任务的配置。重启时本地文件覆盖同名环境值；模型供应商/地址/名称和 TAPD 项目/地址/工作项环境值优先于旧 config.json。页面持续提示待重启状态。
-8. HTTP 入口通过 loadWorkspacePlugins 默认只选择示例 Markdown 来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收、MCP 接入助手、个人研究及任务配方，合计十六个插件、九个 Agent。选择公开网页时替换来源组合。明确保存 GitHub 仓库后再增装 GitHub/发布两个插件，合计 18 个插件、10 个 Agent；清空仓库并重启停用。SDK 团队工厂仍为十五个插件、七个 Agent，HTTP 可用 profiles/agents/team.yaml 显式选择该组合。未声明 base: personal 的显式 AGENT_PLUGINS_FILE 完全管理组合，不自动叠加页面知识配置。
+8. HTTP 入口通过 loadWorkspacePlugins 默认只选择示例 Markdown 来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收、MCP 接入助手、个人研究及任务配方，合计十六个插件、九个 Agent。选择公开网页时替换来源组合。明确保存 GitHub 仓库后再增装 GitHub/发布两个插件，合计 18 个插件、10 个 Agent；清空仓库并重启停用。SDK 团队工厂仍为十六个插件、七个 Agent，HTTP 可用 profiles/agents/team.yaml 显式选择该组合。未声明 base: personal 的显式 AGENT_PLUGINS_FILE 完全管理组合，不自动叠加页面知识配置。
 9. 知识请求保留无 chat/conversation 的个人手动 Scope。检索不调用模型，生成回答使用当前宿主模型并发送所选片段；证据沿用来源和引用核验协议。
 10. 结果 Markdown 不执行 HTML，不自动加载远端图片；原文链接仅允许 HTTP/HTTPS 和 Obsidian open。原始 JSON 放在详情，不作为主要操作入口。
 11. 首页新工作台保留 `?groupId` / `?dashboardId` 的既有看板入口，以及旧根目录 HTML 长链接；这些入口都核对看板插件是否装配，项目看板使用 `/dashboard` 导航。
@@ -593,7 +596,7 @@ flowchart TD
 
 ## 审计维护插件（2026-11-06）
 
-原维护任务现由 platform.maintenance 拥有，注册 maintenance.cleanup / global-tick，不新增 Agent。个人默认十六插件/九 Agent、GitHub 组合十八插件/十 Agent、团队 SDK/profile 十五插件/七 Agent；显式空组合或未包含该插件的独立文件不再隐式清理。base: personal 继承维护插件；可用 MAINTENANCE_ENABLED=false 关闭执行。安装插件不改变原九十天保留、03:30 Asia/Shanghai、每批五百条/最多二十批的默认策略。
+原维护任务现由 platform.maintenance 拥有，注册 maintenance.cleanup / global-tick，不新增 Agent。个人默认十六插件/九 Agent、GitHub 组合十八插件/十 Agent、团队 SDK/profile 十六插件/七 Agent；显式空组合或未包含该插件的独立文件不再隐式清理。base: personal 继承维护插件；可用 MAINTENANCE_ENABLED=false 关闭执行。安装插件不改变原九十天保留、03:30 Asia/Shanghai、每批五百条/最多二十批的默认策略。
 
 Scheduler 先执行到期 global-poll，再执行每 tick 的 global-tick，随后处理既有 Outbox 和逐群任务；同一阶段按 priority 排序。global-tick 无 group、不受低频轮询间隔或群日历限制，插件自己判断时刻、领取每日键和记录结果。维护失败保留失败凭证并继续其他任务；全局贡献抛出错误仍走 scheduler_poll_failed。停止先拒绝并等待在途 tick，再释放贡献，不删除历史。
 
@@ -617,4 +620,14 @@ ContextResolver 只保留通用消息祖先遍历和共享 Bot Context 读取；
 
 代码：agents/context.ts、agents/jobsApi.ts、agents/plugins/jobs.ts / task.ts；services/messageHandler/index.ts / ContextResolver.ts / routes.ts；domains/task/replyContext.ts。验证：applicationContext.test.ts、replyContextPlugins.test.ts、messageHandler.test.ts / messagePlugins.test.ts；原调度、手动 Job、日报、周报、站会和看板全量回归。实际 HTTP/全新 SQLite 验证空组合、Echo、仅 AI Hot 安装插件与移除后的组合，旧成功运行与产物逐字保留，所有子进程正常退出，模型始终未配置。
 
-真实应用使用 CORS；核心路由冲突校验同时考虑 HTTP 方法和路径。OPTIONS /* 不阻塞业务 POST/GET；ALL 或 GET/HEAD 与真实路由相交仍拒绝。pluginWeb.test.ts 已加入实际 cors() 配置和方法用例，避免只用简化路由通过单测却无法启动。剩余边界见 docs/PLUGIN_MIGRATION_AUDIT.md：飞书入站/投递仍是固定平台通道，不能宣称任意通信适配器均可作为插件替换。
+真实应用使用 CORS；核心路由冲突校验同时考虑 HTTP 方法和路径。OPTIONS /* 不阻塞业务 POST/GET；ALL 或 GET/HEAD 与真实路由相交仍拒绝。pluginWeb.test.ts 已加入实际 cors() 配置和方法用例，避免只用简化路由通过单测却无法启动。当前边界见 docs/PLUGIN_MIGRATION_AUDIT.md：channel.feishu 已独立装配；目前一个组合只支持一个传输提供者，Bot 模型仍只声明飞书，不承诺任意通信协议兼容。
+
+## 飞书通道装配收尾（2026-11-06）
+
+channel.feishu 拥有原入站 Manager/Ingress、路由投递 Adapter 及连接健康信息；Host 只依赖通用 TransportRegistry，index 不再构造这些对象或 FeishuAdapter。应用 Context 的默认飞书 Adapter 按需创建，每次访问都检查通道是否安装（已缓存也不绕过停用），仍保留群成员姓名与审计回调；传入 SDK Adapter 的旧用法兼容。团队 SDK/team.yaml 为十六插件/七 Agent；个人默认仍十六插件/九 Agent，不装配通道。个人或独立文件如需通信，应显式安装 channel.feishu 并配置对应 Bot 与能力，不会因为填写凭据就启动未装配的通道。
+
+initialize 只注册传输，start 在所有 Catalog/Binding 恢复后启动连接，再启动 Worker；停止立即拒绝新消息/调度/Run，先关闭入站，再等待已接受工作和 Worker，最后关闭传输并释放贡献。并发 start 共用启动，stop 共用收尾；start 失败也走完整停机并释放其他插件的 effect；启动失败关闭全部已创建客户端，包括启动失败的客户端，停止中的启动不继续打开后续 Bot。默认/专用 Bot、持久化去重、secretRef、群/私聊路由与真实投递回执不变。
+
+移除通道不领取 Outbox、消耗重试或删除队列；重装后可继续原消息，成功后仍沿用原幂等/租约/回执。TransportRegistry 当前限定一个组合一个提供者，BotPlatform 仍仅飞书；不提供多协议并发或热替换。原生插件继续是可信代码。readiness 和 /api/agent-host/health 从实际传输读取连接信息，缺少插件为零必需连接，不代表历史消息已投递。
+
+代码地图：platform/transports/registry.ts；platform/bots/feishuPlugin.ts / feishuBotConnectionManager.ts；platform/plugins/contracts.ts / runtime.ts；platform/bootstrap/agentHost.ts；platform/delivery/worker.ts；agents/context.ts / plugins/builtins.ts、profiles/agents/team.yaml、index.ts。验证：transportPlugins.test.ts 六项、原 multiBotIngress/routedFeishuDelivery/deliveryOutbox/agentHost、组合与前后端门禁；全新 SQLite 证明缺通道零尝试、重装仅投递一次、移除后回执及 Run/Step/Artifact 不变；真实本机 HTTP 以虚构完整飞书配置验证无通道也不连接，并验证无凭据通道就绪，未向真实飞书发送消息。

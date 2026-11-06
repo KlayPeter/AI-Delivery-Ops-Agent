@@ -203,6 +203,7 @@ HTTP 默认装配个人知识、采集、验收、工具接入、研究、配方
 
 | 代码路径或对象 | 必须更新的 Feature ID |
 | --- | --- |
+| `backend/src/platform/transports/**`、`backend/src/platform/bots/feishuPlugin.ts`、`backend/src/platform/delivery/worker.ts` | `agent-platform`、`plugin-runtime`、`operations-observability`、`configuration-scheduling`、`local-agent-workspace`；实际消息/投递行为变化追加相应业务功能 |
 | `backend/src/agents/context.ts`、`backend/src/agents/jobsApi.ts`、`backend/src/agents/plugins/jobs.ts` | `message-routing`、`task-management`、`standup-management`、`daily-summary`、`weekly-report`、`project-visibility`、`meeting-summary`、`configuration-scheduling`、`agent-platform`、`plugin-runtime`、`operations-observability`、`local-agent-workspace` |
 | `backend/src/domains/task/replyContext.ts`、`MessageRoute.lookupContext` | `task-management`、`message-routing`、`agent-platform`、`plugin-runtime`、`operations-observability` |
 | `backend/src/agents/dispatcher.ts`、`backend/src/agents/external/aiHotApi.ts`、`backend/src/agents/plugins/aiHotSchedule.ts` | `agent-platform`、`plugin-runtime`、`operations-observability`、`configuration-scheduling`、`local-agent-workspace` |

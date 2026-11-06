@@ -15,7 +15,7 @@ describe('trusted plugin configuration', () => {
     test('loads the shipped team, empty and native template profiles', async () => {
         const root = path.resolve(import.meta.dir, '../profiles/agents');
         const team = await loadPluginConfiguration(path.join(root, 'team.yaml'), deliveryTeamPlugins);
-        expect(team.plugins).toHaveLength(15);
+        expect(team.plugins).toHaveLength(16);
         expect(team.plugins.filter(plugin => plugin.manifest.id === 'platform.maintenance')).toHaveLength(1);
         expect(team.plugins.filter(plugin => plugin.manifest.id === 'builtin.configuration')).toHaveLength(1);
         expect(team.plugins.filter(plugin => plugin.manifest.id === 'builtin.directory')).toHaveLength(1);

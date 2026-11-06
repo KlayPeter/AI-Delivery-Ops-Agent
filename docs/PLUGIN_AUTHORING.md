@@ -1,6 +1,6 @@
 # 功能插件规范 v1
 
-当前 SDK 面向本仓库内或由部署者审查的 TypeScript 原生插件。使用 Cordis 4.1.0，协议版本为 `1.0`。现阶段提供 Agent、Tool、Skill、消息路由、群业务调度和运行后续动作的独立装配、依赖校验和资源清理；页面、业务 API 与审计维护也由插件贡献；旧业务服务已按需移到应用装配，固定飞书入站/投递通道继续按路线图收尾。
+当前 SDK 面向本仓库内或由部署者审查的 TypeScript 原生插件。使用 Cordis 4.1.0，协议版本为 `1.0`。现阶段提供 Agent、Tool、Skill、消息路由、群业务调度和运行后续动作的独立装配、依赖校验和资源清理；页面、业务 API 与审计维护也由插件贡献；旧业务服务已按需移到应用装配，飞书入站/投递通道也由可选插件装配。
 
 ## 包结构
 
@@ -45,7 +45,7 @@ await host.stop();
 AGENT_PLUGINS_FILE=profiles/agents/team.yaml bun run dev
 ```
 
-团队 SDK 未指定插件时仍为十五个插件、七个 Agent；HTTP 工作台默认只装配选定知识来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收、MCP 接入助手、个人研究及任务配方，共十六个插件、九个 Agent；配置 GitHub 发布组合后为 18 个插件、10 个 Agent。HTTP 不再隐式装配团队能力；使用 profiles/agents/team.yaml 可显式选择十二个功能/平台插件及三个模型插件。会议纪要和外部 AI Hot 调度插件没有独立 Agent。会议纪要仍受原有模块开关控制，外部 AI Hot 能力仍需另行安装。示例还包括 `profiles/agents/native-demo.yaml`、`profiles/agents/empty.yaml` 和 `backend/examples/plugins.collectors.yaml`，分别选择 Echo 模板、零业务插件和采集/资料库三个插件。显式插件文件完全决定组合；未装配的插件页面和 API 不开放，基础服务仍由应用拥有。
+团队 SDK 未指定插件时仍为十六个插件、七个 Agent；HTTP 工作台默认只装配选定知识来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收、MCP 接入助手、个人研究及任务配方，共十六个插件、九个 Agent；配置 GitHub 发布组合后为 18 个插件、10 个 Agent。HTTP 不再隐式装配团队能力；使用 profiles/agents/team.yaml 可显式选择十三个功能/平台插件及三个模型插件。会议纪要和外部 AI Hot 调度插件没有独立 Agent。会议纪要仍受原有模块开关控制，外部 AI Hot 能力仍需另行安装。示例还包括 `profiles/agents/native-demo.yaml`、`profiles/agents/empty.yaml` 和 `backend/examples/plugins.collectors.yaml`，分别选择 Echo 模板、零业务插件和采集/资料库三个插件。显式插件文件完全决定组合；未装配的插件页面和 API 不开放，基础服务仍由应用拥有。
 
 ```yaml
 apiVersion: '1.0'
@@ -97,7 +97,7 @@ Skill、MCP 和 OpenAPI 的导出页面都可显式保留个人工作台；它�
 
 ## 注册与清理
 
-通过 `ctx.delivery.nativeAgents.register`、`modelAgents.register`、`tools.register`、`skills.register`、`messageRoutes.register`、`messageRoutes.registerBotEntry`、`schedules.register`、`runActions.register`、`web.register` 注册。它们自动将 disposer 加入当前 Cordis 插件作用域；启动失败或 Host 停止时释放。静态消息和调度优先声明在对应数组，依赖配置的贡献也可在 `apply` 中注册。
+通过 `ctx.delivery.nativeAgents.register`、`modelAgents.register`、`tools.register`、`skills.register`、`messageRoutes.register`、`messageRoutes.registerBotEntry`、`schedules.register`、`runActions.register`、`web.register`、`transports.register` 注册。它们自动将 disposer 加入当前 Cordis 插件作用域；启动失败或 Host 停止时释放。静态消息和调度优先声明在对应数组，依赖配置的贡献也可在 `apply` 中注册。
 
 连接、监听器和计时器使用 `ctx.effect` / `ctx.on`。插件需要在持久化控制面恢复后协调配置时，监听 `delivery/restored`；该回调失败同样使 Host 启动失败并释放插件。
 
@@ -376,4 +376,12 @@ knowledge.watch 使用该端口调度 Native 引用复核；requirePersonalVersi
 
 context 阶段的消息路由可声明 lookupContext(ctx, messageId)，返回上下文或 null。注册时必须提供函数并显式使用 phase: context；查询按该阶段 priority 执行，首个非空结果停止继续推断。共享层保留 Bot Context 和有深度/循环保护的消息祖先遍历；业务表读取应归所属插件。整个查询受 MessageRouteRegistry 在途跟踪保护，停止拒绝新查询、等待已接受查询后释放贡献。builtin.task 为现有使用者，空组合不再隐式扫描任务。
 
-兼容团队服务采用应用层 agents/context.ts 的按需实例，原业务状态由领域服务拥有。原生插件仍是可信宿主代码，接口不提供代码沙箱。完整现状与唯一剩余的固定通道收尾见[迁移审计](PLUGIN_MIGRATION_AUDIT.md)。
+兼容团队服务采用应用层 agents/context.ts 的按需实例，原业务状态由领域服务拥有。原生插件仍是可信宿主代码，接口不提供代码沙箱。完整现状与已完成的通道收尾验收见[迁移审计](PLUGIN_MIGRATION_AUDIT.md)。
+
+## 传输插件
+
+可信插件通过可选 ctx.delivery.transports.register 注册 {id, delivery, start, stopIngress, stop, health?}；delivery 实现既有 DeliveryAdapter。注册随 Cordis effect 释放，回调须幂等，启动失败也会执行关闭。start 在所有能力/Catalog/Binding 恢复之后执行；stopIngress 先停止新入站，stop 在已接受消息/Run 与投递 Worker 结束后关闭剩余资源。health 返回 requiredBotInstanceIds 和实际 connections，不包含凭据。
+
+当前一个组合只支持一个传输提供者；重复或无效注册失败，暂不支持热替换或多协议并行，BotPlatform 仍只声明飞书。channel.feishu 为现有实现，团队预设包含，个人预设不包含。未注册传输时 Worker 不领取队列、不消耗 Outbox 重试；重新装配可继续原投递。插件可通过宿主 dispatchBotMessage/canDispatch 和现有 MessageRouteRegistry 复用 Bot Scope/Trigger/Run；通信插件不自动授予 Agent 或业务路由。
+
+宿主 getContext 返回的消息/调度注册表与实际 Host 相同，供通信插件的默认消息路径使用；不会通过展开对象提前触发应用服务 getter。传输 start 失败走完整停机，连同其他插件 effect 一起释放，回调应允许重复关闭。

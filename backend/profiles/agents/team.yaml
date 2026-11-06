@@ -15,3 +15,4 @@ plugins:
   - module: builtin.directory
   - module: builtin.configuration
   - module: platform.maintenance
+  - module: channel.feishu

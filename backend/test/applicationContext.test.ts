@@ -22,7 +22,7 @@ test('empty, personal and native-only hosts do not construct legacy team service
         for (const selection of [{ plugins: [] }, personal, { plugins: [echoPlugin] }]) {
             const { plugins } = selection;
             const ctx = context(directory), touched: string[] = [];
-            for (const key of ['tapd', 'dashboard', 'projectDashboard', 'email', 'intentParser'] as const) {
+            for (const key of ['feishu', 'tapd', 'dashboard', 'projectDashboard', 'email', 'intentParser'] as const) {
                 const getter = Object.getOwnPropertyDescriptor(ctx, key)!.get!;
                 Object.defineProperty(ctx, key, { get() { touched.push(key); return getter.call(ctx); } });
             }
@@ -47,4 +47,14 @@ test('services are reused within one context, and rebuilt from the new configura
     expect(first.intentParser!.llm!.diagnostics().model).toBe('fixture-model-first'); expect(second.intentParser!.llm!.diagnostics().model).toBe('fixture-model-second');
     second.config.email = { enabled: true, host: 'mail-fixture.invalid', port: 465, secure: true, user: 'fixture', pass: '', from_address: 'fixture@example.invalid', to_addresses: ['recipient@example.invalid'] };
     expect(second.email?.dryRun).toBe(false); expect(second.email).toBe(second.email);
+});
+
+
+test('application Feishu access is blocked without a transport, including an Adapter cached before removal', () => {
+    let enabled = false;
+    const base = context('/tmp/application-context-channel');
+    const ctx = createDeliveryOpsContext({ config: base.config, store: base.store, isTransportAvailable: () => enabled });
+    expect(() => ctx.feishu).toThrow('transport is not installed');
+    enabled = true; const adapter = ctx.feishu; expect(ctx.feishu).toBe(adapter);
+    enabled = false; expect(() => ctx.feishu).toThrow('transport is not installed');
 });

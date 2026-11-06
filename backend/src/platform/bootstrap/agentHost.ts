@@ -16,7 +16,7 @@ import { AgentRuntime } from '@/platform/agents/runtime';
 import { BotRegistry } from '@/platform/bots/registry';
 import { PersistentBotControlCatalog } from '@/platform/bots/catalog';
 import type { BotAgentBinding, BotInstance } from '@/platform/bots/contracts';
-import { RoutedFeishuDeliveryAdapter } from '@/platform/delivery/routedFeishuAdapter';
+import { TransportRegistry } from '@/platform/transports/registry';
 import { PersistentDeliveryOutbox } from '@/platform/delivery/persistentOutbox';
 import { DeliveryWorker } from '@/platform/delivery/worker';
 import { PersistentTriggerClaimStore } from '@/platform/runtime/persistentTriggerStore';
@@ -79,6 +79,7 @@ export interface AgentHostOptions {
 }
 
 export class AgentHost {
+    readonly transports = new TransportRegistry();
     readonly modelProviders = new ModelProviderRegistry();
     readonly modelGateway = new AiSdkModelGateway(() => this.getContext().config.ai, this.modelProviders);
     readonly messageRoutes: MessageRouteRegistry;
@@ -93,6 +94,8 @@ export class AgentHost {
     readonly skillRegistry = new SkillRegistry();
 
     private initializePromise?: Promise<void>;
+    private startPromise?: Promise<void>;
+    private stopPromise?: Promise<void>;
     private initialized = false;
     private started = false;
     private triggerRuntime?: TriggerRuntime;
@@ -133,26 +136,39 @@ export class AgentHost {
         await this.initialize();
         if (this.stopped) throw new Error('Agent Host is stopped');
         if (this.started) return;
-        this.started = true;
-        this.deliveryWorker!.start(this.deliveryPollIntervalMs, error => {
-            Promise.resolve(this.getContext().store.appendAuditLog('agent_delivery_worker_error', {
-                at: new Date().toISOString(), error: error instanceof Error ? error.message : String(error),
-            })).catch(() => {});
-        });
+        this.startPromise ??= (async () => {
+            await this.transports.start();
+            if (this.stopped) throw new Error('Agent Host is stopped');
+            this.started = true;
+            this.deliveryWorker!.start(this.deliveryPollIntervalMs, error => {
+                Promise.resolve(this.getContext().store.appendAuditLog('agent_delivery_worker_error', {
+                    at: new Date().toISOString(), error: error instanceof Error ? error.message : String(error),
+                })).catch(() => {});
+            });
+        })();
+        try { await this.startPromise; }
+        catch (error) { await this.stop().catch(() => {}); throw error; }
     }
 
-    async stop(): Promise<void> {
+    stop(): Promise<void> { return this.stopPromise ??= this.stopOnce(); }
+
+    private async stopOnce(): Promise<void> {
         this.started = false;
         this.stopped = true;
-        const messagesStopped = this.messageRoutes.stop();
-        const schedulesStopped = this.schedules.stop();
+        const errors: unknown[] = [];
+        const transportStopped = this.transports.stopIngress().catch(error => { errors.push(error); });
+        const messagesStopped = this.messageRoutes.stop(), schedulesStopped = this.schedules.stop();
         await this.initializePromise?.catch(() => {});
+        await transportStopped;
+        await this.startPromise?.catch(() => {});
         await messagesStopped;
         await schedulesStopped;
         while (this.inFlight.size) await Promise.allSettled(this.inFlight);
         await this.deliveryWorker?.stop();
-        await this.pluginRuntime?.dispose();
+        await this.transports.stop().catch(error => { errors.push(error); });
+        await this.pluginRuntime?.dispose().catch(error => { errors.push(error); });
         this.initialized = false;
+        if (errors.length) throw new AggregateError(errors, 'Agent Host shutdown failed');
     }
 
     isIdle(): boolean { return this.initialized && !this.stopped && this.inFlight.size === 0; }
@@ -550,7 +566,10 @@ export class AgentHost {
             runStore,
         );
         this.pluginRuntime = new PluginRuntime(this.options.plugins || [], {
-            getContext: this.getContext,
+            getContext: () => Object.assign(this.getContext(), { messageRoutes: this.messageRoutes, schedules: this.schedules }),
+            transports: this.transports,
+            dispatchBotMessage: input => this.dispatchBotMessage(input),
+            canDispatch: capability => this.canDispatch(capability),
             reloadConfiguration: this.options.reloadConfiguration,
             installExternal: (manifest, options) => this.installExternal(manifest, options),
             modelProviders: this.modelProviders,
@@ -609,19 +628,10 @@ export class AgentHost {
         this.deliveryWorker = new DeliveryWorker(
             outbox,
             this.bots,
-            new RoutedFeishuDeliveryAdapter(
-                this.bots,
-                DEFAULT_BOT_INSTANCE_ID,
-                () => this.getContext().feishu,
-                new EnvironmentSecretResolver(),
-                undefined,
-                (bot, action, payload) => {
-                    this.getContext().store.appendAuditLog(action, {
-                        ...payload,
-                        bot_instance_id: bot.id,
-                    }).catch(() => {});
-                },
-            ),
+            this.transports,
+            undefined,
+            undefined,
+            () => this.transports.available,
         );
         this.initialized = true;
     }

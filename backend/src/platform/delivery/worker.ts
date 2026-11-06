@@ -11,6 +11,7 @@ export class DeliveryWorker {
         private readonly adapter: DeliveryAdapter,
         private readonly retryBaseMs: number = 1000,
         private readonly timeoutMs: number = 10_000,
+        private readonly isAvailable: () => boolean = () => true,
     ) {}
 
     start(intervalMs: number = 1000, onError: (error: unknown) => void = console.error): void {
@@ -47,6 +48,7 @@ export class DeliveryWorker {
 
     private async drain(now: Date): Promise<{ delivered: number; retried: number; deadLettered: number }> {
         const counts = { delivered: 0, retried: 0, deadLettered: 0 };
+        if (!this.isAvailable()) return counts;
         for (const record of await this.outbox.claimDue(now)) {
             const controller = new AbortController();
             let timer: ReturnType<typeof setTimeout> | undefined;

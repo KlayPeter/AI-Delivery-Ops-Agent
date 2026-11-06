@@ -1,3 +1,4 @@
+import { feishuTransportPlugin } from '@/platform/bots/feishuPlugin';
 import { standardModelPlugins } from '@/platform/models/providers';
 import { aiNewsPlugin } from './aiNews';
 import { dailySummaryPlugin } from './dailySummary';
@@ -14,6 +15,7 @@ import { maintenancePlugin } from './maintenance';
 
 export const deliveryTeamPlugins = [
     ...standardModelPlugins,
+    feishuTransportPlugin,
     maintenancePlugin,
     configurationPlugin,
     directoryPlugin, aiNewsPlugin, dailySummaryPlugin, dashboardPlugin, weeklyReportPlugin, taskPlugin, standupPlugin, orchestratorPlugin, meetingSummaryPlugin, aiHotSchedulePlugin,
