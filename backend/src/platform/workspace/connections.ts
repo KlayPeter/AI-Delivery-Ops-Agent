@@ -11,6 +11,7 @@ export const connectionKeys = [
     'TAPD_WORKSPACE_ID', 'TAPD_API_BASE', 'TAPD_API_TOKEN', 'TAPD_WORKITEM_TYPE_ID',
     'KNOWLEDGE_KIND', 'KNOWLEDGE_ROOT', 'KNOWLEDGE_URLS', 'KNOWLEDGE_VAULT_NAME', 'KNOWLEDGE_EXCLUDE',
     'RELEASE_GITHUB_REPOSITORY', 'RELEASE_GITHUB_BRANCH', 'RELEASE_GITHUB_TOKEN',
+    'PLUGIN_SETUP_ASSISTANTS',
 ] as const;
 const secretKeys = new Set(['FEISHU_APP_SECRET', 'AI_API_KEY', 'TAPD_API_TOKEN', 'RELEASE_GITHUB_TOKEN']);
 const settingValue = z.string().max(8192).refine(value => !value.includes('\0'));
@@ -63,6 +64,11 @@ export class LocalConnections {
                 next[key as keyof Settings] = value === null ? '' : value.trim();
             }
             const merged = { ...this.active, ...next };
+            if (update.PLUGIN_SETUP_ASSISTANTS !== undefined) {
+                if (process.env.AGENT_PLUGINS_FILE) throw new Error('当前插件由配置文件管理，请在该文件中选择接入助手');
+                const { setupAssistantIds } = await import('@/connectors/profile-workbench/compose');
+                next.PLUGIN_SETUP_ASSISTANTS = setupAssistantIds.parse(lines(merged.PLUGIN_SETUP_ASSISTANTS || '')).join('\n');
+            }
             if (Boolean(merged.FEISHU_APP_ID) !== Boolean(merged.FEISHU_APP_SECRET)) throw new Error('请同时填写飞书 App ID 和 App Secret');
             if (merged.FEISHU_APP_ID && !/^cli_[0-9a-fA-F]{16}$/.test(merged.FEISHU_APP_ID)) throw new Error('飞书 App ID 格式不正确');
             if (merged.AI_PROVIDER && !['openai', 'openai-compatible', 'deepseek', 'google', 'gemini', 'ollama', ...modelProviderIds].includes(merged.AI_PROVIDER)) throw new Error('不支持的模型供应商');

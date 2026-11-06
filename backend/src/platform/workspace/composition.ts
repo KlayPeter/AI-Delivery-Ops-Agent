@@ -3,5 +3,6 @@ import { loadPluginConfiguration, type PluginSelection } from '@/platform/plugin
 import { workspaceKnowledge } from './knowledge';
 
 export async function loadWorkspacePlugins(dataPath: string, file = process.env.AGENT_PLUGINS_FILE): Promise<PluginSelection> {
-    return file ? loadPluginConfiguration(file, deliveryTeamPlugins, () => workspaceKnowledge(dataPath)) : workspaceKnowledge(dataPath);
+    // The explicit file owns extra plugins, including when it extends the personal base.
+    return file ? loadPluginConfiguration(file, deliveryTeamPlugins, () => workspaceKnowledge(dataPath, false)) : workspaceKnowledge(dataPath);
 }

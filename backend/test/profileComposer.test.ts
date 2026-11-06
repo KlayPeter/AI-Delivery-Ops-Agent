@@ -49,7 +49,7 @@ test('setup exports only explicitly selected bundled assistants over the persona
 test('downloaded setup profile loads real inspection pages and preserves a personal knowledge run without enabling unreviewed runners', async () => {
     const directory = await mkdtemp(path.join(tmpdir(), 'profile-setup-'));
     const file = path.resolve(import.meta.dir, `../plugins.setup-${randomUUID()}.local.yaml`);
-    const keys = ['KNOWLEDGE_KIND', 'RELEASE_GITHUB_REPOSITORY'], previous = keys.map(key => process.env[key]);
+    const keys = ['PLUGIN_SETUP_ASSISTANTS', 'KNOWLEDGE_KIND', 'RELEASE_GITHUB_REPOSITORY'], previous = keys.map(key => process.env[key]);
     const store = new InMemoryPersistentKeyValueStore();
     let host: AgentHost | undefined;
     const create = (selected: Awaited<ReturnType<typeof loadWorkspacePlugins>>) => new AgentHost(() => ({ store, config: { ...buildConfig({}), data_path: directory }, feishu: {}, tapd: {} } as any), 1000, undefined, [], { plugins: selected.plugins, pluginConfig: selected.config });
@@ -175,7 +175,7 @@ test('trusted request limit can increase without weakening the default, streamed
 test('downloaded canonical output loads with the real personal preset and retains installed Skill catalog and knowledge', async () => {
     const directory = await mkdtemp(path.join(tmpdir(), 'profile-composer-'));
     const file = path.resolve(import.meta.dir, `../plugins.composer-${randomUUID()}.local.yaml`);
-    const keys = ['KNOWLEDGE_KIND', 'RELEASE_GITHUB_REPOSITORY'], before = keys.map(key => process.env[key]);
+    const keys = ['PLUGIN_SETUP_ASSISTANTS', 'KNOWLEDGE_KIND', 'RELEASE_GITHUB_REPOSITORY'], before = keys.map(key => process.env[key]);
     let host: AgentHost | undefined;
     try {
         for (const key of keys) delete process.env[key];

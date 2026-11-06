@@ -21,8 +21,9 @@ type Kind = 'Skill' | 'MCP' | 'OpenAPI';
 export class CompositionError extends Error {}
 const reject = (message: string): never => { throw new CompositionError(message); };
 
-const setupInput = z.object({ assistants: z.array(z.enum(['skills', 'openapi'])).min(1).max(2) }).strict()
-    .refine(value => new Set(value.assistants).size === value.assistants.length, '接入助手不能重复');
+export const setupAssistantIds = z.array(z.enum(['skills', 'openapi'])).max(2)
+    .refine(value => new Set(value).size === value.length, '接入助手不能重复');
+const setupInput = z.object({ assistants: setupAssistantIds.refine(value => value.length > 0, '请至少选择一个接入助手') }).strict();
 export function exportSetupProfile(value: unknown) {
     const { assistants } = setupInput.parse(value);
     const plugins = assistants.map(id => ({ module: `./src/${id === 'skills' ? modules.skillSetup : modules.openapiSetup}` }));

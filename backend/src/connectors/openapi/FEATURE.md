@@ -38,7 +38,10 @@ flowchart TD
     PC --> PERSONAL_COMBO[个人基底加不同种类插件；下载后保存重启]
     RFIX[研究页：确认固定工具参数与当前契约] --> RDEL[受常量参数策略约束的子任务]
     RDEL --> GATEWAY[既有 Native Runner 与共享两次 Tool 预算]
-    DEFAULT_UI[默认插件页：接入与组合] --> SETUP_YAML[选择所需助手；下载保存重启]
+    DEFAULT_UI[默认插件页：接入与组合] --> SETUP_PREF[勾选助手；私有保存并应用]
+    SETUP_PREF --> SETUP_YAML[新实例装配 Inspector；无实际工具授权]
+    DEFAULT_UI --> SETUP_EXPORT[自定义文件或高级模式：保留 YAML 导出]
+    SETUP_EXPORT --> SETUP_YAML
     SETUP_YAML --> UI
 ```
 
@@ -61,7 +64,7 @@ OAuth/Bearer、私网/本机 API、Swagger 2、写入方法、任意 Header/Cook
 3. path/simple 支持必填标量和安全标识符；query/form 支持标量与一层基础数组，最多 100 项。字符串、布尔、数值、安全整数、枚举、基础范围与已支持字符串格式经既有 AJV 校验；int32 保留范围。额外输入拒绝，不隐式类型转换。
 4. 对象、可空、正则/组合 Schema、嵌套数组、Header/Cookie、正文、回调和必填凭据拒绝；可选的常见凭据参数省略并显示警告。其他不支持的参数使该接口不可选；不静默放宽契约。
 5. 导出仅接收 inspectionRunId、reviewedReadOnly=true、接口 key 与服务器选择及可选 includePersonalWorkspace 布尔值。读取 Artifact 前核对默认 workspace/bot、成功根 Run 与 openapi.spec.inspect；所选服务器和可用接口必须在该次目录中。客户端不能提供 Schema、插件模块或新权限。
-6. includePersonalWorkspace 缺省/false 保持独立两插件两 Agent 与 openapi-<id>.local.yaml。true 输出 openapi-<id>.personal.local.yaml，声明 base: personal，追加 connector.openapi/openapi.setup；标准基底下十六插件十一 Agent，沿用重启时本机来源/仓库设置。文件仍须保存到 backend/examples；不合并其他自定义附加插件，不覆盖基底 ID。
+6. includePersonalWorkspace 缺省/false 保持独立两插件两 Agent 与 openapi-<id>.local.yaml。true 输出 openapi-<id>.personal.local.yaml，声明 base: personal，追加 connector.openapi/openapi.setup；标准基底下十七插件十一 Agent，沿用重启时本机来源/仓库设置。文件仍须保存到 backend/examples；不合并其他自定义附加插件，不覆盖基底 ID。
 7. 运行 Agent → 路由 Tool → 实际 Tool 共用两次预算和取消信号。个人 manual/agent Scope，不允许聊天；插件停止释放 Agent/Tool/API/页面，历史保留。
 
 ## 用户能力
@@ -138,3 +141,5 @@ OAuth/Bearer、私网/本机 API、Swagger 2、写入方法、任意 Header/Cook
 ## 从默认工作台启用发现助手
 
 默认插件页的“接入与组合 → 启用接入助手”可选择本功能发现助手，由 plugins.compose 1.1.0 输出固定内置模块的个人基底 YAML。保存重启后出现接入页；实际能力仍经过本功能原来的规范、接口与读取用途审查后单独导出，再组合使用。不执行任意仓库代码，也不自动并入当前自定义附加插件。原独立 CLI 组合继续可用。代码与验证见[配置组合功能卡](../profile-workbench/FEATURE.md)及 backend/test/profileComposer.test.ts；本功能契约与测试保持。
+
+2026-11-06 助手入口简化：默认个人工作台在「插件 → 接入与组合」勾选并保存应用即可启用本功能的 Inspector；可取消并应用以停用发现入口，历史保留。只注册已有发现 Agent/Tool，不导入第三方能力或扩大授权。显式插件文件仍由原文件控制，原审查/固定版本/导出/运行链路保持。实现与生命周期见[配置组合功能卡](../profile-workbench/FEATURE.md)，验证：workspaceComposition.test.ts、profileComposer.test.ts、既有功能回归与实际浏览器入口。

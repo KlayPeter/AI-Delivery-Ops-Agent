@@ -3,7 +3,7 @@ import { readSmallJsonBody } from '@/platform/workspace/request';
 import { composeProfiles, CompositionError, exportSetupProfile } from './compose';
 
 export const profileWorkbenchPlugin: FeaturePlugin = {
-    manifest: { apiVersion: '1.0', id: 'plugins.compose', name: '插件接入与组合', version: '1.1.0', description: '选择 Skill/OpenAPI 接入助手，或组合已审查的插件配置，保留个人工作台。' },
+    manifest: { apiVersion: '1.0', id: 'plugins.compose', name: '插件接入与组合', version: '1.2.0', description: '在个人工作台启用 Skill/OpenAPI 接入助手，或组合已审查的插件配置。' },
     apply(ctx) {
         ctx.delivery.web.register({ id: 'plugins.compose', pages: [{ path: '/plugin-profiles', label: '接入与组合', section: 'workspace', navigation: false, view: { kind: 'builtin', id: 'profile-composer' } }],
             api: { prefix: '/api/plugin-profiles', routes: [{ method: 'POST', path: '/api/plugin-profiles/compose' }, { method: 'POST', path: '/api/plugin-profiles/setup' }], async handle(request) {

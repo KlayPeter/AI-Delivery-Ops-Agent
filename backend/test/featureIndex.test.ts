@@ -45,7 +45,7 @@ test('feature index tables retain their shape, unique identities, real Owner car
 
 test('homepage composition counts match the actual default, GitHub and SDK plugin declarations', async () => {
     const markdown = await readFile(path.resolve(import.meta.dir, '../../README.md'), 'utf8');
-    const keys = ['KNOWLEDGE_KIND', 'RELEASE_GITHUB_REPOSITORY', 'RELEASE_GITHUB_BRANCH', 'RELEASE_GITHUB_TOKEN'];
+    const keys = ['PLUGIN_SETUP_ASSISTANTS', 'KNOWLEDGE_KIND', 'RELEASE_GITHUB_REPOSITORY', 'RELEASE_GITHUB_BRANCH', 'RELEASE_GITHUB_TOKEN'];
     const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
     try {
         for (const key of keys) delete process.env[key];

@@ -111,7 +111,7 @@ HTTP 默认装配个人知识、采集、验收、工具接入、研究、配方
 | Feature ID | 功能 | 状态 | 运行时 Agent 映射 | 功能文档 |
 | --- | --- | --- | --- | --- |
 | `knowledge-watch` | 正式本机 schedule 的知识引用复核、旧计划保护与独立运行凭证 | active（显式安装） | 控制面插件，复用 `native.knowledge-impact` | [查看](../../backend/src/knowledge/watch/FEATURE.md) |
-| `plugin-profile-composer` | Skill/OpenAPI 助手启用及已审查能力的校验、预览与组合导出 | active | 控制面插件，无独立 Agent | [查看](../../backend/src/connectors/profile-workbench/FEATURE.md) |
+| `plugin-profile-composer` | 页面启停 Skill/OpenAPI 助手及已审查能力的校验、预览与组合导出 | active | 控制面插件，无独立 Agent | [查看](../../backend/src/connectors/profile-workbench/FEATURE.md) |
 | `local-launcher` | 首次初始化、前后端启动、配置应用与本次进程清理 | active | 本地脚本，无独立 Agent | [查看](../../scripts/local/FEATURE.md) |
 | `mixed-knowledge` | 笔记与网页并行检索、跨来源引用与独立版本复核 | active | `native.knowledge-mixed` | [查看](../../backend/src/knowledge/mixed/FEATURE.md) |
 | `model-providers` | 模型提供者插件、配置诊断与无密钥本机 Ollama | active | 宿主模型端口，无独立 Agent | [查看](../../backend/src/platform/models/FEATURE.md) |
@@ -193,7 +193,7 @@ HTTP 默认装配个人知识、采集、验收、工具接入、研究、配方
 
 | 代码路径或对象 | 必须更新的 Feature ID |
 | --- | --- |
-| `backend/src/platform/workspace/**`、`frontend/src/pages/workspace/**`、`frontend/src/layouts/MainLayout.tsx`、`frontend/src/App.tsx`、`frontend/src/index.css` | `local-agent-workspace`、`operations-observability`；来源/配置契约变化追加对应功能 |
+| `backend/src/platform/workspace/**`、`frontend/src/pages/workspace/**`、`frontend/src/layouts/MainLayout.tsx`、`frontend/src/App.tsx`、`frontend/src/index.css` | `local-agent-workspace`、`operations-observability`；来源/配置契约变化追加对应功能；助手开关追加 `plugin-profile-composer`、`github-skill-workbench`、`openapi-workbench` |
 | `backend/src/services/messageHandler/**` | `message-routing`；按 Handler 语义追加对应业务功能 |
 | `backend/src/services/taskService.ts`、`backend/src/domains/task/**`、任务 Handler/Tool | `task-management`；涉及甘特图时追加 `project-visibility` |
 | `backend/src/services/standupService.ts`、`backend/src/services/standup.ts`、站会 Handler/Tool | `standup-management` |

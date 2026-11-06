@@ -27,10 +27,14 @@ import { buildConfig } from '@/core/config';
 import { pluginChecksPlugin } from '@/quality/plugin';
 import { mcpSetupPlugin } from '@/connectors/mcp-workbench/plugin';
 import { profileWorkbenchPlugin } from '@/connectors/profile-workbench/plugin';
+import { setupAssistantIds } from '@/connectors/profile-workbench/compose';
+import skillSetupPlugin from '@/connectors/skill-workbench/setupPlugin';
+import openapiSetupPlugin from '@/connectors/openapi/setup';
 import { createPersonalResearchPlugin } from '@/agents/personal-research/plugin';
 import { runRecipesPlugin } from '@/recipes/plugin';
 
-export function workspaceKnowledge(dataPath = buildConfig({}).data_path): PluginSelection {
+export function workspaceKnowledge(dataPath = buildConfig({}).data_path, includeSavedAssistants = true): PluginSelection {
+    const assistants = includeSavedAssistants ? setupAssistantIds.parse(lines(process.env.PLUGIN_SETUP_ASSISTANTS || '')) : [];
     const kind = process.env.KNOWLEDGE_KIND || 'sample';
     const web = kind === 'web', mixed = kind === 'mixed';
     const config: Record<string, Record<string, unknown>> = {};
@@ -46,7 +50,8 @@ export function workspaceKnowledge(dataPath = buildConfig({}).data_path): Plugin
             mixed ? knowledgeMixedAnswerPlugin : web ? knowledgeWebAnswerPlugin : knowledgeAnswerPlugin,
             mixed ? knowledgeMixedImpactPlugin : web ? knowledgeWebImpactPlugin : knowledgeImpactPlugin,
             createKnowledgeWorkspacePlugin(kind as 'sample' | 'markdown' | 'web' | 'library' | 'mixed'), webCapturePlugin, markItDownPlugin, knowledgeLibraryPlugin, pluginChecksPlugin, mcpSetupPlugin,
-            createPersonalResearchPlugin(mixed ? 'mixed' : web ? 'web' : 'markdown'), runRecipesPlugin, profileWorkbenchPlugin], config,
+            createPersonalResearchPlugin(mixed ? 'mixed' : web ? 'web' : 'markdown'), runRecipesPlugin, profileWorkbenchPlugin,
+            ...(assistants.includes('skills') ? [skillSetupPlugin] : []), ...(assistants.includes('openapi') ? [openapiSetupPlugin] : [])], config,
     };
     if (!process.env.RELEASE_GITHUB_REPOSITORY) return selected;
     return {

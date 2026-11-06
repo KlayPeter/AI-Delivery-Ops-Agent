@@ -4,7 +4,7 @@
 
 ## 本地开启接入助手
 
-推荐从默认工作台的「插件 → 接入与组合 → 启用接入助手」选择 OpenAPI，下载助手配置、保存并按页面命令重启；进入「接入 API」填写规范链接。完整步骤见[首次启用](PLUGIN_PROFILES.md#首次启用接入助手)。
+推荐从默认工作台的「插件 → 接入与组合 → 启用接入助手」勾选 OpenAPI，点击「保存并应用」；再打开「接入 OpenAPI」填写规范链接，无需下载助手配置。完整步骤见[首次启用](PLUGIN_PROFILES.md#首次启用接入助手)。
 
 也可在仓库根目录直接使用独立组合：
 
@@ -32,7 +32,7 @@ https://raw.githubusercontent.com/open-meteo/open-meteo/ecd65b64d966224046aaebbc
 AGENT_PLUGINS_FILE=examples/openapi-open-meteo.personal.local.yaml bun run local
 ```
 
-个人模式声明 base: personal，在重启时按本机设置组合个人知识、研究、资料库、配方与模型，再追加两项 OpenAPI 插件；标准基底为十六插件十一 Agent。取消保留时仍下载原 openapi-open-meteo.local.yaml，保持两插件两 Agent 独立组合；启动时使用下载的实际文件名。未传或 false 的 API 请求保持独立模式，true 显式选择个人基底。不合并其他自定义附加插件或团队组合，重复 ID 不覆盖。
+个人模式声明 base: personal，在重启时按本机设置组合个人知识、研究、资料库、配方与模型，再追加两项 OpenAPI 插件；标准基底为十七插件十一 Agent。取消保留时仍下载原 openapi-open-meteo.local.yaml，保持两插件两 Agent 独立组合；启动时使用下载的实际文件名。未传或 false 的 API 请求保持独立模式，true 显式选择个人基底。不合并其他自定义附加插件或团队组合，重复 ID 不覆盖。
 
 进入“API 工具”，选择接口并填写以下固定公开地点示例（柏林，非用户定位）：
 

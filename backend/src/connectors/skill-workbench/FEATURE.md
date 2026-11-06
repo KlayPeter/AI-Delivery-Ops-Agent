@@ -43,7 +43,10 @@ flowchart TD
     MODEL --> RESULT[文本 Artifact、实际模型步骤与指令 SHA]
     EXPORT --> PC[可选插件组合：保留原契约并统一路径]
     PC --> PERSONAL_COMBO[个人基底加不同种类插件；下载后保存重启]
-    DEFAULT_UI[默认插件页：接入与组合] --> SETUP_YAML[选择所需助手；下载保存重启]
+    DEFAULT_UI[默认插件页：接入与组合] --> SETUP_PREF[勾选助手；私有保存并应用]
+    SETUP_PREF --> SETUP_YAML[新实例装配 Inspector；无实际工具授权]
+    DEFAULT_UI --> SETUP_EXPORT[自定义文件或高级模式：保留 YAML 导出]
+    SETUP_EXPORT --> SETUP_YAML
     SETUP_YAML --> URL
 ```
 
@@ -65,7 +68,7 @@ flowchart TD
 2. 复用 fetchPublicPage：公网 DNS 全检查、固定 IP/TLS、有界响应与取消。额外拒绝重定向目标变化，不使用 GitHub Token、Cookie 或环境密钥，不自动重试。最多一次提交查询、一次 Skill 和一次许可请求；单请求 10 秒，发现 Tool 35 秒、Agent 40 秒。
 3. SKILL.md 至多 128 KiB，frontmatter 至多 8 KiB，目录名等于 name，描述与正文有效；共用 parseAgentSkill，原本地 readAgentSkill 的文件/符号链接检查保持。许可文件至多 64 KiB，优先读取声明中的常见 LICENSE 文件，否则尝试仓库根 LICENSE；缺失显示 null，不假造许可或自动判断使用权。
 4. 导出只接受成功发现根 Run、当前 workspace/bot、角色为 skill.github.inspection 的唯一 JSON；先核验归属再读产物，复算源 URL/内容/许可 SHA。客户端仅提交每项原 Run ID、审查指纹和两个明确确认，不能注入正文、工具或模块。旧单项请求保持；集合请求接受 skills 数组，一至八项，每项均重新读取原记录核验，任何一项无效则整份导出失败。
-5. 生成配置的模块路径相对 backend。includePersonalWorkspace=true 时输出 plugins.skills-personal.local.yaml，声明 base: personal，只追加发现与运行插件；默认基底加 Skill 为十六插件十一 Agent，按本机设置重启解析，来源页面仍可编辑。未提供或为 false 时保持原独立组合（三项模型提供者、发现与运行，共五插件两 Agent），集合文件 plugins.skills-reviewed.local.yaml、旧单份文件名不变。基底插件 ID 不允许追加覆盖；不合并团队或任意自定义组合。配置内保留完整指令与可用许可，不含模型密钥；下载不自动安装或启用。重新装配校验内容指纹，不联网拉最新版本。
+5. 生成配置的模块路径相对 backend。includePersonalWorkspace=true 时输出 plugins.skills-personal.local.yaml，声明 base: personal，只追加发现与运行插件；默认基底加 Skill 为十七插件十一 Agent，按本机设置重启解析，来源页面仍可编辑。未提供或为 false 时保持原独立组合（三项模型提供者、发现与运行，共五插件两 Agent），集合文件 plugins.skills-reviewed.local.yaml、旧单份文件名不变。基底插件 ID 不允许追加覆盖；不合并团队或任意自定义组合。配置内保留完整指令与可用许可，不含模型密钥；下载不自动安装或启用。重新装配校验内容指纹，不联网拉最新版本。
 6. 旧单份配置仍使用 community.imported-prompt；新集合按仓库 owner/repo 小写归一后的固定 skillUrl 与原文 SHA 的 JSON 数组计算 SHA-256，得到 community.imported-prompt.<SHA>，与顺序无关，同名来源/路径/提交可并存，重复同一来源版本拒绝。集合一至八份，Skill 配置 JSON 序列化 UTF-8 总量最多 512 KiB，YAML 文件大小可能不同。全部校验后才注册；兼容 Agent 仅 native.imported-skill，allowedTools=[]、maxToolCalls=0，45 秒。原始文件 SHA 与实际注册的 Skill 指令 SHA 分开；注册指令为正文加宿主边界，Skill Step 保存后者的 SHA（不含执行器的输出约束附加语，不代表完整模型请求），成功 Markdown/JSON Artifact 同样保留，失败步骤仍有执行版本凭证。
 7. 运行插件要求当前模型提供者已启用且已配置，不旁路空注册表。Native Agent 经宿主 skills.execute 使用原 SkillRuntime、Prompt Executor 和 Run Store，Native Runner 以自身已验证目录限制 skillId，不依赖 Model Loop 的自动 Skill 发现或把全部指令送给模型。只有一份时兼容省略 skillId；多份必须明确选取，未知或已移除版本在模型调用前失败，不按名称/顺序兜底。最多两个 SDK 模型步骤；SDK 网络重试沿既有提供者行为，模型费用不是固定一次请求。无外部工具，输出至多 256 KiB，需要人工核对，不能把代码文本称为执行或渲染结果。
 8. SkillRuntime 在入口和持久化步骤后的取消边界拒绝进入处理器，取消后返回的文本不能发布成功；超时先确定 SKILL_TIMEOUT 再通知处理器清理，避免清理结果抢成成功。停止仍无法强杀忽略取消的原生代码，不宣称进程沙箱。
@@ -138,3 +141,5 @@ flowchart TD
 ## 从默认工作台启用发现助手
 
 默认插件页的“接入与组合 → 启用接入助手”可选择本功能发现助手，由 plugins.compose 1.1.0 输出固定内置模块的个人基底 YAML。保存重启后出现接入页；实际能力仍经过本功能原来的来源、指令与许可审查后单独导出，再组合使用。不执行任意仓库代码，也不自动并入当前自定义附加插件。原独立 CLI 组合继续可用。代码与验证见[配置组合功能卡](../profile-workbench/FEATURE.md)及 backend/test/profileComposer.test.ts；本功能契约与测试保持。
+
+2026-11-06 助手入口简化：默认个人工作台在「插件 → 接入与组合」勾选并保存应用即可启用本功能的 Inspector；可取消并应用以停用发现入口，历史保留。只注册已有发现 Agent/Tool，不导入第三方能力或扩大授权。显式插件文件仍由原文件控制，原审查/固定版本/导出/运行链路保持。实现与生命周期见[配置组合功能卡](../profile-workbench/FEATURE.md)，验证：workspaceComposition.test.ts、profileComposer.test.ts、既有功能回归与实际浏览器入口。

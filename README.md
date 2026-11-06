@@ -11,6 +11,8 @@ Obsidian、公开网页或本地文档开始，检索原文、生成带引用的
 当前为 `v0.1.0-alpha`。无需飞书、TAPD 或模型密钥即可启动并体验示例知识检索；
 调用外部服务或生成回答时，再配置自己的连接。
 
+第一次使用可先看[中文使用说明](docs/USER_GUIDE.md)：功能、启动步骤和常见使用流程。
+
 ![个人知识工作台：内置虚构资料的无模型检索](docs/images/personal-workspace.jpg)
 
 ## 三个值得试的流程
@@ -51,7 +53,7 @@ Obsidian、公开网页或本地文档开始，检索原文、生成带引用的
 
 [插件规范与作者模板](docs/PLUGIN_AUTHORING.md)描述当前支持的接口。
 默认「接入工具」可发现公开 HTTPS MCP、勾选读取工具并导出本地配置，可选择保留个人工作台；重启后直接运行，无需另写适配页面。详见 [MCP 接入流程](docs/MCP_TOOLS.md)。
-「插件 → 接入与组合」可先生成 GitHub Skill/OpenAPI 助手的启用配置，再审查并组合实际能力文件，保留个人知识库；预览、下载后重启启用，见[接入指南](docs/PLUGIN_PROFILES.md)。
+「插件 → 接入与组合」可勾选 GitHub Skill/OpenAPI 助手并保存应用，无需下载助手配置；实际能力仍需审查、导出并显式启用，见[接入指南](docs/PLUGIN_PROFILES.md)。
 第三方仓库需要明确适配与授权；当前没有任意仓库自动安装或在线插件市场。
 
 ## 本地快速开始
@@ -76,7 +78,7 @@ bun run local
 前端会连接本次后端实际端口；默认后端为 `8090`，端口占用时明确报错，可在后端
 `.env` 修改 `PORT`，或用 `PORT=0 bun run local` 自动分配。Ctrl+C 一起停止。
 
-修改后端代码或连接配置后，停止并重新运行 `bun run local`；前端支持热更新。
+修改后端代码后，停止并重新运行 `bun run local`；使用本地启动器时，连接和知识来源可在页面保存并应用。前端支持热更新。
 独立开发启动、就绪检查及排障见[本地运行](docs/LOCAL_DEVELOPMENT.md)。
 长任务启动后可离开页面，在「运行记录」找回或请求停止；已完成的操作不会撤销。
 具体范围见[本机运行控制](docs/LOCAL_RUN_CONTROL.md)。
@@ -89,7 +91,7 @@ bun run local
 - 「研究助手」使用自己的模型委派资料子任务，保留来源索引与运行链路；[使用与验证边界](docs/PERSONAL_RESEARCH.md)。
 - 「网页收集」可直接使用；「文档导入」需先安装
   [MarkItDown 转换环境](docs/DOCUMENT_IMPORT.md)，未安装时页面显示状态。
-- 「连接与模型」可填写自己的模型、飞书、TAPD 与 GitHub 设置，保存后重启后端。
+- 「连接与模型」可填写自己的模型、飞书、TAPD 与 GitHub 设置，通过本地启动器保存并应用；独立后端仍需重启。
   Ollama 本机接口无需 Key，见[本机模型配置](docs/LOCAL_DEVELOPMENT.md#使用本机-ollama)。
   设置保存在本机 `connections.json`，权限 0600，密钥不回显；本机文件未加密。
 - 从[公开 GitHub 文件链接接入文本 Skill](docs/GITHUB_SKILLS.md)，审查固定指令与许可，

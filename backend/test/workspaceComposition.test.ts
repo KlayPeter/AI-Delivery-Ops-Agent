@@ -9,9 +9,10 @@ import { InMemoryPersistentKeyValueStore } from '@/platform/persistence/keyValue
 import { buildConfig } from '@/core/config';
 import { loadWorkspacePlugins } from '@/platform/workspace/composition';
 import { createWorkspaceApi } from '@/platform/workspace/api';
+import { LocalConnections } from '@/platform/workspace/connections';
 
 const profile = (name: string) => path.resolve(import.meta.dir, `../profiles/agents/${name}.yaml`);
-const environmentKeys = ['DATA_DIR', 'AGENT_PLUGINS_FILE', 'KNOWLEDGE_KIND', 'KNOWLEDGE_URLS', 'KNOWLEDGE_ROOT', 'KNOWLEDGE_VAULT_NAME', 'KNOWLEDGE_EXCLUDE', 'RELEASE_GITHUB_REPOSITORY', 'RELEASE_GITHUB_BRANCH', 'RELEASE_GITHUB_TOKEN'];
+const environmentKeys = ['PLUGIN_SETUP_ASSISTANTS', 'DATA_DIR', 'AGENT_PLUGINS_FILE', 'KNOWLEDGE_KIND', 'KNOWLEDGE_URLS', 'KNOWLEDGE_ROOT', 'KNOWLEDGE_VAULT_NAME', 'KNOWLEDGE_EXCLUDE', 'RELEASE_GITHUB_REPOSITORY', 'RELEASE_GITHUB_BRANCH', 'RELEASE_GITHUB_TOKEN'];
 let previous: Record<string, string | undefined>;
 let root: string, directory: string;
 beforeEach(async () => {
@@ -135,4 +136,44 @@ test('mixed HTTP selection composes both sources, matching answer/research/impac
     expect(release.plugins.find(plugin => plugin.manifest.id === 'release.prepare')?.manifest.requires).toContain('knowledge.mixed');
     const demo = await loadWorkspacePlugins(directory, profile('knowledge-mixed-demo'));
     expect(demo.plugins).toHaveLength(11); expect(demo.plugins.reduce((sum, plugin) => sum + (plugin.agents?.length || 0), 0)).toBe(7); expect(demo.plugins.find(plugin => plugin.manifest.id === 'personal.research')?.manifest.requires).toContain('knowledge.mixed');
+});
+
+
+test('saved assistant choices activate bundled inspectors on reload, remove cleanly, preserve history and never override explicit plugin files', async () => {
+    const store = new InMemoryPersistentKeyValueStore(), file = path.join(directory, 'connections.json');
+    let settings = new LocalConnections(file); await settings.initialize();
+    let host = await createHost(store);
+    try {
+        const result = await host.runLocal('knowledge.markdown.retrieve', { operation: 'search', query: 'API 迁移说明', limit: 5 }, randomUUID());
+        const original = (await host.getLocalRunDetails(result.execution!.run.id))!;
+        expect(original.run.status).toBe('succeeded');
+        const saved = await settings.save({ PLUGIN_SETUP_ASSISTANTS: '  skills  \n  openapi  ' });
+        expect(saved.restartRequired).toBe(true); expect(saved.values.PLUGIN_SETUP_ASSISTANTS).toBe('skills\nopenapi');
+        expect(host.canDispatch('skills.github.inspect')).toBe(false); expect(host.canDispatch('openapi.spec.inspect')).toBe(false);
+        for (const value of ['unknown', './arbitrary.ts', 'skills\nskills', 'skills\nopenapi\nskills']) await expect(settings.save({ PLUGIN_SETUP_ASSISTANTS: value })).rejects.toThrow();
+        expect(settings.snapshot()).toEqual(saved);
+        await host.stop(); settings = new LocalConnections(file); await settings.initialize();
+        host = await createHost(store); await host.initialize();
+        expect(host.listPlugins()).toHaveLength(17); expect(await host.listAgents()).toHaveLength(11);
+        for (const capability of ['skills.github.inspect', 'openapi.spec.inspect', 'knowledge.markdown.retrieve']) expect(host.canDispatch(capability)).toBe(true);
+        for (const capability of ['skills.prompt.run', 'openapi.tools.run', 'mcp.tools.run']) expect(host.canDispatch(capability)).toBe(false);
+        const after = (await host.getLocalRunDetails(original.run.id))!;
+        for (const key of ['run', 'steps', 'artifacts'] as const) expect(after[key]).toEqual(original[key]);
+        const custom = path.join(root, 'custom.yaml');
+        await writeFile(custom, JSON.stringify({ apiVersion: '1.0', base: 'personal', plugins: [{ module: path.resolve(import.meta.dir, '../src/connectors/skill-workbench/setupPlugin.ts') }] }));
+        const explicit = await loadWorkspacePlugins(directory, custom);
+        expect(explicit.plugins).toHaveLength(16);
+        expect(explicit.plugins.some(plugin => plugin.manifest.id === 'openapi.setup')).toBe(false);
+        process.env.AGENT_PLUGINS_FILE = custom;
+        await expect(settings.save({ PLUGIN_SETUP_ASSISTANTS: '' })).rejects.toThrow('配置文件管理');
+        expect(settings.snapshot().values.PLUGIN_SETUP_ASSISTANTS).toBe('skills\nopenapi');
+        delete process.env.AGENT_PLUGINS_FILE;
+        await settings.save({ PLUGIN_SETUP_ASSISTANTS: '' }); await host.stop();
+        settings = new LocalConnections(file); await settings.initialize(); host = await createHost(store); await host.initialize();
+        expect(host.listPlugins()).toHaveLength(15); expect(await host.listAgents()).toHaveLength(9);
+        for (const capability of ['skills.github.inspect', 'openapi.spec.inspect']) expect(host.canDispatch(capability)).toBe(false);
+        expect(settings.snapshot().restartRequired).toBe(false);
+        const final = (await host.getLocalRunDetails(original.run.id))!;
+        for (const key of ['run', 'steps', 'artifacts'] as const) expect(final[key]).toEqual(original[key]);
+    } finally { await host.stop(); }
 });

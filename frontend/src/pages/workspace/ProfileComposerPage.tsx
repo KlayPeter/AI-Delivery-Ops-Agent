@@ -3,18 +3,31 @@ import { Link } from 'react-router-dom';
 import { Alert, Button, Checkbox, Tabs, Tag } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
 import { api } from '@/api';
-import { errorMessage, useWorkspace } from './state';
+import { errorMessage, useConnections, useWorkspace } from './state';
 
 interface Profile { filename: string; yaml: string; summary: { kind: string; file: string; items: string[] }[] }
 export default function ProfileComposerPage() {
-  const { data } = useWorkspace();
-  const [mode, setMode] = useState('setup'), [assistants, setAssistants] = useState<string[]>([]);
+  const { data, mutate: refreshWorkspace } = useWorkspace();
+  const { data: connections, error: connectionsError, mutate: refreshConnections } = useConnections();
+  const [mode, setMode] = useState('setup'), [assistants, setAssistants] = useState<string[] | null>(null);
+  const managed = Boolean(data && !data.managedByPluginFile);
+  const selected = assistants ?? (managed ? (connections?.values.PLUGIN_SETUP_ASSISTANTS || '').split(/\r?\n/).map(value => value.trim()).filter(Boolean) : []);
+  const [notice, setNotice] = useState('');
   const [files, setFiles] = useState<File[]>([]), [profile, setProfile] = useState<Profile | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const setup = async () => {
     setBusy(true); setError(''); setProfile(null);
-    try { setProfile(await api.exportPluginSetup(assistants)); }
+    try { setProfile(await api.exportPluginSetup(selected)); }
     catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
+  };
+  const apply = async () => {
+    setBusy(true); setError(''); setNotice(''); setProfile(null);
+    try {
+      let next = await api.saveConnections({ PLUGIN_SETUP_ASSISTANTS: selected.join('\n') });
+      await refreshConnections(next, false); setNotice('助手选择已保存。');
+      next = await api.applyConnections(next); await refreshConnections(next, false); await refreshWorkspace();
+      setAssistants(null); setNotice(next.restartRequired ? '助手选择已保存，重启本地后端后生效。' : selected.length ? '接入助手已应用，可直接打开下面的入口。' : '接入助手已停用，历史记录保留。');
+    } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   };
   const compose = async () => {
     setBusy(true); setError(''); setProfile(null);
@@ -31,17 +44,22 @@ export default function ProfileComposerPage() {
   };
   return <div className="workspace-page">
     <div className="page-heading"><div><h1>接入与组合</h1><p>启用接入助手，或把已审查的开源能力放进你的个人工作台。</p></div><Link to="/plugins">返回插件</Link></div>
-    <Tabs activeKey={mode} onChange={value => { setMode(value); setProfile(null); setError(''); }} items={[{ key: 'setup', label: '启用接入助手', disabled: busy, children: <section className="knowledge-search">
+    <Tabs activeKey={mode} onChange={value => { setMode(value); setProfile(null); setError(''); setNotice(''); }} items={[{ key: 'setup', label: '启用接入助手', disabled: busy, children: <section className="knowledge-search">
       <h2>1. 选择接入助手</h2>
-      <p>首次接入时，先启用需要的助手。重启后可填写公开 GitHub Skill 链接或 OpenAPI 规范地址，审查内容，再导出实际能力。</p>
-      <Checkbox.Group style={{ display: 'block' }} value={assistants} disabled={busy} onChange={values => { setAssistants(values); setProfile(null); setError(''); }}>
+      <p>{managed ? '勾选需要的助手并保存，即可填写公开链接、审查内容。这里只启用接入入口，实际 Skill 和工具仍需审查后启用。' : '当前插件由自定义文件管理。可在此导出所选助手配置，核对后按原方式启用；不会覆盖当前文件。'}</p>
+      {managed && connectionsError && <Alert type="error" showIcon title="助手设置读取失败" description={errorMessage(connectionsError)} action={<Button onClick={() => refreshConnections()}>重试</Button>} />}
+      <Checkbox.Group style={{ display: 'block' }} value={selected} disabled={busy} onChange={values => { setAssistants(values); setProfile(null); setError(''); setNotice(''); }}>
         <p><Checkbox value="skills">GitHub Skill 接入助手 {data?.pages.some(page => page.path === '/skills') && <Tag>当前已启用</Tag>}</Checkbox></p>
         <p className="muted">读取固定提交的 SKILL.md 与许可供你审查；运行导出的文本 Skill 时才需要模型。</p>
         <p><Checkbox value="openapi">OpenAPI 接入助手 {data?.pages.some(page => page.path === '/openapi-setup') && <Tag>当前已启用</Tag>}</Checkbox></p>
         <p className="muted">发现公开规范中可用的 GET 接口，核对服务、参数与读取用途；发现阶段不调用接口。</p>
       </Checkbox.Group>
-      <p className="muted">MCP 接入助手已包含在个人预设中。这里生成的配置保留个人工作台及所选助手；当前自定义插件不会自动加入，可在审查导出后使用「组合已有配置」。</p>
-      <div className="form-actions"><Button type="primary" loading={busy} disabled={!assistants.length} onClick={setup}>生成助手配置</Button></div>
+      <p className="muted">MCP 接入助手已包含在个人预设中。{managed ? '取消勾选并保存可停用助手，原知识库与运行记录保留。' : '此处导出不会自动合并当前自定义插件；接入后可使用「组合已有配置」。'}</p>
+      {managed ? <>
+        <div className="form-actions"><Button type="primary" loading={busy} disabled={!connections} onClick={apply}>{connections?.reloadAvailable ? '保存并应用' : '保存助手选择'}</Button></div>
+        <details><summary>导出配置（高级）</summary><p className="muted">生成可审查的个人基底配置，不改变当前装配。</p><Button loading={busy} disabled={!selected.length} onClick={setup}>生成助手配置</Button></details>
+      </> : <div className="form-actions"><Button type="primary" loading={busy} disabled={!selected.length} onClick={setup}>生成助手配置</Button></div>}
+      <div className="form-actions">{data?.pages.some(page => page.path === '/skills') && <Link to="/skills">接入 GitHub Skill</Link>}{data?.pages.some(page => page.path === '/openapi-setup') && <Link to="/openapi-setup">接入 OpenAPI</Link>}</div>
     </section> }, { key: 'compose', label: '组合已有配置', disabled: busy, children: <section className="knowledge-search">
       <h2>1. 选择导出配置</h2>
       <p>选择从本应用接入助手下载的 YAML。Skill、MCP、OpenAPI 各一份，最多三份、总量 1 MiB；一份 Skill 配置可包含多项技能。</p>
@@ -51,7 +69,8 @@ export default function ProfileComposerPage() {
       <p className="muted">文件只提交到本机服务进行结构校验，不运行插件、不调用外部服务。来源、许可与工具用途仍以你的原审查为准。</p>
       <div className="form-actions"><Button type="primary" loading={busy} disabled={!files.length} onClick={compose}>校验并预览组合</Button></div>
     </section> }]} />
-    {error && <Alert type="error" showIcon title="未能生成配置" description={error} />}
+    {notice && <Alert type="success" showIcon title={notice} />}
+    {error && <Alert type="error" showIcon title="操作未完成" description={error} />}
     {profile && <>
       <section className="knowledge-search" aria-live="polite">
         <h2>2. 核对配置内容</h2>
