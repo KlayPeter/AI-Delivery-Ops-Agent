@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import { InProcessScheduler } from '@/core/scheduler';
-import { buildConfig } from '@/core/config';
+import { buildConfig, type GroupConfig } from '@/core/config';
 import { dailySummaryPlugin } from '@/agents/plugins/dailySummary';
 import { standupPlugin } from '@/agents/plugins/standup';
 import { AgentHost } from '@/platform/bootstrap/agentHost';
 import { InMemoryPersistentKeyValueStore } from '@/platform/persistence/keyValueStore';
 import type { FeaturePlugin } from '@/platform/plugins/contracts';
-import { ScheduleRegistry, type GroupSchedule, type GroupScheduleContext } from '@/platform/scheduling/registry';
+import { ScheduleRegistry, type GroupSchedule, type GroupScheduleContext, type ScheduleContext } from '@/platform/scheduling/registry';
 
 function fixture() {
     const claims = new Set<string>();
@@ -55,6 +55,23 @@ describe('Plugin-owned group scheduling', () => {
         delete ctx.schedules;
         expect(await scheduler().tick(new Date(2026, 6, 10, 9, 0))).toEqual({});
         expect(claims.size).toBe(0);
+    });
+
+    test('global polls run without groups once per interval and isolate failures', async () => {
+        const { ctx, logs } = fixture();
+        ctx.store.getDynamicConfig = async () => ({ groups: [] as GroupConfig[], maintenance: { enabled: false } });
+        let calls = 0;
+        ctx.schedules.register({ id: 'test.global-failure', priority: 2, kind: 'global-poll', run: async () => { throw new Error('Unavailable'); } });
+        ctx.schedules.register({ id: 'test.global-success', priority: 1, kind: 'global-poll', run: async (context: ScheduleContext) => {
+            expect('group' in context).toBe(false); calls++; return { 'test.global-success': 'completed' };
+        } });
+        const clock = new InProcessScheduler(() => ({ ctx }) as any, 30, 60);
+        try {
+            expect(await clock.tick(new Date('2026-11-06T00:00:00Z'))).toEqual({ 'test.global-failure': 'failed', 'test.global-success': 'completed' });
+            expect(await clock.tick(new Date('2026-11-06T00:00:30Z'))).toEqual({});
+            await clock.tick(new Date('2026-11-06T00:01:00Z'));
+            expect(calls).toBe(2); expect(logs.filter(event => event === 'scheduler_poll_failed')).toHaveLength(2);
+        } finally { await clock.stop(); }
     });
 
     test('removing task and standup plugins prevents their scans, prompts and claims', async () => {

@@ -3,6 +3,7 @@ import { DELIVERY_OPS_CAPABILITY } from './agents/orchestrator/deliveryOpsAgent'
 import { Elysia } from 'elysia';
 import { cors } from '@elysiajs/cors';
 import { AppConfig, loadConfig } from './core/config';
+import { maskedConfig } from './core/configuration-scheduling/publicConfig';
 import { PrismaStore } from './core/storage';
 import { FeishuAdapter } from './adapters/feishu';
 import { TapdAdapter } from './adapters/tapd';
@@ -19,8 +20,6 @@ import { InProcessScheduler } from './core/scheduler';
 import { ScheduledAgentDispatcher } from './platform/bootstrap/scheduledAgentDispatcher';
 import { AgentHost } from './platform/bootstrap/agentHost';
 import { ScheduledJobs } from './services/jobs';
-import { GroupMemberSyncService } from './services/groupMembers';
-import { CompanyMemberService } from './services/companyMembers';
 import dayjs from 'dayjs';
 import * as path from 'path';
 import { normalizeLogQuery } from './core/logQuery';
@@ -60,15 +59,6 @@ function knownNamesFromConfig(current: AppConfig): Record<string, string> {
         }
     }
     return knownNames;
-}
-
-function maskedConfig(current: AppConfig): AppConfig {
-    const response = JSON.parse(JSON.stringify(current));
-    response.feishu.app_secret = current.feishu.app_secret ? "******" : "";
-    response.tapd.api_token = current.tapd.api_token ? "******" : "";
-    response.ai.api_key = current.ai.api_key ? "******" : "";
-    response.email.pass = current.email.pass ? "******" : "";
-    return response;
 }
 
 async function reloadConfig(): Promise<void> {
@@ -114,6 +104,7 @@ agentHost = createDeliveryOpsHost(() => (handler as any).ctx, 1000, undefined, [
     schedules,
     plugins: pluginSelection.plugins,
     pluginConfig: pluginSelection.config,
+    reloadConfiguration: reloadConfig,
 });
 await agentHost.initialize();
 await agentHost.start();
@@ -144,8 +135,8 @@ botConnections = new FeishuBotConnectionManager(
 await botConnections.start();
 
 scheduledAgents = new ScheduledAgentDispatcher(agentHost);
-const groupMemberSyncIntervalSeconds = 6 * 60 * 60;
-const scheduler = new InProcessScheduler(() => handler, 30, groupMemberSyncIntervalSeconds, scheduledAgents);
+const globalPollIntervalSeconds = 6 * 60 * 60;
+const scheduler = new InProcessScheduler(() => handler, 30, globalPollIntervalSeconds, scheduledAgents);
 scheduler.start();
 
 const app = new Elysia()
@@ -404,55 +395,6 @@ const app = new Elysia()
             page,
             pageSize
         };
-    })
-    .get('/api/feishu/groups', async ({ set }) => {
-        try {
-            const groups = await feishu.listGroups();
-            return { groups };
-        } catch (e: any) {
-            set.status = 500;
-            return { error: e.message || String(e) };
-        }
-    })
-    .get('/api/feishu/groups/:chatId/members', async ({ params: { chatId }, set }) => {
-        try {
-            const members = await feishu.listGroupMembers(chatId);
-            return { members };
-        } catch (e: any) {
-            set.status = 500;
-            return { error: e.message || String(e) };
-        }
-    })
-    .post('/api/feishu/groups/:chatId/members/sync', async ({ params: { chatId }, set }) => {
-        try {
-            const syncer = new GroupMemberSyncService(store, feishu);
-            const result = await syncer.syncGroup(chatId, "manual");
-            if (result.changed) await reloadConfig();
-            return { ok: true, result, config: maskedConfig(config) };
-        } catch (e: any) {
-            set.status = 500;
-            return { error: '同步群成员失败', details: e.message || String(e) };
-        }
-    })
-    .post('/api/feishu/company-members/sync', async ({ set }) => {
-        try {
-            const syncer = new CompanyMemberService(store, feishu);
-            const result = await syncer.syncAllMembers();
-            if (result.group_members_deactivated > 0) await reloadConfig();
-            return { ok: true, result };
-        } catch (e: any) {
-            set.status = 500;
-            return { error: '同步公司成员失败', details: e.message || String(e) };
-        }
-    })
-    .get('/api/feishu/company-members', async ({ set }) => {
-        try {
-            const members = await store.listCompanyMembers();
-            return { members };
-        } catch (e: any) {
-            set.status = 500;
-            return { error: '获取公司成员失败', details: e.message || String(e) };
-        }
     })
     .use(createManualJobsApi(agentHost!, () => ({ config, store }), sendToGroup => new ScheduledJobs(config, store, feishu, dashboard, tapd, llm, { sendToGroup })));
 

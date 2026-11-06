@@ -14,7 +14,7 @@ last_reviewed: 2026-11-06
 
 插件拥有能力定义与装配逻辑；Host 提供受治理的 Agent、Tool、Skill 和持久化执行服务。当前七个内置 Agent 均由独立插件注册，应用默认组合放在 `agents/plugins/builtins.ts`，Host 不导入具体业务 Agent。
 
-当前阶段覆盖 Agent、Tool、Skill、消息路由、群业务调度、运行后续动作和新闻机器人配置装配。默认组合为十二个功能插件、七个 Agent；会议纪要和外部 AI Hot 调度插件没有独立 Agent，会议纪要保留 dormant 开关，外部 AI Hot 能力仍需单独安装。全局维护/成员同步、业务 API、页面和基础服务还未全部改为插件贡献；不能把本阶段描述为“整个产品已完全插件化”。
+当前阶段覆盖 Agent、Tool、Skill、消息路由、群业务调度、运行后续动作和新闻机器人配置装配。默认组合为十三个插件、七个 Agent；会议纪要和外部 AI Hot 调度插件没有独立 Agent，会议纪要保留 dormant 开关，外部 AI Hot 能力仍需单独安装。全局维护、业务 API、页面和基础服务还未全部改为插件贡献；不能把本阶段描述为“整个产品已完全插件化”。
 
 ## 实现流程图
 
@@ -32,6 +32,8 @@ flowchart TD
     D --> E[apply 注册受作用域管理的 Tool 和 Adapter]
     D --> MR[注册插件拥有的消息路由、上下文与帮助]
     MR --> E
+    D --> DIRECTORY[注册 builtin.directory：通讯录 API 与低频全局轮询]
+    DIRECTORY --> E
     D --> SJ[注册插件拥有的群业务计划与轮询]
     SJ --> E
     D --> WEB[注册页面、API 与原有手动任务授权]
@@ -101,11 +103,11 @@ flowchart TD
 
 - 原生插件属于宿主代码，本接口不提供 JavaScript 沙箱。
 - 本阶段不自动下载或执行远程仓库，也未承诺 DeepSeek Harness 插件的服务接口兼容。
-- 页面、业务 API、全局维护/成员同步和基础服务的完整插件化见路线图后续节点。
+- 页面、业务 API、全局维护和基础服务的完整插件化见路线图后续节点。
 
 ## HTTP 工作台组合
 
-团队 SDK 默认仍为十二个插件、七个 Agent；HTTP 通过 workspace/composition.ts 默认只加载个人来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收、MCP 接入助手、个人研究及任务配方，共十五个插件、九个 Agent。GitHub 配置后增加连接和发布插件，为 17 个插件、10 个 Agent。原团队组合用 profiles/agents/team.yaml 显式选择，未声明 base: personal 的显式文件完全覆盖默认，不隐式叠加个人能力；历史数据保留。页面从真实已装配贡献显示，团队分区仅在可见团队页面或手动任务存在时出现；默认没有团队业务 API/手动任务。来源设置仍在默认个人组合中保存并重启生效。
+团队 SDK 默认仍为十三个插件、七个 Agent；HTTP 通过 workspace/composition.ts 默认只加载个人来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收、MCP 接入助手、个人研究及任务配方，共十五个插件、九个 Agent。GitHub 配置后增加连接和发布插件，为 17 个插件、10 个 Agent。原团队组合用 profiles/agents/team.yaml 显式选择，未声明 base: personal 的显式文件完全覆盖默认，不隐式叠加个人能力；历史数据保留。页面从真实已装配贡献显示，团队分区仅在可见团队页面或手动任务存在时出现；默认没有团队业务 API/手动任务。来源设置仍在默认个人组合中保存并重启生效。
 
 ## 核心规则
 
@@ -136,7 +138,7 @@ connector.mcp 1.1.0 通过现有 FeaturePlugin/Config/effect 接入，无需修�
 
 ctx.delivery.web.register 注册唯一贡献 ID、页面元数据、API 前缀/路由/Fetch handler 和可手动执行的原有任务名称。注册随 Cordis 回滚与释放。页面路径、任务名和 API 前缀不能重复或覆盖保留入口；前端只支持已打包视图或跳到指定 Agent 的入口，不执行远端 UI 包。
 
-站会、项目看板和人力甘特图已把页面与 API 从全局组合移入各自所有者；builtin.dashboard 使用两个 Web 贡献分别声明文件与甘特命名空间，卸载时一起释放。旧根查询与 HTML 链接也不能绕过插件检查。任务、日报、看板插件各自声明原有手动任务；缺少所有者时旧 /api/jobs 不执行，显式团队组合仍为九个原有任务，默认个人组合没有这些任务。MCP 读取示例通过元数据增加页面入口，不修改前端业务表。周报与隐藏纪要页/API 同样归属插件；navigation=false 仅隐藏菜单，不绕过安装检查。知识工作台页面与只读来源描述已归属 knowledge.workspace；核心通用输入/结果中的部分知识适配、连接/成员同步、全局维护和基础服务生命周期仍需继续解耦，当前不宣称全产品已经插件化。
+站会、项目看板和人力甘特图已把页面与 API 从全局组合移入各自所有者；builtin.dashboard 使用两个 Web 贡献分别声明文件与甘特命名空间，卸载时一起释放。旧根查询与 HTML 链接也不能绕过插件检查。任务、日报、看板插件各自声明原有手动任务；缺少所有者时旧 /api/jobs 不执行，显式团队组合仍为九个原有任务，默认个人组合没有这些任务。MCP 读取示例通过元数据增加页面入口，不修改前端业务表。周报与隐藏纪要页/API 同样归属插件；navigation=false 仅隐藏菜单，不绕过安装检查。知识工作台页面与只读来源描述已归属 knowledge.workspace；核心通用输入/结果中的部分知识适配、飞书连接、全局维护和基础服务生命周期仍需继续解耦，当前不宣称全产品已经插件化。
 
 ## 资料收集插件
 
@@ -220,7 +222,7 @@ checks 的产物断言增加可选 selector（完整 Artifact 上的标准 JSON 
 - 错误的 API 版本、配置、依赖和 Skill 包使启动失败，不进入就绪状态。
 - 资源必须通过 effect 或受作用域管理的注册入口获得，防止泄漏连接或定时器。
 - 新插件使用 FeaturePlugin；旧 AgentHostExtension 暂时保留兼容，其原始注册 API 不具备新插件的 effect 管理保证。
-- 全产品插件禁用仍需后续迁移全局维护/成员同步、API 和页面；当前空插件列表约束运行时注册与消息路由，不关闭这些其他入口；群业务计划和站会到期轮询已经随插件选择。
+- 全产品插件禁用仍需后续迁移全局维护、API 和页面；当前空插件列表约束运行时注册与消息路由，不关闭这些其他入口；群业务计划和站会到期轮询已经随插件选择。
 - 私聊成员识别按组合保留：有要求项目成员的私聊路由时仍先校验身份；纯个人插件组合可以不依赖项目成员。这不构成逐路由访问控制。
 
 ## 代码地图
@@ -237,7 +239,7 @@ checks 的产物断言增加可选 selector（完整 Artifact 上的标准 JSON 
 
 - `backend/src/platform/scheduling/registry.ts`、`calendar.ts`：群调度协议、唯一优先级、通用日历与在途跟踪。
 - `backend/src/knowledge/answer/plugin.ts`：复用宿主模型与受治理 Tool 的实际插件示例。
-- `backend/src/core/scheduler.ts`：执行插件贡献，统一重试、幂等和记录；保留全局维护/成员同步。
+- `backend/src/core/scheduler.ts`：执行插件贡献，统一重试、幂等和记录；保留全局维护。
 - `backend/src/agents/plugins/aiHotSchedule.ts`：独立的外部 AI Hot 调度贡献。
 
 - `backend/src/platform/plugins/configuration.ts`、`backend/profiles/agents/`：可信配置加载与 Agent 组合示例。
@@ -452,3 +454,13 @@ workspaceKnowledge 只静态追加 skills.setup / openapi.setup；未选择时�
 PluginWebRegistry 注册时为每项 API 建立现有 Elysia 路由；前缀只标识所有者，方法与路径必须匹配声明才进入原 Fetch handler。未知路径、未声明方法和已释放贡献返回 404；本机来源检查与 Host 停机等待保持。代理不预先解析正文，参数路径、通配与 ALL 沿用应用路由规则。可信原生插件仍需自行校验参数、数据范围与写入授权。
 
 代码：backend/src/platform/plugins/web.ts。验证：backend/test/pluginWeb.test.ts 先复现前缀内未声明请求返回 200，再覆盖直接/HTTP 两个入口、声明匹配、原始 POST 正文、不读取错误正文、处理器未调用、卸载、初始化回滚与在途等待；现有业务 API 回归检查声明完整性。本批本地后端 766 通过、1 个原有真实 TAPD 写入测试跳过，类型检查通过；隔离 HTTP 实例重新加载后四项已声明 GET 返回 200、未声明请求返回 404，17 个插件、页面和 6 条根运行历史保持。
+
+## 通讯录独立插件（2026-11-06）
+
+builtin.directory 拥有原五项 /api/feishu API 与 directory.members-sync 全局轮询，不新增 Agent。团队 SDK/显式 team.yaml 为十三插件七 Agent，个人默认和空组合不安装；停用不读取飞书、不改写既有成员或历史。Scheduler 不再导入成员服务，global-poll 在逐群任务前执行，HTTP 保留六小时低频与尝试时间记录；第三个构造参数位置保持，SDK 默认一小时、非正值禁用。同步继续调用原 GroupMemberSyncService / CompanyMemberService，保留分页预算、空/失败快照保护、离职停用与审计。
+
+Host 可选 reloadConfiguration 只供可信原生插件重载应用配置；HTTP 注入原 reloadConfig。手动写入在缺少回调时返回 503，不先读取或写入；变化后重载并脱敏返回配置。读取、全局同步、生命周期清理与停机等待复用现有平台。同步写入后重载失败仍返回错误，不能声称回滚。
+
+代码：agents/plugins/directory.ts、core/configuration-scheduling/api.ts / publicConfig.ts、platform/scheduling/registry.ts、core/scheduler.ts、platform/plugins/contracts.ts、platform/bootstrap/agentHost.ts、index.ts、agents/plugins/builtins.ts、profiles/agents/team.yaml（均在 backend）。验证：backend/test/directoryPlugin.test.ts（五接口、脱敏、禁用零调用、重载条件、逐群前同步、六小时间隔、失败保留与停机等待），schedulePlugins.test.ts（无群全局轮询、频率、错误隔离）及原群同步、配置、调度和插件回归。
+
+配置页同步：frontend/src/pages/ConfigPage.tsx 根据实际 builtin.directory 装配状态使用 SWR 请求群列表；缺少插件时不挂载通讯录树，GroupConfigList 停用远端刷新、保留成员配置并允许直接输入群 ID。配置保存与业务表单保持。验证包含前端类型/lint/测试/构建与本地禁用状态浏览器检查。

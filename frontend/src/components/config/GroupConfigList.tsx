@@ -17,6 +17,7 @@ const JOBS = [
 
 interface GroupConfigListProps {
   form: FormInstance;
+  directoryEnabled: boolean;
   groups: any[];
   groupsLoading: boolean;
   originalConfig: any;
@@ -50,10 +51,11 @@ const mergeFetchedMembers = (currentMembers: any[] = [], fetchedMembers: any[] =
     .filter(Boolean);
 };
 
-export const GroupConfigList = ({ form, groups, groupsLoading, originalConfig, getDefaultGroupData, refreshGroups }: GroupConfigListProps) => {
+export const GroupConfigList = ({ form, directoryEnabled, groups, groupsLoading, originalConfig, getDefaultGroupData, refreshGroups }: GroupConfigListProps) => {
   const [editingGroupKey, setEditingGroupKey] = useState<number | null>(null);
 
   const refreshGroupMembers = async (groupName: number, chatId: string, successText: string) => {
+    if (!directoryEnabled) return;
     const hide = message.loading('获取群成员中...', 0);
     try {
       const members: any[] = await api.fetchGroupMembers(chatId);
@@ -89,11 +91,12 @@ export const GroupConfigList = ({ form, groups, groupsLoading, originalConfig, g
   return (
     <Card title="群组配置" extra={
       <Space>
-        <Button type="link" onClick={refreshGroups} loading={groupsLoading}>
+        <Button type="link" onClick={refreshGroups} loading={groupsLoading} disabled={!directoryEnabled}>
           刷新飞书群聊
         </Button>
       </Space>
     } style={{ boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' }} bordered={false}>
+      {!directoryEnabled && <Alert type="info" showIcon title="通讯录插件未启用" description="保留现有群和成员配置；可直接输入群 ID。启用团队通讯录插件后可从飞书刷新。" style={{ marginBottom: 16 }} />}
       <Form.List name="groups">
         {(groupFields, { add: addGroup, remove: removeGroup }) => (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -126,7 +129,7 @@ export const GroupConfigList = ({ form, groups, groupsLoading, originalConfig, g
                       rules={[{ required: true, message: '请选择或输入群聊ID' }]}
                       style={{ margin: 0, minWidth: 200 }}
                     >
-                      <Select
+                      {directoryEnabled ? <Select
                         showSearch
                         allowClear
                         loading={groupsLoading}
@@ -160,7 +163,7 @@ export const GroupConfigList = ({ form, groups, groupsLoading, originalConfig, g
                             await refreshGroupMembers(groupName, val, '群成员已自动获取并填入！');
                           }
                         }}
-                      />
+                      /> : <Input placeholder="输入群 ID" aria-label="群 ID" />}
                     </Form.Item>
                     <Form.Item noStyle dependencies={[['groups', groupName, 'chat_id']]}>
                       {() => {
@@ -213,7 +216,7 @@ export const GroupConfigList = ({ form, groups, groupsLoading, originalConfig, g
                 <Form.Item label={
                   <div style={{ display: 'flex', alignItems: 'center' }}>
                     <span style={{ marginRight: 8 }}>群成员列表</span>
-                    <Button type="link" size="small" style={{ padding: 0 }} onClick={async () => {
+                    <Button type="link" size="small" style={{ padding: 0 }} disabled={!directoryEnabled} onClick={async () => {
                       const currentChatId = form.getFieldValue(['groups', groupName, 'chat_id']);
                       if (!currentChatId) { message.warning('请先选择群聊'); return; }
                       await refreshGroupMembers(groupName, currentChatId, '群成员已重新获取！');
@@ -226,7 +229,7 @@ export const GroupConfigList = ({ form, groups, groupsLoading, originalConfig, g
                     {(memberFields) => (
                       <>
                         <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-                          成员与职务由飞书自动同步；角色仅用于人工覆盖自动判断。
+                          {directoryEnabled ? '成员与职务由飞书自动同步；角色仅用于人工覆盖自动判断。' : '通讯录插件未启用，保留已有成员与职务；启用后可从飞书同步。'}
                         </Typography.Text>
                         {memberFields.map(({ key: memberKey, name: memberName, ...restMemberField }) => (
                           <Space key={memberKey} style={{ display: 'flex', marginBottom: 8 }} align="baseline">

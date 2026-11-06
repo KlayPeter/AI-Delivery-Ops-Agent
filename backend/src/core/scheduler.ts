@@ -1,7 +1,6 @@
 import { loadConfig } from './config';
 import { DataRetentionService } from './dataRetention';
 import { MessageHandler } from '@/services/messageHandler';
-import { GroupMemberSyncService } from '@/services/groupMembers';
 import { utcNowIso } from '@/models/types';
 import type { ScheduledAgentDispatcher } from '@/platform/bootstrap/scheduledAgentDispatcher';
 import { zonedClock } from './scheduleTime';
@@ -13,15 +12,15 @@ export class InProcessScheduler {
     private stopped = false;
     private timer?: ReturnType<typeof setInterval>;
     private tickInFlight?: Promise<Record<string, string>>;
-    private lastMemberSyncAt = 0;
-    private memberSyncIntervalMs: number;
+    private readonly lastGlobalPollAt = new Map<string, number>();
+    private globalPollIntervalMs: number;
     private agentJobs?: ScheduledAgentDispatcher;
     private jobRetryDelayMs: number;
 
-    constructor(getHandler: () => MessageHandler, intervalSeconds: number = 30, memberSyncIntervalSeconds: number = 3600, agentJobs?: ScheduledAgentDispatcher, jobRetryDelayMs: number = 1000) {
+    constructor(getHandler: () => MessageHandler, intervalSeconds: number = 30, globalPollIntervalSeconds: number = 3600, agentJobs?: ScheduledAgentDispatcher, jobRetryDelayMs: number = 1000) {
         this.getHandler = getHandler;
         this.intervalSeconds = intervalSeconds;
-        this.memberSyncIntervalMs = memberSyncIntervalSeconds * 1000;
+        this.globalPollIntervalMs = globalPollIntervalSeconds * 1000;
         this.agentJobs = agentJobs;
         this.jobRetryDelayMs = Math.max(0, jobRetryDelayMs);
     }
@@ -63,18 +62,28 @@ export class InProcessScheduler {
     private async runTick(now: Date): Promise<Record<string, string>> {
         const handler = this.getHandler();
         const ctx = (handler as any).ctx;
-        await this.syncMembersIfDue(ctx, now);
         ctx.config = loadConfig(await ctx.store.getDynamicConfig());
-        await this.runMaintenanceIfDue(ctx, now);
-        if (this.agentJobs) await this.agentJobs.flushDeliveries();
         const results: Record<string, string> = {};
         const resources = new Map<unknown, unknown>();
         const entries = ctx.schedules?.list() || [];
+        for (const entry of entries) {
+            if (entry.kind !== 'global-poll' || this.globalPollIntervalMs <= 0
+                || now.getTime() - (this.lastGlobalPollAt.get(entry.id) || 0) < this.globalPollIntervalMs) continue;
+            this.lastGlobalPollAt.set(entry.id, now.getTime());
+            try { Object.assign(results, await entry.run({ ctx, now, resources, agents: this.agentJobs })); }
+            catch (error: any) {
+                results[entry.id] = 'failed';
+                await ctx.store.appendAuditLog('scheduler_poll_failed', { job_name: entry.id, error: error?.message || String(error) });
+            }
+        }
+        await this.runMaintenanceIfDue(ctx, now);
+        if (this.agentJobs) await this.agentJobs.flushDeliveries();
         for (const group of ctx.config.groups) {
             const groupId = group.chat_id;
             if (!groupId) continue;
             const context: GroupScheduleContext = { ctx, group, now, resources, agents: this.agentJobs };
             for (const entry of entries) {
+                if (entry.kind === 'global-poll') continue;
                 const jobName = entry.id;
                 if (entry.kind === 'poll') {
                     try { Object.assign(results, await entry.run(context)); }
@@ -165,27 +174,6 @@ export class InProcessScheduler {
                 at: now.toISOString(),
                 error: message,
             })).catch(() => {});
-        }
-    }
-
-    private async syncMembersIfDue(ctx: any, now: Date): Promise<void> {
-        if (this.memberSyncIntervalMs <= 0) return;
-        const nowMs = now.getTime();
-        if (nowMs - this.lastMemberSyncAt < this.memberSyncIntervalMs) return;
-        this.lastMemberSyncAt = nowMs;
-
-        try {
-            const syncer = new GroupMemberSyncService(ctx.store, ctx.feishu);
-            const result = await syncer.syncAll("scheduler");
-            if (result.changed) {
-                ctx.config = loadConfig(await ctx.store.getDynamicConfig());
-            }
-        } catch (error: any) {
-            await ctx.store.appendAuditLog("group_members_sync_failed", {
-                trigger: "scheduler",
-                at: utcNowIso(),
-                error: error?.message || String(error),
-            });
         }
     }
 

@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import useSWR from 'swr';
 import { Form, Button, Spin, message, Row, Col, Alert, Typography, Tabs, Card } from 'antd';
 import dayjs from 'dayjs';
 import { api } from '@/api';
+import { useWorkspace } from './workspace/state';
 
 import { GroupConfigList } from '@/components/config/GroupConfigList';
 import { CompanyDirectoryTree } from '../components/config/CompanyDirectoryTree';
@@ -36,22 +38,13 @@ const ConfigPage = () => {
   const [saving, setSaving] = useState(false);
   const [originalConfig, setOriginalConfig] = useState<any>(null);
   const [loadError, setLoadError] = useState('');
-  const [groups, setGroups] = useState<any[]>([]);
-  const [groupsLoading, setGroupsLoading] = useState(false);
+  const { data: workspace } = useWorkspace();
+  const directoryEnabled = Boolean(workspace?.plugins.some(plugin => plugin.id === 'builtin.directory'));
+  const { data: groups = [], isLoading: groupsLoading, isValidating: groupsRefreshing, mutate: refreshGroupList } = useSWR(directoryEnabled ? 'team-directory-groups' : null, api.fetchGroups);
   const [activeTab, setActiveTab] = useState('1');
 
   useEffect(() => {
     let cancelled = false;
-
-    // Fetch groups
-    setGroupsLoading(true);
-    api.fetchGroups().then((data: any) => {
-      if (!cancelled) setGroups(data);
-    }).catch((err: any) => {
-      console.error('Failed to fetch groups:', err);
-    }).finally(() => {
-      if (!cancelled) setGroupsLoading(false);
-    });
 
     api.fetchConfig().then(data => {
       if (cancelled) return;
@@ -322,20 +315,17 @@ const ConfigPage = () => {
                   <Col span={24}>
                     <GroupConfigList
                       form={form}
+                      directoryEnabled={directoryEnabled}
                       groups={groups}
-                      groupsLoading={groupsLoading}
+                      groupsLoading={groupsLoading || groupsRefreshing}
                       originalConfig={originalConfig}
                       getDefaultGroupData={getDefaultGroupData}
                       refreshGroups={async () => {
-                        setGroupsLoading(true);
                         try {
-                          const data = await api.fetchGroups();
-                          setGroups(data);
+                          await refreshGroupList();
                           message.success("已刷新飞书群聊列表");
                         } catch (e: any) {
                           message.error("刷新群聊列表失败: " + e.message);
-                        } finally {
-                          setGroupsLoading(false);
                         }
                       }}
                     />
@@ -347,7 +337,7 @@ const ConfigPage = () => {
           {
             key: '2',
             label: '公司通讯录',
-            children: <CompanyDirectoryTree />
+            children: directoryEnabled ? <CompanyDirectoryTree /> : <Alert type="info" showIcon title="通讯录插件未启用" description="现有群配置仍可使用；启用团队通讯录插件后可以查询和同步飞书成员。" />
           }
         ]}
       />

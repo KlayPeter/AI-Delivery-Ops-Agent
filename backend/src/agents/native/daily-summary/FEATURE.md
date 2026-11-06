@@ -4,7 +4,7 @@ name: 群聊日报
 status: active
 agent_mapping:
   - native.daily-summary
-last_reviewed: 2026-11-05
+last_reviewed: 2026-11-06
 ---
 
 # 群聊日报
@@ -23,6 +23,7 @@ last_reviewed: 2026-11-05
 
 ```mermaid
 flowchart TD
+    DIRECTORY[可选 builtin.directory] --> MEMBERS[动态群成员配置；停用保留最近状态]
     PL["Cordis: builtin.daily-summary"] --> C
     PL --> MR["插件消息路由与帮助"]
     PL --> GS["插件贡献：日报计划"]
@@ -213,3 +214,5 @@ builtin.daily-summary 显式声明 daily-summary 的手动入口。Debug 页面�
 | 2026-07-22 | 日报纳入所有按截止日判断的超期任务，并展示 1 / 3 / 5 天档位 | `overduePolicy.test.ts`、`summaries.test.ts`、类型检查 |
 | 2026-07-22 | 补充历史补全、数据过滤、模型边界和投递幂等规则，精简文档结构 | CodeGraph 与日报测试 |
 | 2026-07-22 | 建立日报功能卡并区分生成与投递状态 | CodeGraph 架构审查 |
+
+通讯录依赖（2026-11-06）：成员自动刷新与 /api/feishu 现由 builtin.directory 拥有，团队默认包含；自定义组合需要时显式选择。未装配则继续读取已配置成员，不隐式查询飞书或删除历史。领域服务的成员筛选和业务统计规则保持。来源、失败保护与验证见 [配置与调度功能卡](../../../core/configuration-scheduling/FEATURE.md)；专项为 backend/test/directoryPlugin.test.ts 与原领域回归。

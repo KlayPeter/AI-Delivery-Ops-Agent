@@ -26,6 +26,9 @@ are deferred while the local product is being validated.
 - [x] Split the seven built-in Agent registrations into independently composed plugins.
 - [x] Register deterministic message routes, reply contexts and help through feature plugins;
   drain in-flight messages before plugin teardown.
+- [x] Move Feishu directory APIs and automatic group membership sync into
+  `builtin.directory`; disabled/empty/personal profiles do not query directories.
+  Team SDK/profile add this plugin while keeping seven Agents and prior sync rules.
 - [x] Contribute group business schedules through feature plugins, preserving calendar,
   retry, idempotency and shared project sync; drain active ticks before teardown.
 - [ ] Move remaining business entrypoints, integrations, runtime services, triggers and UI

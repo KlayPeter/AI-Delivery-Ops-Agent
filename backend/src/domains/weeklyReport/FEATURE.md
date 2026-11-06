@@ -4,7 +4,7 @@ name: 项目周报
 status: active
 agent_mapping:
   - native.weekly-report
-last_reviewed: 2026-11-05
+last_reviewed: 2026-11-06
 ---
 
 # 项目周报
@@ -19,6 +19,7 @@ last_reviewed: 2026-11-05
 
 ```mermaid
 flowchart TD
+    DIRECTORY[可选 builtin.directory] --> MEMBERS[动态群成员配置；停用保留最近状态]
     PL["Cordis: builtin.weekly-report"] --> A
     PL --> MR["插件消息路由与帮助"]
     PL --> GS["插件贡献：周报计划"]
@@ -186,3 +187,5 @@ flowchart TD
 | 2026-07-27 | 任务列表支持展开/收起、标题安全跳转 TAPD、开始至结束时间范围；修复成员表格对齐，补全指标文案，完整展示 TAPD 流转并删除冗余说明 | `weeklyReport.test.ts`、本地 HTML 交互与视觉验证 |
 | 2026-07-27 | 周报改为仅对开启日报站会的群生成；HTML 改为成员矩阵前置、三类任务短看板、中文状态和可视化 TAPD 流转，移除管理摘要、每日站会表及数据提示 | `weeklyReport.test.ts`、`scheduler.test.ts`、本地 HTML 视觉验证 |
 | 2026-07-27 | 新增周报事实快照、Native Agent、群命令、周五调度、HTML 访问和 TAPD 字段变更证据 | `weeklyReport.test.ts`、`scheduler.test.ts`、前后端类型检查 |
+
+通讯录依赖（2026-11-06）：成员自动刷新与 /api/feishu 现由 builtin.directory 拥有，团队默认包含；自定义组合需要时显式选择。未装配则继续读取已配置成员，不隐式查询飞书或删除历史。领域服务的成员筛选和业务统计规则保持。来源、失败保护与验证见 [配置与调度功能卡](../../core/configuration-scheduling/FEATURE.md)；专项为 backend/test/directoryPlugin.test.ts 与原领域回归。

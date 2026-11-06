@@ -24,8 +24,8 @@ flowchart TD
     LC --> LF[私有文件·校验·原子保存]
     LF --> BOOT[重启注入环境配置]
     BOOT --> PH
-    PERSONAL[HTTP 默认个人组合：十插件九 Agent] --> PH
-    TEAM[显式 team.yaml：九插件七 Agent] --> PH
+    PERSONAL[HTTP 默认个人组合：十五插件九 Agent] --> PH
+    TEAM[显式 team.yaml：十三插件七 Agent] --> PH
     PC["可信插件配置 / 重启生效"] --> PH["Agent、Tool、Skill、消息与群调度装配"]
     PH --> COL[可选网页/文档插件及其页面、上传 API]
     COL --> E
@@ -36,6 +36,12 @@ flowchart TD
     VIS --> E
     PH --> E
     A["Config Page / API"] --> B["Schema 校验与持久化"]
+    DIRECTORY[可选 builtin.directory；个人与空组合不装配] --> DAPI[五项本机通讯录 API]
+    DAPI -- 手动写入前 --> RELOAD{宿主提供配置重载?}
+    RELOAD -- 否 --> UNSUPPORTED[503；不读取或写入]
+    RELOAD -- 是 --> D
+    DIRECTORY --> GP[全局轮询；在逐群任务前按低频间隔执行]
+    GP --> D
     C["飞书通讯录与群"] --> D["带页数/时长/总请求预算的成员同步"]
     D --> B
     D -- 单群读取失败且无成员变更 --> MSFAIL[保留原成员并记录 group_members_sync 失败结果]
@@ -95,7 +101,7 @@ flowchart TD
 
 ## 核心规则
 
-`AGENT_PLUGINS_FILE` 属于重启生效的可信代码装配配置，选择 Agent、Tool、Skill、确定性消息与群业务调度贡献。团队 SDK/显式团队组合的九个功能插件提供七个 Agent；移除插件关闭其指令、引用、帮助和群业务计划，但现有业务 API、全局维护/成员同步、Web 页面与飞书连接尚未全部跟随。动态业务配置重载复用同一个消息注册表，不重复装配路由。
+`AGENT_PLUGINS_FILE` 属于重启生效的可信代码装配配置，选择 Agent、Tool、Skill、确定性消息与群业务调度贡献。团队 SDK/显式团队组合为十个功能插件和三个模型插件，继续提供七个 Agent；移除插件关闭其指令、引用、帮助和群业务计划。builtin.directory 同时拥有通讯录 API 与自动群同步；全局维护、其余 Web 入口与飞书连接尚未全部跟随。动态业务配置重载复用同一个消息注册表，不重复装配路由。
 
 自动调度统一通过 `backend/src/core/scheduleCalendar.ts` 判断群级 `schedule.calendar`。指定日期的触发/暂停优先于基础策略；`workdays` 使用中国工作日（含调休），`every_day` 不限制节假日，`selected_dates` 仅执行指定触发日。日期放行不绕过模块开关、任务开关或原定时刻，手动触发不受该日历限制。未配置或 `legacy` 保留原有 `workdays_only` 规则及周报、承诺到期提醒的例外；无效日期与非布尔覆盖值在读取配置时丢弃。
 
@@ -271,3 +277,13 @@ flowchart LR
 PluginWebRegistry 注册时为每项 API 建立现有 Elysia 路由；前缀只标识所有者，方法与路径必须匹配声明才进入原 Fetch handler。未知路径、未声明方法和已释放贡献返回 404；本机来源检查与 Host 停机等待保持。代理不预先解析正文，参数路径、通配与 ALL 沿用应用路由规则。可信原生插件仍需自行校验参数、数据范围与写入授权。
 
 代码：backend/src/platform/plugins/web.ts。验证：backend/test/pluginWeb.test.ts 先复现前缀内未声明请求返回 200，再覆盖直接/HTTP 两个入口、声明匹配、原始 POST 正文、不读取错误正文、处理器未调用、卸载、初始化回滚与在途等待；现有业务 API 回归检查声明完整性。
+
+## 通讯录独立插件（2026-11-06）
+
+builtin.directory 拥有原五项 /api/feishu API 与 directory.members-sync 全局轮询，不新增 Agent。团队 SDK/显式 team.yaml 为十三插件七 Agent，个人默认和空组合不安装；停用不读取飞书、不改写既有成员或历史。Scheduler 不再导入成员服务，global-poll 在逐群任务前执行，HTTP 保留六小时低频与尝试时间记录；第三个构造参数位置保持，SDK 默认一小时、非正值禁用。同步继续调用原 GroupMemberSyncService / CompanyMemberService，保留分页预算、空/失败快照保护、离职停用与审计。
+
+Host 可选 reloadConfiguration 只供可信原生插件重载应用配置；HTTP 注入原 reloadConfig。手动写入在缺少回调时返回 503，不先读取或写入；变化后重载并脱敏返回配置。读取、全局同步、生命周期清理与停机等待复用现有平台。同步写入后重载失败仍返回错误，不能声称回滚。
+
+代码：agents/plugins/directory.ts、core/configuration-scheduling/api.ts / publicConfig.ts、platform/scheduling/registry.ts、core/scheduler.ts、platform/plugins/contracts.ts、platform/bootstrap/agentHost.ts、index.ts、agents/plugins/builtins.ts、profiles/agents/team.yaml（均在 backend）。验证：backend/test/directoryPlugin.test.ts（五接口、脱敏、禁用零调用、重载条件、逐群前同步、六小时间隔、失败保留与停机等待），schedulePlugins.test.ts（无群全局轮询、频率、错误隔离）及原群同步、配置、调度和插件回归。
+
+配置页同步：frontend/src/pages/ConfigPage.tsx 根据实际 builtin.directory 装配状态使用 SWR 请求群列表；缺少插件时不挂载通讯录树，GroupConfigList 停用远端刷新、保留成员配置并允许直接输入群 ID。配置保存与业务表单保持。验证包含前端类型/lint/测试/构建与本地禁用状态浏览器检查。

@@ -4,7 +4,7 @@ name: 项目看板与人力甘特图
 status: active
 agent_mapping:
   - native.project-dashboard
-last_reviewed: 2026-11-05
+last_reviewed: 2026-11-06
 ---
 
 # 项目看板与人力甘特图
@@ -21,6 +21,7 @@ last_reviewed: 2026-11-05
 
 ```mermaid
 flowchart TD
+    DIRECTORY[可选 builtin.directory] --> MEMBERS[动态群成员配置；停用保留最近状态]
     PL["Cordis: builtin.dashboard"] --> B
     PL --> MR["插件消息路由与帮助"]
     PL --> GS["插件贡献：看板计划"]
@@ -220,3 +221,5 @@ builtin.dashboard 显式声明 dashboard 的手动入口。Debug 页面和 /api/
 | 2026-07-22 | 看板新增超期 1 / 3 / 5 天统计、任务标签与分层筛选，所有日期超期任务均进入风险视图 | `overduePolicy.test.ts`、看板回归测试、类型检查 |
 | 2026-07-22 | 补充当前/历史快照、同步失败和甘特图投影规则，精简文档结构 | CodeGraph 与看板测试 |
 | 2026-07-22 | 建立项目可视化功能卡，明确甘特图不必 Agent 化 | CodeGraph 架构审查 |
+
+通讯录依赖（2026-11-06）：成员自动刷新与 /api/feishu 现由 builtin.directory 拥有，团队默认包含；自定义组合需要时显式选择。未装配则继续读取已配置成员，不隐式查询飞书或删除历史。领域服务的成员筛选和业务统计规则保持。来源、失败保护与验证见 [配置与调度功能卡](../../../core/configuration-scheduling/FEATURE.md)；专项为 backend/test/directoryPlugin.test.ts 与原领域回归。

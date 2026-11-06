@@ -45,6 +45,8 @@ test('HTTP default loads personal plugins without implicit team agents, routes o
         expect(host.web.manualJobs()).toEqual([]);
         expect(host.web.routes().some(route => route.path.startsWith('/api/standups'))).toBe(false);
         expect((await host.web.handle(new Request('http://localhost/api/standups'))).status).toBe(404);
+        expect((await host.web.handle(new Request('http://localhost/api/feishu/groups'))).status).toBe(404);
+        expect(host.schedules.list().some(entry => entry.kind === 'global-poll')).toBe(false);
         expect(await readdir(root)).toEqual(['fixture-data']);
     } finally { await host.stop(); }
 });
@@ -52,9 +54,9 @@ test('HTTP default loads personal plugins without implicit team agents, routes o
 test('explicit team and empty files fully replace the default composition', async () => {
     process.env.KNOWLEDGE_KIND = 'web'; process.env.KNOWLEDGE_URLS = '';
     process.env.AGENT_PLUGINS_FILE = profile('team');
-    expect((await loadWorkspacePlugins(directory)).plugins).toHaveLength(12);
+    expect((await loadWorkspacePlugins(directory)).plugins).toHaveLength(13);
     const team = await loadWorkspacePlugins(directory, profile('team'));
-    expect(team.plugins).toHaveLength(12); expect(team.plugins.every(plugin => ['builtin.', 'model.'].some(prefix => plugin.manifest.id.startsWith(prefix)))).toBe(true);
+    expect(team.plugins).toHaveLength(13); expect(team.plugins.every(plugin => ['builtin.', 'model.'].some(prefix => plugin.manifest.id.startsWith(prefix)))).toBe(true);
     const host = await createHost(undefined, profile('team'));
     try {
         await host.initialize();
@@ -63,6 +65,8 @@ test('explicit team and empty files fully replace the default composition', asyn
         expect(host.web.pages().some(page => page.path === '/standups')).toBe(true);
         expect(host.web.manualJobs()).toContain('daily-summary');
         expect(host.web.routes().some(route => route.path.startsWith('/api/standups'))).toBe(true);
+        expect(host.web.routes().filter(route => route.path.startsWith('/api/feishu'))).toHaveLength(5);
+        expect(host.schedules.list().some(entry => entry.id === 'directory.members-sync')).toBe(true);
         expect(host.canDispatch('knowledge.markdown.retrieve')).toBe(false);
     } finally { await host.stop(); }
     const empty = await createHost(undefined, profile('empty'));

@@ -2,7 +2,7 @@ import { PluginRuntime } from '@/platform/plugins/runtime';
 import { PluginWebRegistry } from '@/platform/plugins/web';
 import { RunActionRegistry, statusPanelSchema, type StatusPanel } from '@/platform/plugins/runActions';
 import { RunCheckRegistry } from '@/platform/plugins/checks';
-import type { FeaturePlugin } from '@/platform/plugins/contracts';
+import type { FeaturePlugin, PluginHostServices } from '@/platform/plugins/contracts';
 import type { SourceMessage } from '@/models/types';
 import type { AgentManifest, AgentRun } from '@/platform/agents/contracts';
 import { PersistentAgentCatalog } from '@/platform/agents/catalog';
@@ -70,6 +70,7 @@ export interface AgentHostExtension {
 }
 
 export interface AgentHostOptions {
+    reloadConfiguration?: PluginHostServices['reloadConfiguration'];
     messageRoutes?: MessageRouteRegistry;
     schedules?: ScheduleRegistry;
     plugins?: readonly FeaturePlugin[];
@@ -550,6 +551,7 @@ export class AgentHost {
         );
         this.pluginRuntime = new PluginRuntime(this.options.plugins || [], {
             getContext: this.getContext,
+            reloadConfiguration: this.options.reloadConfiguration,
             modelProviders: this.modelProviders,
             runLocal: async (capability, input, triggerId, expected) => {
                 if (!this.initialized || this.stopped) throw new Error('Host 尚未就绪或已停止');

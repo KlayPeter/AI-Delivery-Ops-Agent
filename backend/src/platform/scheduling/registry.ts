@@ -2,13 +2,14 @@ import type { GroupConfig } from '@/core/config';
 import type { HandlerContext } from '@/services/messageHandler/types';
 import type { ScheduledAgentDispatcher } from '@/platform/bootstrap/scheduledAgentDispatcher';
 
-export interface GroupScheduleContext {
+export interface ScheduleContext {
     ctx: HandlerContext;
-    group: GroupConfig;
     now: Date;
     agents?: ScheduledAgentDispatcher;
     resources: Map<unknown, unknown>;
 }
+
+export interface GroupScheduleContext extends ScheduleContext { group: GroupConfig }
 
 export interface SchedulePlan { day: Date; date: string; time: string }
 
@@ -19,6 +20,9 @@ export type GroupSchedule = { id: string; priority: number } & ({
     agent?: boolean;
     plan: (context: GroupScheduleContext) => SchedulePlan | null;
     run: (context: ScheduledJobRequest) => Promise<any>;
+} | {
+    kind: 'global-poll';
+    run: (context: ScheduleContext) => Promise<Record<string, string>>;
 } | {
     kind: 'poll';
     run: (context: GroupScheduleContext) => Promise<Record<string, string>>;
@@ -31,7 +35,7 @@ export class ScheduleRegistry {
 
     register(schedule: GroupSchedule): () => void {
         if (!/^[a-z][a-z0-9.-]*$/.test(schedule.id) || !Number.isFinite(schedule.priority)
-            || typeof schedule.run !== 'function' || !['timed', 'poll'].includes(schedule.kind)
+            || typeof schedule.run !== 'function' || !['timed', 'poll', 'global-poll'].includes(schedule.kind)
             || (schedule.kind === 'timed' && (typeof schedule.plan !== 'function'
                 || (schedule.agent !== undefined && typeof schedule.agent !== 'boolean')))) {
             throw new Error(`Invalid group schedule: ${schedule.id}`);

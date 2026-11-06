@@ -21,6 +21,7 @@ Standup Agent 和 LLM 只把自然语言整理为结构化内容。`StandupServi
 
 ```mermaid
 flowchart TD
+    DIRECTORY[可选 builtin.directory] --> MEMBERS[动态群成员配置；停用保留最近状态]
     PL["Cordis: builtin.standup"] --> B
     PL --> MR["插件消息路由与帮助"]
     PL --> GS["插件贡献：站会推送、汇总与承诺轮询"]
@@ -232,3 +233,5 @@ flowchart LR
     MP_GATE --> MP_AGENT[Standup Model Loop]
     MP_AGENT --> MP_TOOL[既有 Tool 与领域服务]
 ```
+
+通讯录依赖（2026-11-06）：成员自动刷新与 /api/feishu 现由 builtin.directory 拥有，团队默认包含；自定义组合需要时显式选择。未装配则继续读取已配置成员，不隐式查询飞书或删除历史。领域服务的成员筛选和业务统计规则保持。来源、失败保护与验证见 [配置与调度功能卡](../../core/configuration-scheduling/FEATURE.md)；专项为 backend/test/directoryPlugin.test.ts 与原领域回归。

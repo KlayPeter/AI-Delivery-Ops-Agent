@@ -22,6 +22,8 @@ flowchart LR
     FP["Cordis 所选功能插件"] --> MP[独立模型提供者注册与释放]
     MP --> MGW[共享模型网关：云端或本机 Ollama]
     MGW --> RESEARCH
+    FP --> DIRECTORY[可选 builtin.directory：通讯录 API 与低频全局轮询]
+    DIRECTORY --> MEMBERS[保留既有动态群成员与目录数据]
     FP --> MC["消息路由、上下文与帮助贡献"]
     MC --> R
     R --> C["确定性 Handler 与配置调度"]
@@ -235,7 +237,7 @@ HTTP 默认装配个人知识、采集、验收、工具接入、研究、配方
 | `domains/weeklyReport/**`、`native/weeklyReportAgent.ts`、`WeeklyReportHandler.ts`、`WeeklyReportsPage` | `weekly-report` |
 | Dashboard Service、Project Dashboard、`native/dashboardAgent.ts`、`native/project-dashboard/**`、`DashboardPage`、`HumanGanttPage`、`frontend/src/dashboardFiles.ts` | `project-visibility` |
 | Meeting Summary Handler、`services/messageHandler/meeting-summary/**`、Service、邮件分发、`MeetingSummariesPage` | `meeting-summary` |
-| `core/config`、Scheduler、`jobs.ts`、群成员同步、`ConfigPage` | `configuration-scheduling`；同时更新被调度的业务功能 |
+| `core/config`、`core/configuration-scheduling/**`、`agents/plugins/directory.ts`、Scheduler、`jobs.ts`、群成员同步、`ConfigPage` | `configuration-scheduling`；同时更新被调度的业务功能 |
 | `backend/src/platform/scheduling/**` | `plugin-runtime`、`configuration-scheduling`、`operations-observability`；同步对应业务功能 |
 | `backend/src/platform/plugins/web.ts`、`backend/src/platform/workspace/jobsApi.ts`、`frontend/src/pages/DebugPage.tsx` | `plugin-runtime`、`local-agent-workspace`、`operations-observability`、`configuration-scheduling`；同步贡献对应业务 |
 | `backend/src/platform/plugins/**`、`backend/src/agents/plugins/**` | `plugin-runtime`、`agent-platform`；同步对应业务功能 |
