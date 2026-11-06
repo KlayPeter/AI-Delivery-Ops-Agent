@@ -35,6 +35,7 @@ flowchart TD
     P --> SJ[装配群业务计划与轮询]
     SJ --> Z
     S --> A["消息 / Scheduler / API"]
+    HOME[本地首页：已装配任务入口与高级表单] --> A
     A --> WOWN[插件声明的 Web 页面、API 与手动任务]
     WOWN --> PV[看板文件读取与甘特计划；缺少所有者返回 404]
     PV --> PA[TaskService 计划审计；保留历史数据]
@@ -598,3 +599,7 @@ plugins.compose 1.2.0 的默认个人页不再要求下载助手 YAML。页面�
 workspaceKnowledge 只静态追加 skills.setup / openapi.setup；未选择时仍为十五插件九 Agent，两项时为十七插件十一 Agent（示例来源且无额外 GitHub）。不会追加实际第三方 Skill、API 或 MCP Runner。显式 AGENT_PLUGINS_FILE 保持完整控制权，包含 base personal 时也忽略本机助手偏好；API 拒绝改写此字段，防止静默叠加和重复模块。高级助手导出及已审查能力组合仍可用，不能把发现入口称为已安装第三方能力。
 
 代码：connectors/profile-workbench/compose.ts / plugin.ts、platform/workspace/knowledge.ts / composition.ts / connections.ts 和 frontend/src/pages/workspace/ProfileComposerPage.tsx。验证：workspaceComposition.test.ts 的设置前后实际 Host、清空、历史及文件优先专项，profileComposer.test.ts、workspace.test.ts、featureIndex.test.ts 和本机页面启用/停用/实际入口/API 释放。完整规则见[配置组合功能卡](../../connectors/profile-workbench/FEATURE.md)。
+
+## 首页任务入口（2026-11-06）
+
+默认个人首页保留任务概览与最近运行；只有实际贡献的可见已知任务页才显示入口。显式能力链接继续走原路由，其他组合保留原表单。仅调整前端入口，Agent、输入契约、Run/Step/Artifact 与历史不变。代码：frontend/src/pages/workspace/WorkspacePage.tsx、pages.ts；验证：pages.test.mjs、前端类型/lint/测试/构建，以及桌面和 375px 浏览器任务导航、折叠表单、历史详情与显式链接。

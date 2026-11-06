@@ -6,7 +6,9 @@ See the [design proposal](docs/PROJECT_DIRECTION.md) for users, evidence,
 plugin boundaries and acceptance criteria. Items below are planned unless marked
 complete; they are not current product claims or release-date promises.
 
-Prioritize personal knowledge, plugin onboarding and visible execution evidence.
+Prioritize a clear first task, personal knowledge and visible execution evidence.
+The initial user hypothesis is developers maintaining technical plans from their own
+notes and changing references; demand and repeated use are not yet validated.
 Existing team workflows remain compatibility features; deployment and Docker work
 are deferred while the local product is being validated.
 
@@ -35,13 +37,24 @@ are deferred while the local product is being validated.
 
 ## C. First useful product
 
+- [x] Keep the default home on a task overview: ask personal sources, prepare a
+  research draft and review earlier evidence, showing only contributed pages.
+  Release preparation appears when its plugin is installed; the Agent composer
+  remains under an advanced disclosure and explicit capability links still work.
+- [ ] Validate one technical-plan maintenance scenario with 3–5 independent users:
+  compare the same task manually and with the product, record useful output,
+  review time, false alarms and second-week reuse. Invitations are maintainer-led.
+- [ ] Evaluate passage/conclusion-level change impact and a user-reviewed revision
+  draft against real examples. Current checks only detect document version changes;
+  they do not establish that a conclusion is wrong or update it automatically.
+
 - [x] Add an optional knowledge watch plugin for up to 20 explicitly selected cited
   results: persistent intervals, pause/resume, governed native checks and run provenance.
   It runs with the local host and does not assess semantic correctness.
 
-- [x] Let first-time users choose bundled Skill/OpenAPI inspectors from the default
-  plugin page, preview/download a personal setup profile, then review sources and
-  compose their actual capability exports without hand-authoring starter YAML.
+- [x] Let first-time users enable bundled Skill/OpenAPI inspectors on the default
+  plugin page and apply saved local preferences. Explicit file compositions retain
+  control; actual reviewed third-party capabilities still use exported profiles.
 
 - [x] Compose reviewed Skill, MCP and OpenAPI export files through a plugin-owned
   preview/download page, preserving the personal workspace and original grants.

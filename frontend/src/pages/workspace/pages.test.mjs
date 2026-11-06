@@ -1,6 +1,6 @@
 import { test } from 'bun:test';
 import assert from 'node:assert/strict';
-import { findPluginPage, pluginAgentHref, activePluginPage, agentPageHref, hasTeamNavigation, defaultCapability } from './pages.ts';
+import { findPluginPage, pluginAgentHref, activePluginPage, agentPageHref, hasTeamNavigation, defaultCapability, homeTasks } from './pages.ts';
 
 test('default capability uses installed active agents and preserves explicit unavailable links', () => {
   const personal = [{ status: 'inactive', capabilities: ['delivery.ops.orchestrate'] }, { status: 'active', capabilities: ['knowledge.markdown.retrieve'] }];
@@ -69,4 +69,19 @@ test('structured plugin capabilities open their declared form and removed entrie
   assert.equal(agentPageHref([page], 'knowledge.document.convert'), '/documents');
   assert.equal(agentPageHref([], 'knowledge.document.convert'), '/?capability=knowledge.document.convert');
   assert.equal(agentPageHref([page], 'example.prompt'), '/?capability=example.prompt');
+});
+
+test('home tasks use contributed visible workspace pages and keep unknown, hidden and team entries out of the start flow', () => {
+  const page = { path: '/my-notes', label: '笔记', section: 'workspace', view: { kind: 'builtin', id: 'knowledge' } };
+  const hidden = { ...page, path: '/private-research', navigation: false, view: { kind: 'builtin', id: 'personal-research' } };
+  const team = { ...page, section: 'team', view: { kind: 'builtin', id: 'release-preparation' } };
+  const agent = { ...page, path: '/external-reader', view: { kind: 'agent', capability: 'example.read' } };
+  const unknown = { ...page, path: '/unknown', view: { kind: 'builtin', id: 'unknown' } };
+  assert.deepEqual(homeTasks([hidden, team, agent, unknown, page]).map(task => task.path), ['/my-notes']);
+  const research = { ...page, path: '/research', view: { kind: 'builtin', id: 'personal-research' } };
+  const review = { ...page, path: '/reviews', view: { kind: 'builtin', id: 'knowledge-reviews' } };
+  const release = { ...page, path: '/release', view: { kind: 'builtin', id: 'release-preparation' } };
+  assert.deepEqual(homeTasks([release, review, research, page]).map(task => task.path), ['/my-notes', '/research', '/reviews', '/release']);
+  assert.deepEqual(homeTasks([agent, unknown]), []);
+  assert.deepEqual(homeTasks(), []);
 });

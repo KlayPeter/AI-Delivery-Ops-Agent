@@ -21,7 +21,13 @@ flowchart TD
     ASSIST_UI[默认个人：选择 Skill/OpenAPI 助手] --> ASSIST_SAVE[私有偏好保存；严格枚举，可空值停用]
     ASSIST_SAVE --> ASSIST_BOOT[已有本地应用流程；新实例确认后生效]
     ASSIST_BOOT --> PL
-    UI[本机工作台页面] --> G[回环 Host 与 Origin 检查]
+    UI[本机工作台页面] --> HOME[无显式能力参数：已装配可见任务概览]
+    HOME --> NAV
+    HOME --> ADV[折叠的通用 Agent 表单]
+    ADV --> G[回环 Host 与 Origin 检查]
+    UI -- 显式能力链接或无已知任务页 --> LEGACY[原能力路由或通用表单]
+    LEGACY --> G
+    UI -- 配置保存等本机请求 --> G
     G --> CFG[配置字段校验]
     CFG --> FILE[connections.json 原子写入·0600]
     FILE --> APPLY_LOCAL[本地启动器：空闲时申请应用]
@@ -87,10 +93,10 @@ flowchart TD
     RFIX[研究任务：用户确认固定外部请求] --> RSNAP[持久确认与目的地址/契约指纹]
     RSNAP --> RPOL[仅收紧已声明委派；执行前检查常量参数]
     RPOL --> RCHILD[原 MCP/OpenAPI 子任务与真实资料索引]
-    SETUP_UI[默认插件页选择接入助手] --> SETUP_FILE[固定内置模块配置；下载后保存重启]
+    SETUP_UI[默认插件页选择接入助手] --> SETUP_FILE[默认偏好保存并应用；显式文件保留审查导出]
     SETUP_FILE --> INSPECT_UI[Skill/API 发现与原审查流程]
     INSPECT_UI --> REVIEWED_FILES[实际能力导出后按原契约组合]
-    KNOWLEDGE_UI[知识页：同来源回答缺少模型] --> MODEL_GUIDE[进入连接与模型；保存后重启]
+    KNOWLEDGE_UI[知识页：同来源回答缺少模型] --> MODEL_GUIDE[进入连接与模型；本地保存并应用]
     KW[可选知识计划：目标校验与 CAS 预订] --> KW_HOST[本机受治理复核与独立来源凭证]
     FORMAL_LOCAL_SCHEDULE[可信插件本机 schedule 端口] --> SCHEDULE_MANIFEST[声明检查与执行指纹；真实 schedule Run]
 ```
@@ -182,7 +188,7 @@ flowchart LR
 
 ## 个人默认与按需团队
 
-默认选择不再叠加 deliveryTeamPlugins。loadWorkspacePlugins 是 HTTP 装配入口，显式文件优先于个人来源/GitHub 自动组合，即使未选个人配置不完整也不影响独立团队/空组合加载。默认首页从实际 active Agent 选择能力；团队协调能力只在已装配时优先，明确的失效链接不静默换成另一能力。没有可用 Agent 时禁止执行并显示插件入口。个人资料的快捷入口只在 sample 来源填入虚构查询，不覆盖用户笔记场景的输入。
+默认选择不再叠加 deliveryTeamPlugins。loadWorkspacePlugins 是 HTTP 装配入口，显式文件优先于个人来源/GitHub 自动组合，即使未选个人配置不完整也不影响独立团队/空组合加载。默认首页先显示实际贡献的可见 workspace 页面中已知的资料、研究、复核及发布任务；使用插件真实路径，不为隐藏、团队或未知视图制造入口。通用任务表单默认折叠。显式 capability/query 链接及没有已知任务页的组合保留原路由/表单行为；能力仍从实际 active Agent 选择，团队协调能力只在已装配时优先，明确的失效链接不静默换成另一能力。没有可用 Agent 时禁止执行并显示插件入口。个人资料的快捷入口只在 sample 来源填入虚构查询，不覆盖用户笔记场景的输入。
 
 导航只有存在可见团队页面或插件拥有的手动任务时才显示团队分区与配置入口；业务任务还须 manualJobs 非空。隐藏纪要页不单独使团队分区出现。该展示规则不是 API 授权，实际业务 API 仍按插件所有权判断。飞书/TAPD 保持可填写并说明独立启用团队组合的方法；保存凭据不安装 Agent。切换同一数据目录保留已完成历史，缺失旧插件不会被历史记录重新启用。
 
@@ -269,7 +275,7 @@ personal.research 插件贡献 /research 的已打包表单，明确当前资料
 ### 主要测试
 
 - `backend/test/workspaceComposition.test.ts`：真实个人检索、团队/空组合、默认接口和任务缺失、显式配置优先、切换保留历史；每例使用独立私有临时目录，并验证初始化未借用环境中的应用数据目录。
-- `frontend/src/pages/workspace/pages.test.mjs`：实际能力默认、失效链接、隐藏团队页及空任务导航。
+- `frontend/src/pages/workspace/pages.ts`、`pages.test.mjs`：实际能力默认、失效链接、隐藏团队页及空任务导航；首页四类已知任务按固定顺序使用实际路径，未知/隐藏/团队/Agent 视图不混入任务卡。
 
 - `docs/PROJECT_EVIDENCE.md`、`CONTRIBUTING.md`：公开演示、结果边界和完整测试环境；2026-11-05 独立目录实际安装、Python 3.14.7/MarkItDown 0.1.9、602 后端/17 前端测试与无凭据页面检索通过。截图使用内置虚构资料，图片不包含私有运行配置。
 - `backend/test/featureIndex.test.ts`：首页默认、GitHub 与 SDK 数量对照实际插件/Agent 声明，防止上手文档沿用旧装配数。
@@ -498,3 +504,7 @@ workspaceKnowledge 只静态追加 skills.setup / openapi.setup；未选择时�
 代码：connectors/profile-workbench/compose.ts / plugin.ts、platform/workspace/knowledge.ts / composition.ts / connections.ts 和 frontend/src/pages/workspace/ProfileComposerPage.tsx。验证：workspaceComposition.test.ts 的设置前后实际 Host、清空、历史及文件优先专项，profileComposer.test.ts、workspace.test.ts、featureIndex.test.ts 和本机页面启用/停用/实际入口/API 释放。完整规则见[配置组合功能卡](../../connectors/profile-workbench/FEATURE.md)。
 
 用户入口说明：docs/USER_GUIDE.md 汇总实际能力、无模型快速体验、个人资料/模型接入、助手开关、运行/配方/复核与当前限制；不新增运行逻辑，沿用本功能既有验证。
+
+## 首页任务入口（2026-11-06）
+
+默认个人首页保留任务概览与最近运行；只有实际贡献的可见已知任务页才显示入口。显式能力链接继续走原路由，其他组合保留原表单。仅调整前端入口，Agent、输入契约、Run/Step/Artifact 与历史不变。代码：frontend/src/pages/workspace/WorkspacePage.tsx、pages.ts；验证：pages.test.mjs、前端类型/lint/测试/构建，以及桌面和 375px 浏览器任务导航、折叠表单、历史详情与显式链接。

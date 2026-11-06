@@ -23,3 +23,16 @@ export const pluginAgentHref = (capability: string) => `/?capability=${encodeURI
 export const agentPageHref = (pages: PluginPage[] = [], capability: string) => pages.find(page => page.view.kind === 'builtin' && page.view.capability === capability)?.path || pluginAgentHref(capability);
 export const activePluginPage = (pages: PluginPage[] = [], pathname: string, search: string) => findPluginPage(pages, pathname, search)
   || (pathname === '/' ? pages.find(page => page.view.kind === 'agent' && page.view.capability === new URLSearchParams(search).get('capability')) : undefined);
+
+export function homeTasks(pages: PluginPage[] = []) {
+  const tasks = [
+    { id: 'knowledge', title: '问自己的资料', description: '检索笔记和网页原文，按需生成带引用的回答。' },
+    { id: 'personal-research', title: '整理一份研究稿', description: '围绕问题收集资料、拆分子任务，保留来源与过程。' },
+    { id: 'knowledge-reviews', title: '复核旧结果的依据', description: '检查已引用资料的版本变化，保留原回答与证据。' },
+    { id: 'release-preparation', title: '准备版本发布材料', description: '结合仓库变化与个人规则，整理证据和待确认项。' },
+  ] as const;
+  return tasks.flatMap(task => {
+    const page = pages.find(page => page.section === 'workspace' && page.navigation !== false && page.view.kind === 'builtin' && page.view.id === task.id);
+    return page ? [{ ...task, path: page.path }] : [];
+  });
+}
