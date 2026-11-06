@@ -2,11 +2,20 @@ import { AI_NEWS_RADAR_CAPABILITY, aiNewsRadarManifest, registerAiNewsRadarAgent
 import { AiHotNewsProvider } from '@/agents/native/ai-news-radar/provider';
 import type { FeaturePlugin, PluginHostServices } from '@/platform/plugins/contracts';
 import { DEFAULT_BOT_INSTANCE_ID, DEFAULT_WORKSPACE_ID } from '@/platform/runtime/scope';
+import { createAiNewsIntentRouter } from '@/agents/native/ai-news-radar/intent';
 
 export const aiNewsPlugin: FeaturePlugin = {
-    manifest: { apiVersion: '1.0', id: 'builtin.ai-news', name: 'AI news', version: '1.0.0', description: 'AI news retrieval and optional dedicated Feishu bot.' },
+    manifest: { apiVersion: '1.0', id: 'builtin.ai-news', name: 'AI news', version: '1.1.0', description: 'AI news retrieval, plugin-owned message routing and optional dedicated Feishu bot.' },
     agents: [{ manifest: aiNewsRadarManifest, installationId: 'install-native-ai-news-radar' }],
     apply(ctx) {
+        const routeIntent = createAiNewsIntentRouter();
+        ctx.delivery.messageRoutes.registerBotEntry({
+            id: 'builtin.ai-news', priority: 100, capability: AI_NEWS_RADAR_CAPABILITY,
+            matches({ ctx: current, message }) {
+                const config = current.config.ai_news;
+                return config.enabled && (!config.app_id.trim() || config.app_id.trim() === current.config.feishu.app_id.trim()) && routeIntent(message);
+            },
+        });
         registerAiNewsRadarAgent(ctx.delivery.nativeAgents, () => {
             const config = ctx.delivery.getContext().config.ai_news;
             return new AiHotNewsProvider({ baseUrl: config.source_url, defaultLimit: config.default_limit, timeoutMs: config.request_timeout_ms });

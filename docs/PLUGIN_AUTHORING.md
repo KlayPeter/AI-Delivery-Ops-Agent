@@ -97,7 +97,7 @@ Skill、MCP 和 OpenAPI 的导出页面都可显式保留个人工作台；它�
 
 ## 注册与清理
 
-通过 `ctx.delivery.nativeAgents.register`、`modelAgents.register`、`tools.register`、`skills.register`、`messageRoutes.register`、`schedules.register`、`runActions.register`、`web.register` 注册。它们自动将 disposer 加入当前 Cordis 插件作用域；启动失败或 Host 停止时释放。静态消息和调度优先声明在对应数组，依赖配置的贡献也可在 `apply` 中注册。
+通过 `ctx.delivery.nativeAgents.register`、`modelAgents.register`、`tools.register`、`skills.register`、`messageRoutes.register`、`messageRoutes.registerBotEntry`、`schedules.register`、`runActions.register`、`web.register` 注册。它们自动将 disposer 加入当前 Cordis 插件作用域；启动失败或 Host 停止时释放。静态消息和调度优先声明在对应数组，依赖配置的贡献也可在 `apply` 中注册。
 
 连接、监听器和计时器使用 `ctx.effect` / `ctx.on`。插件需要在持久化控制面恢复后协调配置时，监听 `delivery/restored`；该回调失败同样使 Host 启动失败并释放插件。
 
@@ -116,6 +116,23 @@ Native Agent/Adapter 必须把收到的 AbortSignal 传到实际调用。Runtime
 - `requiresProjectMember` 保留团队组合原有的私聊身份门槛：只要所选私聊路由有一条要求成员识别，整个默认私聊链路先做成员绑定检查。这不是逐路由授权或 RBAC；纯个人插件组合不声明此项时不查询项目成员。
 
 应用组合层创建一个 `MessageRouteRegistry`，同时传给 `HandlerContext.messageRoutes` 和 `AgentHostOptions.messageRoutes`。参考 `backend/src/index.ts`。注册表缺失或为空时没有隐式业务默认项；测试通过显式选择插件贡献构造所需路由。
+
+## 默认机器人的 Capability 入口
+
+需要在默认飞书机器人的私聊中直接发起 Agent 时，在插件 apply 中注册：
+
+```ts
+ctx.delivery.messageRoutes.registerBotEntry({
+  id: 'example.notes.entry',
+  priority: 50,
+  capability: 'example.notes',
+  matches: ({ message }) => message.text.startsWith('笔记：'),
+});
+```
+
+对应 Agent 必须已装配、绑定当前默认 Bot，并声明该 Capability、message 触发及实际输入 Schema。宿主按原入站契约传入 prompt、message、source，不做自定义输入映射。只对有发送者的私聊文本运行匹配，能力不可派发时跳过；数值优先级从高到低，ID 和本入口阶段的优先级均须唯一。首个命中即结束，未命中继续原 Context/Message Router；独立 Bot 仍使用自身 entryCapability。
+
+matches 是同步判断，只做确定性选择，不执行网络或写入；依赖当前配置时使用传入的 ctx。需要短期会话状态时在 apply 内创建，避免不同 Host 共享。注册随插件正常释放或装配失败回滚，Host 停止后不再选择入口。入口不是成员授权或 RBAC，团队写入仍须执行原业务权限校验。参考 backend/src/agents/plugins/aiNews.ts；backend/test/botEntryPlugins.test.ts 用独立 Native 插件验证真实入站与运行链路，无需模型或飞书凭据。
 
 ## 群业务调度贡献
 

@@ -4,7 +4,7 @@ name: AI 热点新闻助手
 status: active
 agent_mapping:
   - native.ai-news-radar
-last_reviewed: 2026-07-29
+last_reviewed: 2026-11-06
 ---
 
 # AI 热点新闻助手
@@ -21,6 +21,10 @@ last_reviewed: 2026-07-29
 
 ```mermaid
 flowchart TD
+    BOT_ENTRY_PLUGIN[所选插件注册默认 Bot 的确定性入口] --> BOT_ENTRY_GATE[有效私聊文本与可派发能力]
+    BOT_ENTRY_GATE --> BOT_ENTRY_ORDER[唯一优先级；首个命中选择 Capability]
+    BOT_ENTRY_ORDER --> BOT_ENTRY_RUN[原 bot-scoped Trigger 与 Host]
+    BOT_ENTRY_GATE -- 未命中 --> BOT_ENTRY_FALLBACK[原上下文与消息 Router]
     PL["Cordis: builtin.ai-news"] --> A
     U["成员私聊现有系统机器人"] --> I["FeishuBotMessageIngress"]
     S["可选独立新闻机器人"] --> W["独立飞书长连接"]
@@ -61,7 +65,7 @@ flowchart TD
 
 ## 核心规则
 
-运行时装配由 `builtin.ai-news` 插件负责，拥有新闻 Native Agent 与恢复后的 Bot 配置的注册与清理。Agent/Capability/安装 ID 和领域行为保持原契约；确定性 Handler、页面与调度入口尚未全部迁为插件贡献。
+运行时装配由 `builtin.ai-news` 插件负责，拥有新闻 Native Agent、默认机器人入口与恢复后的 Bot 配置的注册与清理。Agent/Capability/安装 ID 和领域行为保持原契约；确定性 Handler、页面与调度入口尚未全部迁为插件贡献。
 
 1. Capability 固定为 `knowledge.ai.news.fetch`，Agent ID 固定为 `native.ai-news-radar`。
 2. 默认查询最近 24 小时精选；用户明确说“全部/完整/所有/全量”才查询全量，明确说“日报”才使用日报端点。
@@ -163,3 +167,11 @@ flowchart TD
 | 2026-07-29 | 默认提升到 15 条，增加同会话 cursor 续页、任意关键词、来源筛选、多源 AI 信号和卡片尾部操作提示；Provider 迁移至 AI HOT v1 | `aiNewsRadar.test.ts`、`routedFeishuDelivery.test.ts`、`config.test.ts`、后端全量回归 |
 | 2026-07-29 | 默认复用系统现有飞书机器人和凭证；增加确定性私聊意图分流，并保留独立机器人作为可选模式 | `config.test.ts`、`aiNewsRadar.test.ts`、`multiBotIngress.test.ts`、`agentHost.test.ts` |
 | 2026-07-29 | 新增 AI News Radar Native Agent、可配置实时数据源、独立飞书机器人私聊入口和同 Bot 卡片投递 | `aiNewsRadar.test.ts`、`multiBotIngress.test.ts`、`triggerRuntime.test.ts`、`routedFeishuDelivery.test.ts`、`agentHost.test.ts` |
+
+## 默认机器人入口由插件贡献（2026-11-06）
+
+MessageRouteRegistry 新增 registerBotEntry / resolveBotEntry。每条入口声明唯一 ID、唯一数值优先级、固定 Capability 与同步 matches；仅有效 p2p 文本和可派发能力进入匹配，按优先级从高到低选择首个命中者。未命中沿用原默认消息处理，独立机器人的 entryCapability 路径保持。入口不创建业务状态、不授予额外 Tool 权限，停止后拒绝解析；Cordis 自动释放成功/失败装配中的注册项。
+
+builtin.ai-news 1.1.0 在 apply 中注册入口和本次 Host 独立的意图会话缓存，保留新闻开关、共用/独立应用判断、否定/任务排除和三十分钟续问。index.ts 只调用通用解析，不导入新闻意图或 Capability。共享 Feishu 入站层的非文本与失败提示改为通用任务措辞，适用于其他插件。已有 Host 在恢复后禁用缺少能力绑定的独立 Bot，避免读取凭据或建立连接；这部分实现保持，新增跨 Host 恢复回归。
+
+代码：backend/src/services/messageHandler/routes.ts、backend/src/platform/plugins/contracts.ts / runtime.ts、backend/src/agents/plugins/aiNews.ts、backend/src/platform/bots/feishuBotMessageIngress.ts、backend/src/index.ts。验证：backend/test/botEntryPlugins.test.ts（注册/优先级/准入、真实新闻插件与会话隔离、独立插件经真实 Host 的 Run/Artifact、持久 Bot 移除/恢复与零凭据调用），pluginRuntime.test.ts（正常释放与失败回滚），multiBotIngress.test.ts（默认/独立 Bot、泛用提示与失败），以及既有 messagePlugins.test.ts / aiNewsRadar.test.ts。没有新增 Agent、默认插件或外部连接方式。

@@ -52,6 +52,7 @@ describe('Cordis feature plugins', () => {
         const events: string[] = [];
         const provider = plugin('test.provider', ctx => {
             events.push('provider');
+            ctx.delivery.messageRoutes.registerBotEntry({ id: 'test.entry', priority: 10, capability: 'test.entry', matches: () => true });
             ctx.effect(() => () => { events.push('disposed'); });
         });
         const consumer = plugin('test.consumer', (_ctx, config) => { events.push(String(config.label)); });
@@ -60,8 +61,11 @@ describe('Cordis feature plugins', () => {
         const runtime = new PluginRuntime([consumer, provider], services, { 'test.consumer': { label: 'consumer' } });
         await Promise.all([runtime.start(), runtime.start()]);
         expect(events).toEqual(['provider', 'consumer']);
+        const routes = services.messageRoutes as MessageRouteRegistry, message = { chat_type: 'p2p', message_type: 'text', sender_open_id: 'ou_test' } as any;
+        expect(routes.resolveBotEntry({} as any, message, () => true)).toEqual({ capability: 'test.entry' });
         await runtime.dispose();
         expect(events).toEqual(['provider', 'consumer', 'disposed']);
+        expect(routes.resolveBotEntry({} as any, message, () => true)).toBeNull();
         await expect(runtime.start()).rejects.toThrow('disposed');
     });
 
@@ -93,6 +97,7 @@ describe('Cordis feature plugins', () => {
         const { services, tools } = fixture();
         const feature = plugin('test.failing', ctx => {
             ctx.delivery.messageRoutes.register({ id: 'test.dynamic', priority: 20, sources: ['private'], handle: async () => null });
+            ctx.delivery.messageRoutes.registerBotEntry({ id: 'test.entry', priority: 10, capability: 'test.entry', matches: () => true });
             ctx.delivery.schedules.register({ id: 'test.dynamic', priority: 20, kind: 'timed', plan: () => null, run: async () => ({}) });
             ctx.delivery.tools.register({
                 id: 'test.echo', version: '1.0.0', description: 'Echo', inputSchema: {}, outputSchema: {},
@@ -109,6 +114,7 @@ describe('Cordis feature plugins', () => {
         await expect(runtime.start()).rejects.toThrow('setup failed');
         expect(tools.list()).toEqual([]);
         expect((services.messageRoutes as MessageRouteRegistry).list()).toEqual([]);
+        expect((services.messageRoutes as MessageRouteRegistry).resolveBotEntry({} as any, { chat_type: 'p2p', message_type: 'text', sender_open_id: 'ou_test' } as any, () => true)).toBeNull();
         expect((services.schedules as ScheduleRegistry).list()).toEqual([]);
         expect(services.agents.getInstallation('test-install')).toBeNull();
         expect(services.agents.listBindings()).toEqual([]);

@@ -26,6 +26,9 @@ are deferred while the local product is being validated.
 - [x] Split the seven built-in Agent registrations into independently composed plugins.
 - [x] Register deterministic message routes, reply contexts and help through feature plugins;
   drain in-flight messages before plugin teardown.
+- [x] Contribute default-bot capability entries through the message registry; news
+  routing and follow-up state belong to its plugin. Generic ingress keeps scope,
+  availability checks and neutral task feedback; independent bots retain their path.
 - [x] Move Feishu directory APIs and automatic group membership sync into
   `builtin.directory`; disabled/empty/personal profiles do not query directories.
   Team SDK/profile add this plugin while keeping seven Agents and prior sync rules.

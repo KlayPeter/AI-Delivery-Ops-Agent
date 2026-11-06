@@ -65,7 +65,7 @@ export class FeishuBotMessageIngress {
             return { handled: false, reason: 'missing_sender_open_id' };
         }
         if (message.message_type !== 'text') {
-            await feishu.sendPrivateText(message.sender_open_id, '请发送文字，例如“今天 AI 圈有什么热点”。');
+            await feishu.sendPrivateText(message.sender_open_id, '请发送文字描述你的任务。');
             return { handled: true, action: 'unsupported_message_type' };
         }
         const capability = String(bot.config.entryCapability || '').trim();
@@ -112,7 +112,7 @@ export class FeishuBotMessageIngress {
                 capability,
                 error: cause?.message || String(cause),
             });
-            await feishu.sendPrivateText(message.sender_open_id, '⚠️ AI 新闻暂时获取失败，请稍后再试。');
+            await feishu.sendPrivateText(message.sender_open_id, '任务暂时执行失败，请稍后再试。');
             return { handled: true, action: 'agent_failed', error: cause?.message || String(cause) };
         }
     }

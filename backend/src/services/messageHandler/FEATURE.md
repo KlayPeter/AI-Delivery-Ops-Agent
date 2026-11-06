@@ -21,11 +21,15 @@ last_reviewed: 2026-11-06
 
 ```mermaid
 flowchart TD
+    BOT_ENTRY_PLUGIN[所选插件注册默认 Bot 的确定性入口] --> BOT_ENTRY_GATE[有效私聊文本与可派发能力]
+    BOT_ENTRY_GATE --> BOT_ENTRY_ORDER[唯一优先级；首个命中选择 Capability]
+    BOT_ENTRY_ORDER --> BOT_ENTRY_RUN[原 bot-scoped Trigger 与 Host]
+    BOT_ENTRY_GATE -- 未命中 --> BOT_ENTRY_FALLBACK[原上下文与消息 Router]
     PL["Cordis: 所选功能插件"] --> MR["MessageRouteRegistry：上下文 / 消息 / 帮助"]
     MR --> D
     A["飞书消息"] --> B["标准化消息上下文"]
     B --> N{"p2p 确定性 Capability 路由?"}
-    N -- "默认 Bot 明确 AI 新闻意图" --> NA["直接派发 AI News Native Agent"]
+    N -- "默认 Bot 的已装配插件入口" --> NA["派发入口声明的 Capability"]
     N -- "专用 Bot entryCapability" --> NA
     N -- 否 --> C["ContextResolver 恢复引用上下文"]
     C --> D{"当前插件贡献的引用上下文命中?"}
@@ -71,7 +75,7 @@ flowchart TD
 7. **Router 不拥有业务状态。** Router 只选择处理者；任务、站会和其他数据写入必须交给对应领域服务。
 8. **AI 不可用时保留基本能力。** 任务命令仍先交给 AI 补全或拆分；AI 返回 429、超时或调用异常时，已命中的确定性规则必须立刻继续执行，并向用户说明 AI 异常与规则降级。未识别请求返回能力提示，不把模型故障伪装成业务成功。
 9. **周报命令受群站会资格约束。** `WeeklyReportHandler` 命中命令后先复用 `StandupService.isGroupEnabled`；未开启日报站会的群只回复配置提示，不创建 Agent Run。
-10. **确定性新闻意图在业务 Router 之前分流。** 默认交付机器人仅在明确 AI 新闻私聊，或同会话 30 分钟内的“查看更多”、关键词、来源和分类追问时，直接调用 `knowledge.ai.news.fetch`；其他模糊追问、否定、配置咨询或开发任务继续 Context/Handler/主 Agent 链路。配置独立应用后，带 `entryCapability` 的新闻机器人也只接受私聊文本，不进入任务、站会、成员识别或 TAPD。
+10. **插件拥有确定性 Capability 入口，在业务 Router 之前分流。** `builtin.ai-news` 注册新闻匹配和本次 Host 的会话缓存；未安装或不可派发时不参与匹配。 默认交付机器人仅在明确 AI 新闻私聊，或同会话 30 分钟内的“查看更多”、关键词、来源和分类追问时，直接调用 `knowledge.ai.news.fetch`；其他模糊追问、否定、配置咨询或开发任务继续 Context/Handler/主 Agent 链路。配置独立应用后，带 `entryCapability` 的新闻机器人也只接受私聊文本，不进入任务、站会、成员识别或 TAPD。
 11. **任务型站会先于普通任务创建但不吞明确 TAPD 指令。** 启用群中，带交付动作和具体时间的 @机器人消息由 `StandupHandler` 登记；出现“创建/新建/同步 TAPD 任务或需求”时返回未命中，让 `TaskCommandHandler` 继续处理。引用 `task_standup_template` 或 `standup_commitment_prompt` 时，即使当前回复没有再次 @机器人，也由上下文路由直接回到站会域。
 12. **任务型站会回复校验身份一致。** 到点提醒的引用回复必须由任务负责人发送；如果回复消息中的非机器人 @ 人与实际回复人不同，机器人只提醒被 @ 的负责人本人回复，不更新任务状态。
 13. **插件关闭同时关闭消息贡献。** 指令、历史引用、免 @ 回复与能力提示均由已装配插件决定；没有注册表或空组合时没有隐式业务路由。任务追问文本恢复也由任务插件执行一次，只改变本次消息副本。
@@ -178,3 +182,11 @@ flowchart LR
     MP_GATE --> MP_AGENT[Delivery Ops Model Loop]
     MP_AGENT --> MP_TOOL[既有 Tool 与领域服务]
 ```
+
+## 默认机器人入口由插件贡献（2026-11-06）
+
+MessageRouteRegistry 新增 registerBotEntry / resolveBotEntry。每条入口声明唯一 ID、唯一数值优先级、固定 Capability 与同步 matches；仅有效 p2p 文本和可派发能力进入匹配，按优先级从高到低选择首个命中者。未命中沿用原默认消息处理，独立机器人的 entryCapability 路径保持。入口不创建业务状态、不授予额外 Tool 权限，停止后拒绝解析；Cordis 自动释放成功/失败装配中的注册项。
+
+builtin.ai-news 1.1.0 在 apply 中注册入口和本次 Host 独立的意图会话缓存，保留新闻开关、共用/独立应用判断、否定/任务排除和三十分钟续问。index.ts 只调用通用解析，不导入新闻意图或 Capability。共享 Feishu 入站层的非文本与失败提示改为通用任务措辞，适用于其他插件。已有 Host 在恢复后禁用缺少能力绑定的独立 Bot，避免读取凭据或建立连接；这部分实现保持，新增跨 Host 恢复回归。
+
+代码：backend/src/services/messageHandler/routes.ts、backend/src/platform/plugins/contracts.ts / runtime.ts、backend/src/agents/plugins/aiNews.ts、backend/src/platform/bots/feishuBotMessageIngress.ts、backend/src/index.ts。验证：backend/test/botEntryPlugins.test.ts（注册/优先级/准入、真实新闻插件与会话隔离、独立插件经真实 Host 的 Run/Artifact、持久 Bot 移除/恢复与零凭据调用），pluginRuntime.test.ts（正常释放与失败回滚），multiBotIngress.test.ts（默认/独立 Bot、泛用提示与失败），以及既有 messagePlugins.test.ts / aiNewsRadar.test.ts。没有新增 Agent、默认插件或外部连接方式。

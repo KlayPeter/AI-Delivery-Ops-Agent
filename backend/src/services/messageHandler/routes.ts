@@ -25,8 +25,16 @@ export interface MessageRoute {
     acceptsUnmentionedReply?: (replyContext: any) => boolean;
 }
 
+export interface BotMessageEntry {
+    id: string;
+    priority: number;
+    capability: string;
+    matches: (request: Pick<MessageRouteRequest, 'ctx' | 'message'>) => boolean;
+}
+
 export class MessageRouteRegistry {
     private readonly routes = new Map<string, MessageRoute>();
+    private readonly botEntries = new Map<string, BotMessageEntry>();
     private readonly inFlight = new Set<Promise<unknown>>();
     private stopped = false;
 
@@ -58,6 +66,26 @@ export class MessageRouteRegistry {
         return [...this.routes.values()]
             .filter(route => (!source || route.sources.includes(source)) && (!phase || route.phase === phase))
             .sort((left, right) => right.priority - left.priority);
+    }
+
+    registerBotEntry(entry: BotMessageEntry): () => void {
+        if (!/^[a-z][a-z0-9._-]*$/.test(entry.id) || !Number.isFinite(entry.priority)
+            || typeof entry.capability !== 'string' || !entry.capability.trim() || entry.capability.length > 200 || typeof entry.matches !== 'function') {
+            throw new Error('Invalid bot message entry');
+        }
+        if (this.botEntries.has(entry.id)) throw new Error(`Duplicate bot message entry: ${entry.id}`);
+        if ([...this.botEntries.values()].some(existing => existing.priority === entry.priority)) throw new Error(`Duplicate bot entry priority: ${entry.priority}`);
+        const registered = Object.freeze({ ...entry });
+        this.botEntries.set(entry.id, registered);
+        return () => { if (this.botEntries.get(entry.id) === registered) this.botEntries.delete(entry.id); };
+    }
+
+    resolveBotEntry(ctx: HandlerContext, message: SourceMessage, canDispatch: (capability: string) => boolean): { capability: string } | null {
+        if (this.stopped || message.chat_type !== 'p2p' || message.message_type !== 'text' || !message.sender_open_id) return null;
+        for (const entry of [...this.botEntries.values()].sort((left, right) => right.priority - left.priority)) {
+            if (canDispatch(entry.capability) && entry.matches({ ctx, message })) return { capability: entry.capability };
+        }
+        return null;
     }
 
     run<T>(work: () => Promise<T>): Promise<T> {

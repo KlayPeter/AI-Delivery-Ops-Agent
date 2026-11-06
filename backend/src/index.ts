@@ -30,8 +30,6 @@ import { FeishuBotConnectionManager } from './platform/bots/feishuBotConnectionM
 import { FeishuBotMessageIngress } from './platform/bots/feishuBotMessageIngress';
 import { EnvironmentSecretResolver } from './platform/secrets/resolver';
 import { DEFAULT_BOT_INSTANCE_ID } from './platform/runtime/scope';
-import { AI_NEWS_RADAR_CAPABILITY } from './agents/native/ai-news-radar/aiNewsRadarAgent';
-import { createAiNewsIntentRouter } from './agents/native/ai-news-radar/intent';
 import { isLocalWorkspaceRequest, LocalConnections } from './platform/workspace/connections';
 import { loadWorkspacePlugins } from './platform/workspace/composition';
 import { createWorkspaceApi, createPluginApi } from './platform/workspace/api';
@@ -109,20 +107,12 @@ agentHost = createDeliveryOpsHost(() => (handler as any).ctx, 1000, undefined, [
 await agentHost.initialize();
 await agentHost.start();
 
-const routeAiNewsIntent = createAiNewsIntentRouter();
 const botIngress = new FeishuBotMessageIngress(
     agentHost,
     () => handler,
     store,
     DEFAULT_BOT_INSTANCE_ID,
-    message => {
-        const aiNews = config.ai_news;
-        const usesDefaultBot = !aiNews.app_id.trim()
-            || aiNews.app_id.trim() === config.feishu.app_id.trim();
-        return agentHost!.canDispatch(AI_NEWS_RADAR_CAPABILITY) && aiNews.enabled && usesDefaultBot && routeAiNewsIntent(message)
-            ? { capability: AI_NEWS_RADAR_CAPABILITY }
-            : null;
-    },
+    message => messageRoutes.resolveBotEntry((handler as any).ctx, message, capability => agentHost!.canDispatch(capability)),
 );
 botConnections = new FeishuBotConnectionManager(
     agentHost.bots,

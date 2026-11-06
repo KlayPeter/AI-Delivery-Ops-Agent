@@ -24,6 +24,8 @@ flowchart LR
     MGW --> RESEARCH
     FP --> DIRECTORY[可选 builtin.directory：通讯录 API 与低频全局轮询]
     DIRECTORY --> MEMBERS[保留既有动态群成员与目录数据]
+    FP --> ENTRY[默认 Bot 入口贡献：准入、能力可用与显式优先级]
+    ENTRY --> R
     FP --> MC["消息路由、上下文与帮助贡献"]
     MC --> R
     R --> C["确定性 Handler 与配置调度"]

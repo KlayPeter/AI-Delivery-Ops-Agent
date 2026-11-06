@@ -209,6 +209,19 @@ describe('Feishu multi-bot connections', () => {
 });
 
 describe('AI news bot ingress', () => {
+    test('non-text input to another capability receives a generic task prompt', async () => {
+        const sent: string[] = [];
+        const ingress = new FeishuBotMessageIngress(
+            { dispatchBotMessage: async () => { throw new Error('non-text input must not dispatch'); } },
+            () => ({ handleEvent: async () => ({}) }), { appendAuditLog: async () => {} }, 'bot-default',
+        );
+        const adapter: any = {
+            parseEvent: () => ({ id: 'om_image', chat_type: 'p2p', message_type: 'image', sender_open_id: 'ou_reader' }),
+            sendPrivateText: async (_target: string, text: string) => { sent.push(text); },
+        };
+        expect(await ingress.handle({ ...newsBot, config: { entryCapability: 'example.personal' } }, adapter, {})).toMatchObject({ action: 'unsupported_message_type' });
+        expect(sent).toEqual(['请发送文字描述你的任务。']);
+    });
     test('routes an AI news private message from the existing default bot without member lookup', async () => {
         const dispatched: any[] = [];
         let defaultHandlerCalls = 0;
@@ -365,6 +378,6 @@ describe('AI news bot ingress', () => {
         } as any;
 
         expect(await ingress.handle(newsBot, adapter, {})).toMatchObject({ action: 'agent_failed' });
-        expect(sent[0]).toContain('暂时获取失败');
+        expect(sent[0]).toBe('任务暂时执行失败，请稍后再试。');
     });
 });

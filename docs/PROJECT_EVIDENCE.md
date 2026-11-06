@@ -659,3 +659,12 @@ skills.prompt.run、openapi.tools.run、mcp.tools.run 均未启用。分别点�
 新增 savedPluginProfiles.test.ts 六项专项覆盖强制确认、同 Host 并发旧版本拒绝、私有文件/符号链接/硬链接条件/超量/FIFO、未知模块不执行、显式文件优先、本机 Origin、接口卸载、助手偏好所有权与真实 CLI 恢复。端到端调用原 Prompt Skill Runtime 和真实模型 SDK，使用本地 OpenAI 协议样例验证固定指令与来源 SHA进入执行记录；一项内置人工输入工具保留，零外部 Tool 调用。浏览器上传的是自编写测试文件，不是本批新的第三方仓库验证；此前真实 GitHub/MCP/OpenAPI 实验仍在本文相应章节。协议样例不证明真实模型质量。
 
 本地门禁：后端类型检查与隔离 SQLite 全量 777 通过、1 个原有 TAPD 写入测试跳过；前端类型、lint（0 错误，159 个既有警告）、28 项测试及构建通过。未增加依赖或部署步骤。新文件 plugin-profile.json 及临时文件被任意目录 Git 忽略，保存权限 0600；显式配置/损坏文件保持失败关闭，不自动删除。启动器仍不自动回滚或重试第三方启动失败，已提供 plugins:reset 离线停用入口。
+
+
+## 默认机器人消息入口的插件归属（2026-11-06）
+
+builtin.ai-news 1.1.0 将默认机器人的意图选择和本次 Host 的续问缓存注册到 MessageRouteRegistry，index.ts 去除新闻业务导入。插件入口只匹配有效私聊文本和当前可派发的 Capability，显式优先级决定首个命中；未命中继续原消息链路。独立机器人仍使用自身 entryCapability，通用入站层的非文本和失败提示使用任务措辞。
+
+新增 botEntryPlugins.test.ts 四项测试：ID/优先级/合法性/准入与可用性，真实新闻插件的开关/共用与独立应用/会话隔离，一个独立 Native 插件经通用 Feishu 入站层和实际 Host 生成持久 Run/Artifact，以及跨 Host 恢复保存的独立机器人。最后一项确认：移除插件时原有 Host 逻辑将机器人标为不可连接，零凭据读取、零连接；重新装配后用受控客户端恢复一次凭据读取和一次连接。此处为既有行为的回归覆盖，没有修改连接管理器。pluginRuntime.test.ts 另验证正常释放及装配失败回滚；multiBotIngress.test.ts 覆盖其他 Capability 的通用提示。
+
+本地类型检查通过；隔离 SQLite 全量后端 782 通过、1 个原有 TAPD 写入测试跳过。HTTP 默认个人实例实际重载后 readyz=ready，插件/页面和连接值保持，六条旧根 Run 的 run/steps/artifacts 逐项一致，原 .env SHA 和权限保持。本批未修改前端或部署配置，未发送真实飞书消息；入站实验使用受控适配器，不证明真实飞书权限或网络可用。

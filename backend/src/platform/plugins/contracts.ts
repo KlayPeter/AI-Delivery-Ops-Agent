@@ -43,7 +43,7 @@ export interface PluginHostServices {
     modelAgents: Pick<ModelLoopAgentAdapter, 'register'>;
     tools: Pick<ToolRegistry, 'register' | 'list'>;
     skills: Pick<SkillRegistry, 'register'> & { execute?: SkillRuntime['execute'] };
-    messageRoutes: Pick<MessageRouteRegistry, 'register'>;
+    messageRoutes: Pick<MessageRouteRegistry, 'register' | 'registerBotEntry'>;
     schedules: Pick<ScheduleRegistry, 'register'>;
     runActions: Pick<RunActionRegistry, 'register'>;
     web: Pick<PluginWebRegistry, 'register'>;
