@@ -92,3 +92,5 @@ flowchart TD
 | 2026-11-06 | 新增根初始化与联合启动，保留原开发脚本 | 生命周期专项、类型/回归与干净副本实际体验 |
 
 2026-11-06 首次体验复验：从公开 main 的 1267801 新克隆，无项目依赖/配置/数据库，实际执行根 setup:local，浏览器无密钥检索成功；正常停止后本次两个监听端口关闭，local 再启动保留同一 Run/Step/Artifact 与原 .env（0600）。使用普通包缓存，未复用工作目录的 node_modules；记录见 docs/PROJECT_EVIDENCE.md 的“公开 main 全新安装复验”。运行行为保持，验证继续由 backend/test/localLauncher.test.ts、workspaceComposition.test.ts、featureIndex.test.ts 覆盖。
+
+2026-11-06 当前个人预设复验：从公开 main 的 166f98a 全新克隆，实际 setup:local 安装锁定依赖并完成无密钥检索；正常退出关闭本次两个端口，再用 local 重启，API 动态端口变化但前端仍连接本次服务，原 Run/Step/Artifact 和 .env（0600）保持。安装后只加入本批 KnowledgePage.tsx 模型入口提示，启动器与后端源代码保持该提交原样；复用普通包缓存。详见 docs/PROJECT_EVIDENCE.md 的“当前个人预设的全新安装与模型入口”，现有生命周期测试保持。

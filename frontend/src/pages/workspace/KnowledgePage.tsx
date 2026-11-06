@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import useSWR from 'swr';
 import { Alert, Button, Drawer, Form, Input, Select, Skeleton, Tag } from 'antd';
 import { FileSearchOutlined, FolderOutlined, SettingOutlined } from '@ant-design/icons';
@@ -49,6 +50,7 @@ export default function KnowledgePage() {
         <label htmlFor="knowledge-query">你想了解什么？</label><Input.TextArea id="knowledge-query" placeholder="输入问题或关键词…" value={query} onChange={e => setQuery(e.target.value)} rows={3} maxLength={500} />
         <div className="form-actions"><Button type="primary" onClick={() => execute()} loading={running} disabled={!retrieval || !query.trim()}>检索原文</Button><Button onClick={() => execute(true)} disabled={running || !query.trim() || !workspace?.modelConfigured || !canAnswer}>生成引用回答</Button></div>
         <p className="muted">检索原文不调用模型。生成回答会将选中片段发送给你配置的模型。</p>
+        {canAnswer && workspace?.modelConfigured === false && <p className="muted">生成引用回答需要模型。<Link to="/connections">配置模型</Link>并重启本地后端后生效。</p>}
         {source && workspace?.plugins.some(plugin => plugin.id === 'knowledge.answer' && !plugin.requires?.includes(source.pluginId)) && <p className="muted">当前回答插件使用其他知识来源，本页仅开放原文检索。请在插件配置中选择相同来源。</p>}
       </section>
       {actionError && <Alert type="error" showIcon title="操作失败" description={actionError} />}

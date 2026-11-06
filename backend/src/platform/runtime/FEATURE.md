@@ -98,6 +98,7 @@ flowchart TD
     SETUP_UI[默认插件页选择接入助手] --> SETUP_FILE[固定内置模块配置；下载后保存重启]
     SETUP_FILE --> INSPECT_UI[Skill/API 发现与原审查流程]
     INSPECT_UI --> REVIEWED_FILES[实际能力导出后按原契约组合]
+    KNOWLEDGE_UI[知识页：同来源回答缺少模型] --> MODEL_GUIDE[进入连接与模型；保存后重启]
 ```
 
 ## 能力边界
@@ -558,3 +559,5 @@ ToolDefinition 可带连接器生成的 binding（公开地址与配置/契约 S
 plugins.compose 1.1.0 提供独立 POST /api/plugin-profiles/setup：严格接受 skills/openapi 非空唯一选择，只输出已打包的固定模块与个人基底，不接受路径/凭据/自定义配置。16 KiB、五秒、本机 Host/Origin 和 Cordis 卸载边界沿用现有平台。默认十五插件九 Agent 不变；同时选择两助手后在标准示例预设为十七插件十一 Agent，只有发现能力，尚不启用实际 Skill/API Runner。下载后用户保存并重启；既有能力组合接口、三份/1 MiB 文件限制与历史保留不变。
 
 插件页进入“接入与组合”，两种流程使用有活动状态的页签；切换页签或输入会清除旧预览，处理中禁止改变，助手已启用标签来自真实页面贡献。当前自定义附加插件不自动合并，助手文件仅供首次启用，不作为审查能力文件上传。完整流程见[接入与组合功能卡](../../connectors/profile-workbench/FEATURE.md)。代码：connectors/profile-workbench/compose.ts、plugin.ts，frontend/src/pages/workspace/ProfileComposerPage.tsx / CatalogPage.tsx、frontend/src/api.ts；验证：backend/test/profileComposer.test.ts（固定配置边界、真实加载、原检索历史与未审查运行器拒绝）、原导出/组合回归、前端门禁及浏览器接入。
+
+知识页首次体验（2026-11-06）：匹配的回答能力已装配但模型未配置时，解释禁用原因并链接到“连接与模型”；原文检索保持可用，保存模型后仍需重启。仅调整 frontend/src/pages/workspace/KnowledgePage.tsx 展示，模型/来源/运行协议不变；验证为现有前端回归、类型/lint/build 与全新公开克隆浏览器验收，详见[知识工作台功能卡](../../knowledge/workspace/FEATURE.md)。
