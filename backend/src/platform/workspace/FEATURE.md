@@ -550,3 +550,14 @@ plugins.compose 1.3.0 在预览后接收 expectedRevision 与 confirmed:true，�
 原回答和独立检查报告继续使用 StatusPanel 1.0 文本面板。面板新增找到/未找到引文数量及首条未找到的短预览，未提供检查结果时明确未检查引文；时间和返回原结果入口保持，不修改前端路由或表单。实现：knowledge/impact/presentation.ts；验证：后端回归及桌面/375px HTTP 浏览器验收，六条旧 Run/Step/Artifact 保持。
 
 完整协议、边界与测试地图由 backend/src/knowledge/impact/FEATURE.md 统一维护；使用说明见 docs/KNOWLEDGE_IMPACT.md。
+
+
+## 插件贡献的运行链接与重新回答（2026-11-06）
+
+GET /api/workspace/state 新增 runLinks。RunDrawer 在成功根运行匹配 appliesTo，进入已贡献的目标页面并传递 runId；核心不绑定业务链接。KnowledgePage 按该参数显示 ReanswerPanel，核对原问题、当前来源和模型后通过现有异步启动入口生成；新结果可返回旧回答。需要当次审查的结果不显示保存配方链接，RecipesPage 也按 reusableInput=false 禁止创建。实现为 web.ts、workspace/api.ts、frontend/src/api.ts 与上述页面/state.ts；pluginWeb.test.ts、knowledgeAnswer.test.ts、runRecipes.test.ts 及本机/375px 浏览器覆盖，完整协议见 [知识回答](../../knowledge/answer/FEATURE.md)。
+
+```mermaid
+flowchart TD
+    RUN_LINKS[宿主透出已装配 runLinks] --> REVIEW_PAGE[旧结果进入知识确认页]
+    REVIEW_PAGE --> REANSWER_RUN[现有启动回执与新结果详情]
+```

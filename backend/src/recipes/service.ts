@@ -52,6 +52,7 @@ export class RunRecipeService {
         if (!source || source.workspaceId !== scope.workspaceId || source.botInstanceId !== scope.botInstanceId) return fail('来源运行不存在或不属于当前范围', 404);
         if (source.status !== 'succeeded' || source.parentRunId || source.rootRunId !== source.id) return fail('只能从已成功完成的根运行创建配方');
         if (!this.capabilities.includes(source.capability)) return fail('此能力不支持配方；默认仅开放已审查的个人读取任务');
+        if ((await this.runs.listArtifacts(source.id)).some(artifact => artifact.metadata.reusableInput === false)) return fail('此结果包含需要重新确认的输入，请从原功能重新准备，不能直接保存为配方');
         const steps = (await this.runs.listSteps(source.id)).filter(step => step.kind === 'agent' && !step.name.startsWith('delegate:'));
         if (steps.length !== 1 || steps[0]!.status !== 'succeeded') return fail('来源缺少单次执行凭证；人工多轮任务请先用完整参数重新执行');
         const parsed = execution.safeParse(steps[0]!.metadata?.execution);

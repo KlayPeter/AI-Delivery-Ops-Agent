@@ -162,3 +162,14 @@ flowchart LR
 知识页的原检索/回答入口与来源配置保持。既有运行详情文本面板显示独立 impact 检查的引文数量和短预览，不新增前端业务解析或额外模型调用；文档变化仍提示复核。实现：knowledge/impact/presentation.ts；验证：knowledgeQuoteChecks.test.ts、knowledgeImpact.test.ts 及真实 HTTP 桌面/375px 结果面板。
 
 完整协议、边界与测试地图由 backend/src/knowledge/impact/FEATURE.md 统一维护；使用说明见 docs/KNOWLEDGE_IMPACT.md。
+
+
+## 旧回答进入当前资料确认页（2026-11-06）
+
+/knowledge?runId=... 使用已有知识页面显示 ReanswerPanel；从回答插件的站内链接进入，不注册新页面/Agent。预览读取原问题，显示当前来源与模型，明确确认后重新检索；待应用设置、来源/回答组合不匹配和无模型时禁用。由回答插件拥有准备 API、配置指纹和旧记录核验，界面插件只描述当前来源。实现为 KnowledgePage.tsx、ReanswerPanel.tsx，完整协议与测试见 [知识回答](../answer/FEATURE.md)；375px 实测无页面横向溢出。
+
+```mermaid
+flowchart TD
+    OLD_RESULT_LINK[回答插件的站内链接] --> CURRENT_SOURCE_FORM[既有知识页：当前来源与模型确认]
+    CURRENT_SOURCE_FORM --> NEW_RAG[原 RAG 生成独立结果]
+```

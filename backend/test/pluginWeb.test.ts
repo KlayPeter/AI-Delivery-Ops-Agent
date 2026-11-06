@@ -19,6 +19,18 @@ function plugin(apply: FeaturePlugin['apply']): FeaturePlugin {
 const context = () => ({ store: new InMemoryPersistentKeyValueStore(), config: buildConfig({}), feishu: {}, tapd: {} } as any);
 const request = (url: string, body?: unknown, origin = 'http://localhost:15173') => new Request('http://localhost' + url, body === undefined ? undefined : { method: 'POST', headers: { origin, 'content-type': 'application/json' }, body: JSON.stringify(body) });
 
+test('plugin run links require a contributed destination, have unique IDs, reject URL escapes and disappear on disposal', () => {
+    const registry = new PluginWebRegistry(), link = { id: 'test.next', label: 'Continue', path: page.path, appliesTo: ['example.run'] };
+    const releaseLink = registry.register({ id: 'test.links', runLinks: [link] });
+    expect(registry.runLinks()).toEqual([]);
+    const releasePage = registry.register({ id: 'test.page', pages: [page] });
+    expect(registry.runLinks()).toEqual([link]); registry.runLinks()[0]!.label = 'Changed'; expect(registry.runLinks()[0]!.label).toBe('Continue');
+    expect(() => registry.register({ id: 'test.duplicate', runLinks: [link] })).toThrow('Duplicate');
+    for (const path of ['https://foreign.example/', '//foreign.example', '/example?next=external', '/%2fescape']) expect(() => registry.register({ id: 'test.invalid', runLinks: [{ ...link, path }] })).toThrow();
+    releasePage(); expect(registry.runLinks()).toEqual([]); releaseLink();
+    registry.register({ id: 'test.page', pages: [page] }); expect(registry.runLinks()).toEqual([]);
+});
+
 test('Web contributions validate ownership boundaries, reject duplicate entries and dispose metadata', () => {
     const registry = new PluginWebRegistry(), entry: WebContribution = { id: 'test.web', pages: [page], manualJobs: ['standup-summary'],
         api: { prefix: '/api/example', routes: [{ method: 'POST', path: '/api/example/input' }], handle: () => Response.json({ ok: true }) },

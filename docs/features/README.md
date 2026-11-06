@@ -107,6 +107,9 @@ flowchart LR
     O --> QC
     QC --> O
     WATCH[可选知识复核计划：用户选择、CAS 与计时器] --> KI
+    O --> REANSWER[插件站内链接：原问题与当前来源模型确认]
+    REANSWER --> NEW_ANSWER[原 RAG 创建独立新回答并关联原结果]
+    NEW_ANSWER --> O
 ```
 
 HTTP 默认装配个人知识、采集、验收、工具接入、研究、配方及模型提供者插件。下表 active 表示能力可启用，不表示团队能力会自动装配；原团队组合通过 profiles/agents/team.yaml 显式选择。

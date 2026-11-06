@@ -11,12 +11,18 @@ const pageSchema = z.object({
     ]),
 }).strict();
 export type PluginPage = z.infer<typeof pageSchema>;
+const runLinkSchema = z.object({
+    id: z.string().regex(/^[a-z][a-z0-9.-]*$/).max(128), label: z.string().trim().min(1).max(80),
+    path: pageSchema.shape.path, appliesTo: z.array(z.string().trim().min(1).max(200)).min(1).max(100),
+}).strict();
+export type PluginRunLink = z.infer<typeof runLinkSchema>;
 type ApiHandler = (request: Request) => Response | Promise<Response>;
 const routeSchema = z.object({ method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD', 'ALL']), path: z.string().regex(/^\/api(?:\/[A-Za-z0-9:_*-]+)+$/).max(300) }).strict();
 export interface WebContribution {
     id: string;
     pages?: readonly PluginPage[];
     manualJobs?: readonly string[];
+    runLinks?: readonly PluginRunLink[];
     api?: { prefix: string; routes: readonly { method: string; path: string }[]; handle: ApiHandler };
 }
 // Existing bundled routes stay reserved until their owning plugins migrate them.
@@ -31,12 +37,15 @@ export class PluginWebRegistry {
         const entry = z.object({
             id: z.string().regex(/^[a-z][a-z0-9.-]*$/).max(128), pages: z.array(pageSchema).max(20).optional(),
             manualJobs: z.array(z.string().regex(/^[a-z][a-z0-9-]*$/).max(80)).max(30).optional(),
+            runLinks: z.array(runLinkSchema).max(20).optional(),
             api: z.object({ prefix: z.string().regex(/^\/api(?:\/[a-z][a-z0-9-]*)+$/).max(200), routes: z.array(routeSchema).min(1).max(100), handle: z.custom<ApiHandler>(value => typeof value === 'function') }).strict().optional(),
         }).strict().parse(value);
         if (this.entries.has(entry.id)) throw new Error(`Duplicate Web contribution: ${entry.id}`);
         const paths = (entry.pages || []).map(page => page.path), jobs = entry.manualJobs || [];
         if (new Set(paths).size !== paths.length || paths.some(path => reservedPages.has(path) || this.pages().some(page => page.path === path))) throw new Error('Duplicate or reserved plugin page path');
         if (new Set(jobs).size !== jobs.length || jobs.some(job => this.manualJobs().includes(job))) throw new Error('Duplicate plugin manual job');
+        const linkIds = (entry.runLinks || []).map(link => link.id);
+        if (new Set(linkIds).size !== linkIds.length || [...this.entries.values()].some(other => other.runLinks?.some(link => linkIds.includes(link.id)))) throw new Error('Duplicate plugin run link');
         if (entry.api && (entry.api.routes.some(route => !contains(entry.api!.prefix, route.path)) || new Set(entry.api.routes.map(route => `${route.method}:${route.path}`)).size !== entry.api.routes.length)) throw new Error('Invalid plugin API route declarations');
         if (entry.api && (reservedApis.some(prefix => contains(prefix, entry.api!.prefix) || contains(entry.api!.prefix, prefix))
             || [...this.entries.values()].some(other => other.api && (contains(other.api.prefix, entry.api!.prefix) || contains(entry.api!.prefix, other.api.prefix))))) throw new Error('Overlapping or reserved plugin API prefix');
@@ -52,6 +61,10 @@ export class PluginWebRegistry {
 
     pages(): PluginPage[] { return structuredClone([...this.entries.values()].flatMap(entry => entry.pages || [])); }
     manualJobs(): string[] { return [...this.entries.values()].flatMap(entry => entry.manualJobs || []); }
+    runLinks(): PluginRunLink[] {
+        const pages = new Set(this.pages().map(page => page.path));
+        return structuredClone([...this.entries.values()].flatMap(entry => entry.runLinks || []).filter(link => pages.has(link.path)));
+    }
     routes(): z.infer<typeof routeSchema>[] { return [...this.entries.values()].flatMap(entry => entry.api?.routes || []).map(route => routeSchema.parse(route)); }
 
     async handle(request: Request): Promise<Response> {

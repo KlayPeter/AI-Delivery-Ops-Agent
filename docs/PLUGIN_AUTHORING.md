@@ -188,7 +188,7 @@ StatusPanel 1.0 只呈现文本：tone 为 neutral/success/warning/error，title
 
 ## 页面、API 与原有手动任务
 
-`ctx.delivery.web.register` 在当前 Cordis 作用域声明 WebContribution。类型见 `backend/src/platform/plugins/web.ts`。一个贡献有唯一 id，可包含 pages、api 与 manualJobs，失败或停止时一起释放。
+`ctx.delivery.web.register` 在当前 Cordis 作用域声明 WebContribution。类型见 `backend/src/platform/plugins/web.ts`。一个贡献有唯一 id，可包含 pages、api、manualJobs 与 runLinks，失败或停止时一起释放。
 
 ```ts
 ctx.delivery.web.register({
@@ -197,6 +197,8 @@ ctx.delivery.web.register({
     view: { kind: 'agent', capability: 'example.read' } }],
 });
 ```
+
+可选 runLinks 声明从成功根运行到功能页面的导航，例如 knowledge.answer 的 `{ id: 'knowledge.reanswer', label: '按最新资料重新回答', path: '/knowledge', appliesTo: ['knowledge.answer'] }`。每个贡献最多 20 项，ID 全局唯一，目标必须是已贡献的站内静态页面；不接受外链、查询串或编码路径。UI 附加编码的 runId，目标页面自行核验来源与准备动作。卸载链接或目标页面后隐藏，页面存在不代表有访问授权；导航不自动执行模型或代表用户确认。注册/深复制/释放测试见 backend/test/pluginWeb.test.ts，完整消费者见 backend/src/knowledge/answer/FEATURE.md。
 
 页面只能使用站内静态路径；label 最长 80 字符，section 为 workspace/team。view.kind=agent 打开指定 Capability 的现有工作台；kind=builtin 使用已打包 renderer ID（包括团队页面，以及 knowledge、release-preparation、web-capture、documents、knowledge-library、plugin-checks、mcp-setup、mcp-runner、personal-research、run-recipes）。builtin view 可声明可选的 capability，让 Agent 卡片和任务选择进入所属结构化表单；网页收集和文档导入是实际例子。未知 renderer 显示恢复入口，不执行远程 HTML、JS 或 React 包。已保留的核心/旧页面不能覆盖，路径与贡献 ID 不得重复；Agent 导航跳转后保持当前项选中。
 
@@ -307,6 +309,8 @@ PluginHostServices 增加可选 runLocal(capability, input, triggerId, expected?
 Host 将 expected 放入可信上下文 reserved expectedExecution，Runtime 在实际解析根 Agent 后再次核对；普通客户端 input 不能写该上下文。子委派与人工继续保持既有协议，不能据此声称环境被冻结。Manifest 指纹不是 Tool/模型/配置的完整代码快照。配方使用既有 execution 1.0 的单次身份与输入指纹，多轮或旧记录不补造凭证。
 
 配方来源回执归配方插件，不能向其他 Agent 保存 Manifest 未允许的 Artifact。候选输入仅在当前页面内存，明确审查保存后才持久化完整参数；它不是自动 Secret 脱敏或共享市场。
+
+源插件可以在结果 Artifact 的 metadata 声明 reusableInput=false，表示输入包含需要重新准备的当次审查内容。配方创建会拒绝此来源，运行详情与配方页也隐藏/禁用创建入口；知识重新回答的当前环境确认是实际例子。这个标记约束配方复用，不构成通用授权或 JavaScript 沙箱。
 
 ## 模型提供者插件
 

@@ -130,3 +130,8 @@ flowchart TD
 资料库作为知识来源时复用 Markdown versions Tool 1.2.0，支持逐字引文存在性检查。固定资料目录和 workspace-library 身份、私有文件、原收录信息及保存入口保持；没有新增资料写入或新索引持久化。实现仍由 markdown/source.ts 与 versions.ts 拥有，验证包括 knowledgeQuoteChecks.test.ts、knowledgeImpact.test.ts 和原 knowledgeLibrary.test.ts。
 
 完整协议、边界与测试地图由 backend/src/knowledge/impact/FEATURE.md 统一维护；使用说明见 docs/KNOWLEDGE_IMPACT.md。
+
+
+## 显式重新回答的来源消费者（2026-11-06）
+
+可选 knowledge.answer 1.1.0 允许从旧成功回答核对当前来源/模型后生成独立新结果，仍调用本来源现有 search Tool 并保留实际读取版本。当前内容在运行时刷新，旧回答保持；来源组合变更需要重新确认。没有增加来源权限、自动监控或语义影响分析。审查、关联、失败与测试边界统一见 [知识回答](../answer/FEATURE.md)。

@@ -585,3 +585,14 @@ builtin.ai-news 1.1.0 在 apply 中注册入口和本次 Host 独立的意图会
 knowledge.impact 插件 1.3.0 和既有 Native Agent 1.2.0 增加有界逐字引文存在性信息，不新增 Agent 或模型循环。调用仍经同一 Tool Gateway、Scope 和预算，未声明能力的旧来源只做版本核验；历史运行不重放或改写。实现：knowledge/impact/plugin.ts、knowledge/versions.ts；验证：knowledgeImpact.test.ts、knowledgeMixed.test.ts 和既有 Host 回归。
 
 完整协议、边界与测试地图由 backend/src/knowledge/impact/FEATURE.md 统一维护；使用说明见 docs/KNOWLEDGE_IMPACT.md。
+
+
+## 显式重新回答的宿主边界（2026-11-06）
+
+knowledge.answer 1.1.0 复用原 Native Agent、Tool Gateway、模型端口及本机异步启动回执，创建新根 Run；不增加独立 Agent 或回放执行引擎。平台仅透出插件声明的站内链接，源问题与当前模型/来源确认由功能拥有。原记录和取消/预算语义保持。实现/测试见 [知识回答](../knowledge/answer/FEATURE.md)、backend/test/knowledgeAnswer.test.ts 和 pluginWeb.test.ts。
+
+```mermaid
+flowchart TD
+    RUN_LINK[插件声明站内链接] --> RUN_REVIEW[功能核对原问题与当前环境]
+    RUN_REVIEW --> RUN_NATIVE[原 Native Runtime 的独立新根运行]
+```

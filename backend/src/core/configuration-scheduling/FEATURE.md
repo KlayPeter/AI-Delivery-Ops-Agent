@@ -287,3 +287,8 @@ Host 可选 reloadConfiguration 只供可信原生插件重载应用配置；HTT
 代码：agents/plugins/directory.ts、core/configuration-scheduling/api.ts / publicConfig.ts、platform/scheduling/registry.ts、core/scheduler.ts、platform/plugins/contracts.ts、platform/bootstrap/agentHost.ts、index.ts、agents/plugins/builtins.ts、profiles/agents/team.yaml（均在 backend）。验证：backend/test/directoryPlugin.test.ts（五接口、脱敏、禁用零调用、重载条件、逐群前同步、六小时间隔、失败保留与停机等待），schedulePlugins.test.ts（无群全局轮询、频率、错误隔离）及原群同步、配置、调度和插件回归。
 
 配置页同步：frontend/src/pages/ConfigPage.tsx 根据实际 builtin.directory 装配状态使用 SWR 请求群列表；缺少插件时不挂载通讯录树，GroupConfigList 停用远端刷新、保留成员配置并允许直接输入群 ID。配置保存与业务表单保持。验证包含前端类型/lint/测试/构建与本地禁用状态浏览器检查。
+
+
+## 运行链接与调度授权边界（2026-11-06）
+
+共享 WebContribution 新增 runLinks，只贡献成功根运行到已装配页面的导航；不注册 manualJobs、定时器或新的调度权限。声明校验与释放覆盖于 backend/test/pluginWeb.test.ts；知识重新回答由用户明确发起个人 manual 根运行，详见 [知识回答](../../knowledge/answer/FEATURE.md)。

@@ -209,3 +209,8 @@ WebTransport.request 可选第五个 Accept 参数供独立 OpenAPI 读取使用
 versions Tool 1.2.0 声明可选 quotes，匹配的是本轮提取后的完整正文。沿用一次来源刷新、原公开 URL、DNS/IP/TLS、字节及超时边界，不为每条引文额外请求；失败或范围外不返回旧引文结果或正文。代码：versions.ts、web/source.ts / plugin.ts；验证：knowledgeQuoteChecks.test.ts、knowledgeImpact.test.ts 及原 Web 回归。
 
 完整协议、边界与测试地图由 backend/src/knowledge/impact/FEATURE.md 统一维护；使用说明见 docs/KNOWLEDGE_IMPACT.md。
+
+
+## 显式重新回答的来源消费者（2026-11-06）
+
+可选 knowledge.answer 1.1.0 允许从旧成功回答核对当前来源/模型后生成独立新结果，仍调用本来源现有 search Tool 并保留实际读取版本。当前内容在运行时刷新，旧回答保持；来源组合变更需要重新确认。没有增加来源权限、自动监控或语义影响分析。审查、关联、失败与测试边界统一见 [知识回答](../answer/FEATURE.md)。

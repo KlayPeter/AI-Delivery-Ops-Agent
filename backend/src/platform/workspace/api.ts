@@ -47,7 +47,7 @@ export function createWorkspaceApi(host: AgentHost, connections: LocalConnection
             const sourceSettingsManagedByPluginFile = managedByPluginFile && base !== 'personal';
             const knowledgeKind = plugins.some(plugin => plugin.id === 'knowledge.mixed') ? 'mixed' : plugins.some(plugin => plugin.id === 'knowledge.web') ? 'web'
                 : plugins.some(plugin => plugin.id === 'knowledge.markdown') ? (sourceSettingsManagedByPluginFile ? 'markdown' : process.env.KNOWLEDGE_KIND || 'sample') : 'none';
-            return { agents, runs, plugins, pages: host.web.pages(), manualJobs: host.web.manualJobs(), health: host.health(), modelConfigured: host.isModelAvailable(), modelProviders: host.modelProviders.list(), knowledgeKind, managedByPluginFile, sourceSettingsManagedByPluginFile, ...(base ? { base } : {}), ...(composition ? { compositionSource: composition.source } : {}) };
+            return { agents, runs, plugins, pages: host.web.pages(), runLinks: host.web.runLinks(), manualJobs: host.web.manualJobs(), health: host.health(), modelConfigured: host.isModelAvailable(), modelProviders: host.modelProviders.list(), knowledgeKind, managedByPluginFile, sourceSettingsManagedByPluginFile, ...(base ? { base } : {}), ...(composition ? { compositionSource: composition.source } : {}) };
         })
         .get('/connections', () => ({ ...connections.snapshot(), reloadAvailable: Boolean(reload), instanceId }))
         .put('/connections', async ({ body }) => ({ ...await connections.save(body, host.modelProviders.list().map(provider => provider.id), composition?.source === 'saved' || composition?.source === 'file'), reloadAvailable: Boolean(reload), instanceId }))

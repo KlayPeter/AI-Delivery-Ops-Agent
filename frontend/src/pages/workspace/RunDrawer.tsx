@@ -21,7 +21,7 @@ export function RunStatus({ status }: { status: string }) {
 
 interface Evidence { sourceKind?: string; lineBasis?: string; title?: string; path: string; excerpt: string; lineStart?: number; lineEnd?: number; openUri?: string; citationId?: string }
 interface SourceCoverage { kind: 'markdown' | 'web'; status: 'available' | 'unavailable'; indexed: number; partial: boolean }
-interface KnowledgeResult { hits?: Evidence[]; evidence?: Evidence[]; claims?: { text: string; citations?: { citationId: string }[] }[]; status?: string; reason?: string; source?: { partial?: boolean; sources?: SourceCoverage[] }; retrieval?: { partial?: boolean; sources?: SourceCoverage[] } }
+interface KnowledgeResult { hits?: Evidence[]; evidence?: Evidence[]; claims?: { text: string; citations?: { citationId: string }[] }[]; status?: string; reason?: string; source?: { partial?: boolean; sources?: SourceCoverage[] }; retrieval?: { partial?: boolean; sources?: SourceCoverage[] }; reanswerOf?: { runId: string } }
 interface RunDetail { run: RunInfo; controls?: { canCancel: boolean; cancellationRequested: boolean }; steps: { id: string; name: string; kind: string; status: string; error?: { message: string } }[]; artifacts: { id: string; type: string; content?: unknown; metadata?: Record<string, unknown> }[]; children: RunInfo[]; checkpoint?: { question?: string } }
 function downloadMarkdown(content: string) {
   const url = URL.createObjectURL(new Blob([content], { type: 'text/markdown;charset=utf-8' }));
@@ -38,6 +38,7 @@ function ResultContent({ artifact, onSelectRun }: { artifact: { id: string; type
     const evidence = data.hits || data.evidence || [];
     const sourceCoverage = data.source?.sources || data.retrieval?.sources;
     return <div className="result-content">
+      {typeof data.reanswerOf?.runId === 'string' && <Alert type="info" showIcon title="这是按当前资料重新检索生成的结果" description="原回答继续保留，请结合本次引用审阅新结果。" action={<Button onClick={() => onSelectRun(data.reanswerOf!.runId)}>查看原回答</Button>} />}
       {(data.source?.partial || data.retrieval?.partial) && <Alert type="warning" title="部分来源未能完整读取，本次结果可能不完整" showIcon />}
       {Array.isArray(sourceCoverage) && sourceCoverage.length <= 2 && <p className="muted">{sourceCoverage.filter(item => item && ['markdown', 'web'].includes(item.kind) && ['available', 'unavailable'].includes(item.status)).map(item => <Tag key={item.kind}>{item.kind === 'web' ? '网页' : '笔记'} · {item.status === 'unavailable' ? '读取失败' : item.partial ? '部分可读' : '已读取'}</Tag>)}</p>}
       {data.claims?.map((claim, i) => <p key={i}>{claim.text} {claim.citations?.map(citation => { const index = evidence.findIndex(hit => hit.citationId === citation.citationId); return index >= 0 ? <a key={citation.citationId} href={`#evidence-${artifact.id}-${index}`}>[{index + 1}] </a> : null; })}</p>)}
@@ -82,7 +83,8 @@ export default function RunDrawer({ runId, onClose, onSelectRun }: { runId: stri
       {data.controls?.canCancel && <div className="form-actions"><Button onClick={stop} loading={stopping}>请求停止</Button><span className="muted">已完成的操作不会撤销</span></div>}
       {data.controls?.cancellationRequested && ['running', 'queued'].includes(data.run.status) && <Alert type="info" showIcon title="已请求停止，正在更新运行记录" />}
       {stopError && <Alert type="error" showIcon title="停止请求未确认" description={stopError} />}
-      {recipesAvailable && data.run.status === 'succeeded' && !data.run.parentRunId && <p><Link to={`/recipes?runId=${encodeURIComponent(data.run.id)}`} onClick={onClose}>保存为任务配方</Link></p>}
+      {recipesAvailable && data.run.status === 'succeeded' && !data.run.parentRunId && !data.artifacts.some(artifact => artifact.metadata?.reusableInput === false) && <p><Link to={`/recipes?runId=${encodeURIComponent(data.run.id)}`} onClick={onClose}>保存为任务配方</Link></p>}
+      {data.run.status === 'succeeded' && !data.run.parentRunId && <div className="form-actions">{workspace?.runLinks?.filter(link => link.appliesTo.includes(data.run.capability)).map(link => <Link key={link.id} to={`${link.path}?runId=${encodeURIComponent(data.run.id)}`} onClick={onClose}>{link.label}</Link>)}</div>}
       {provenance?.receipt && <Alert type="info" showIcon title={`来自「${provenance.receipt.recipeName}」配方${provenance.receipt.parametersChanged ? ' · 本次参数已修改' : ''}`} action={<Button onClick={() => onSelectRun(provenance.receipt!.sourceRunId)}>查看来源运行</Button>} />}
       {watchSource?.receipt && <Alert type="info" showIcon title="由知识定期复核计划发起" description={`本次检查 ${watchSource.receipt.runIds.length} 条历史结果，发起于 ${dayjs(watchSource.receipt.attemptedAt).format('YYYY-MM-DD HH:mm:ss')}`} />}
       {data.run.error && <Alert type={data.run.status === 'cancelled' ? 'info' : 'error'} showIcon title={data.run.status === 'cancelled' ? '任务已取消' : '本次执行未完成'} description={data.run.error.message} />}

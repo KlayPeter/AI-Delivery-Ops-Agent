@@ -55,6 +55,7 @@ export const api = {
   fetchRecipeReceipt: (runId: string) => request(client.get(`/recipes/launches/${encodeURIComponent(runId)}`)),
   fetchConnections: () => request(client.get('/workspace/connections')),
   fetchKnowledgeWorkspace: () => request(client.get('/knowledge-workspace')),
+  fetchReanswerSource: (runId: string) => request(client.get(`/knowledge-answer/reanswer/${encodeURIComponent(runId)}`)),
   fetchDocumentStatus: () => request(client.get('/documents/status')),
   fetchLibrary: () => request(client.get('/library')),
   fetchKnowledgeReviews: (runIds: string[]) => request(client.get('/knowledge-impact/reviews?' + new URLSearchParams(runIds.map(id => ['runId', id])).toString())),

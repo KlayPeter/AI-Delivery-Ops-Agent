@@ -21,6 +21,11 @@ last_reviewed: 2026-11-06
 
 ```mermaid
 flowchart TD
+    OLD_ANSWER[成功根知识回答：保留原问题与证据] --> REANSWER_FORM[插件站内链接：核对当前来源和模型并明确确认]
+    REANSWER_FORM --> REANSWER_GUARD[原 Artifact 指纹、同范围与当前 Host 配置摘要复验]
+    REANSWER_GUARD --> V
+    REANSWER_GUARD --> REANSWER_RECEIPT[新 Run 的审查 Step；模型前再次复验配置]
+    R --> REANSWER_LINEAGE[可选 reanswerOf 关联原记录；需要当次确认的输入不可转配方]
     QUOTED_HISTORY[历史结果实际引用的逐字引文] --> QUOTE_SOURCE[明确来源的版本与可选引文检查]
     QUOTE_SOURCE --> QUOTE_DETAIL[当前正文仍找到或未找到；不返回新正文]
     QUOTE_DETAIL --> QUOTE_REVIEW[文档变化仍需复核；原产物与语义边界保留]
@@ -66,9 +71,23 @@ flowchart TD
 
 本地 HTTP 工作台可以配置和使用引用回答。来源设置仅接受本机控制面请求，保存后重启生效；检索请求不能改写目录或 URL，仍要求无 chat/conversation 的个人 manual Scope。HTTP 应用复用宿主 Prisma KV 保存本次 Run 与证据，与 CLI 可选独立 SQLite 状态文件分开；不提供多人共享授权。界面展示行号、原文、版本证据及部分来源失败，Markdown 不自动加载远端图片。模型回答发送所选片段给当前宿主模型。见 [工作台功能卡](../../platform/workspace/FEATURE.md)。
 
+## 按最新资料重新回答（2026-11-06）
+
+本插件拥有 GET /api/knowledge-answer/reanswer/:runId 和 knowledge.reanswer 站内运行链接。仅当 /knowledge 页面已由插件贡献时显示链接；移除任一贡献后入口消失。准备接口只读取当前默认 workspace/bot 的成功根 knowledge.answer，先校验归属再读唯一的受支持私有 JSON Artifact，返回原问题、Artifact 指纹、当前模型摘要和 limit=5。旧记录缺失问题、超限或格式不受支持时明确拒绝，不从模型文字猜测原问题。
+
+用户明确确认后，通过原 /api/workspace/runs/start 创建独立根运行。可选 reanswer 包含 runId、artifactHash、contextHash 与 confirmed=true；实际执行再次核对原问题、内容指纹和当前配置，保存 knowledge.answer.reanswer.review 守卫 Step。来源检索后、模型调用前再次复验配置，避免异步检索期间换模型后仍发送片段。审查 Step 在模型失败时保留；没有成功新答案就不发布答案 Artifact。
+
+contextHash 用每次 Host 的私有随机 nonce、固定来源描述和当前 AI 配置生成；不返回 nonce、Key 或完整带凭据 URL。模型展示仅含 provider、model 和 URL origin。换 Host、来源组合或模型配置需要重新确认。它确认的是当前来源/模型选择，知识内容仍在实际运行时刷新，不冻结文件、网页或整个历史环境。
+
+新结果保存 reanswerOf={runId,artifactId,artifactHash}，可返回原回答；原 Run/Step/Artifact 保持。模型只收到当前问题和新检索片段，不接收旧答案或关联 ID。无命中仍返回 insufficient_evidence，不调用模型；先前不足的结果可以在增加资料后再次回答。此次审查输入带当前环境凭证，Artifact 标记 reusableInput=false，由配方服务拒绝持久复用；普通问答配方保持原行为。
+
+前端 SWR 按原 Run 读取预览，确认状态由 Artifact/配置摘要共同决定；改变预览使旧勾选失效，存在待应用设置或来源不匹配时禁止生成。同一预览在未知响应后的重试复用请求 UUID，确认新的预览则使用新 UUID；成功回执后取消勾选。没有新增 Agent、Tool、插件或依赖。
+
+代码地图：本目录 reanswer.ts、plugin.ts；frontend/src/pages/workspace/ReanswerPanel.tsx、KnowledgePage.tsx、RunDrawer.tsx；平台 Web 注册及配方策略见对应功能卡。backend/test/knowledgeAnswer.test.ts 的 reviewed reanswer 六项覆盖最新证据、旧记录保留、重复请求、原记录/范围/确认/模型变化、Host 变化、检索竞态、模型失败及资料不足后的补充；backend/test/runRecipes.test.ts 覆盖源插件禁止持久复用。浏览器验收使用本机协议样例，不证明真实模型答案质量或语义修订正确。
+
 ## 核心规则
 
-1. `manifest.requires` 显式要求知识源插件。输入只含 question 和可选 limit，不能覆盖根目录、来源 Tool 或模型权限。
+1. `manifest.requires` 显式要求知识源插件。输入含 question、可选 limit 和可选 reanswer 审查凭证，不能覆盖根目录、来源 Tool 或模型权限。1.1.0 使用同一严格 Zod Schema 生成输入契约；版本变化会使旧配方要求重新审查。
 2. 复用知识源的本地个人范围检查：拒绝 chatId/conversationId 和消息触发；输入与取消状态在检索前检查。
 3. 固定调用一次选定来源的 search Tool（默认 `knowledge.markdown.search`，网页组合 `knowledge.web.search`），经过 Tool Gateway、同一 Run 的 Scope、原子账本与一次调用预算。默认检索 5 项、最多 10 项。
 4. 证据协议验证来源版本、片段 ID、行号与长度。生成上下文最多 12000 个标题/小标题/片段字符，按排名选择完整片段；不静默截断原文。返回检索数量、实际供给数量和截断状态。

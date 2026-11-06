@@ -131,3 +131,15 @@ flowchart TD
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
 | 2026-11-06 | 新增独立任务配方；核对来源/输入，运行时检查实际契约并保存来源关联 | 专项、类型、完整回归与本地浏览器验收；真实模型效果不在本批范围 |
+
+
+## 需要当次审查的输入（2026-11-06）
+
+创建配方在来源归属与能力检查后读取 Artifact；任一 metadata.reusableInput=false 则拒绝持久复用。RunDrawer 隐藏入口，RecipesPage 同样禁用来源表单。此策略由源插件声明；知识重新回答的环境审查凭证不能被存成长效参数。普通知识问答等缺少该标记的记录仍按原规则核验。backend/test/runRecipes.test.ts 覆盖拒绝、原 Artifact 保持及恢复普通记录后的成功创建。
+
+```mermaid
+flowchart TD
+    RECIPE_SOURCE[同范围成功来源与能力检查] --> RECIPE_REVIEW{源插件允许输入长期复用?}
+    RECIPE_REVIEW -- 否 --> RECIPE_DENY[返回原功能重新审查]
+    RECIPE_REVIEW -- 是 --> RECIPE_CONTRACT[原执行与输入指纹核验]
+```

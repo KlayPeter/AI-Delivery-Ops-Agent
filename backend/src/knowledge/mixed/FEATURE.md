@@ -90,3 +90,8 @@ flowchart TD
 mixed versions Tool 1.2.0 通过统一输入 Schema 声明可选 quotes，只转发给声明支持的固定上游；旧上游保持原文档请求。失败来源返回 unavailable 且不回显 probes；本地引用与 URL 的独立身份、共享三次预算和部分失败语义保持。代码：mixed/plugin.ts、versions.ts；验证：knowledgeMixed.test.ts 确认两种来源均产生实际引文结果，原混合回归保持。
 
 完整协议、边界与测试地图由 backend/src/knowledge/impact/FEATURE.md 统一维护；使用说明见 docs/KNOWLEDGE_IMPACT.md。
+
+
+## 显式重新回答的来源消费者（2026-11-06）
+
+可选 knowledge.answer 1.1.0 允许从旧成功回答核对当前来源/模型后生成独立新结果，仍调用本来源现有 search Tool 并保留实际读取版本。当前内容在运行时刷新，旧回答保持；来源组合变更需要重新确认。没有增加来源权限、自动监控或语义影响分析。审查、关联、失败与测试边界统一见 [知识回答](../answer/FEATURE.md)。

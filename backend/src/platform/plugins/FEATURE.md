@@ -497,3 +497,14 @@ builtin.ai-news 1.1.0 在 apply 中注册入口和本次 Host 独立的意图会
 内置 Markdown/Web/mixed versions Tool 1.2.0 用正式输入 Schema 声明可选 quotes；impact 仅向声明支持的工具发送新字段，旧来源保持原请求。知识库复用原 Markdown 来源，插件数量和依赖保持，原 Tool Gateway / Scope / 调用预算不扩展。实现：knowledge/versions.ts、来源 plugin.ts；验证：knowledgeQuoteChecks.test.ts、knowledgeImpact.test.ts 的旧来源兼容和原插件回归。
 
 完整协议、边界与测试地图由 backend/src/knowledge/impact/FEATURE.md 统一维护；使用说明见 docs/KNOWLEDGE_IMPACT.md。
+
+
+## 站内运行链接（2026-11-06）
+
+WebContribution 新增可选 runLinks（唯一 id、label、站内 path、appliesTo）。注册校验长度、路径及全局 ID；只有目标页面已贡献时才返回深复制的链接。停止/回滚同时释放，工作台只在成功根运行按 Capability 展示并附带编码的 runId。它只导航，不自动执行 Agent 或批准动作。实现为 platform/plugins/web.ts；pluginWeb.test.ts 覆盖目的页面缺失、重复 ID、路径逃逸、深复制和双方释放。实际消费者及审查协议见 [知识回答](../../knowledge/answer/FEATURE.md)。
+
+```mermaid
+flowchart TD
+    RUN_LINK_PLUGIN[功能插件贡献 runLinks] --> RUN_LINK_PAGE[已装配的目标页面]
+    RUN_LINK_PAGE --> RUN_LINK_REVIEW[成功根运行进入所属功能的审查页]
+```

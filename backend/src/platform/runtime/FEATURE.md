@@ -655,3 +655,14 @@ builtin.ai-news 1.1.0 在 apply 中注册入口和本次 Host 独立的意图会
 独立检查继续用原 Scope、CAS revision、检查 Run 和时间保存评估，原回答/草稿证据保持。引文存在性作为附加事实；版本相同但引文找不到为 unverifiable，文档变化仍为 needs_review，未知引文不得伪装已核验。实现：knowledge/impact/service.ts / plugin.ts / presentation.ts；验证：knowledgeImpact.test.ts 的异常响应、预算降级及不可变历史，HTTP 验收六条旧记录保持。
 
 完整协议、边界与测试地图由 backend/src/knowledge/impact/FEATURE.md 统一维护；使用说明见 docs/KNOWLEDGE_IMPACT.md。
+
+
+## 重新回答的独立审查与来源记录（2026-11-06）
+
+新回答仍通过现有启动回执和 Runtime，原问题/环境核验通过后保存 guardrail Step，失败保留已完成的审查记录但不发布答案。成功 Artifact 的 reanswerOf 关联原 Run/Artifact/指纹，原 Run/Step/Artifact 不覆盖。UI 通过工作台 runLinks 进入功能确认页，关联只服务追溯，不向模型发送旧答案。代码与验证见 [知识回答](../../knowledge/answer/FEATURE.md)、pluginWeb.test.ts、knowledgeAnswer.test.ts；配方拒绝 reusableInput=false，防止复用当次审查凭证。
+
+```mermaid
+flowchart TD
+    REVIEW_RECEIPT[新根 Run 的审查 Step] --> REANSWER_EXECUTION[现有检索与模型步骤]
+    REANSWER_EXECUTION --> REANSWER_PROVENANCE[新结果关联原记录；原记录保持]
+```

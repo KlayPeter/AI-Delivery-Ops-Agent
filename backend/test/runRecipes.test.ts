@@ -71,6 +71,18 @@ test('cross-workspace source rejection precedes any evidence read', async () => 
     expect((await f.call('POST', '', { ...f.draft, sourceRunId: id })).status).toBe(404); expect(reads).toBe(0);
 });
 
+test('source-owned review inputs cannot be saved as durable recipes', async () => {
+    const f = await fixture(), runs = new PersistentAgentRunStore(f.store), artifacts = await runs.listArtifacts(f.sourceRunId);
+    expect(artifacts.length).toBeGreaterThan(0);
+    const reviewed = artifacts.map(artifact => ({ ...artifact, metadata: { ...artifact.metadata, reusableInput: false } }));
+    await runs.saveArtifacts(reviewed);
+    const response = await f.call('POST', '', f.draft);
+    expect(response.status).toBe(400); expect((await response.json()).error).toContain('需要重新确认');
+    expect((await (await f.call('GET')).json()).recipes).toEqual([]);
+    expect(await runs.listArtifacts(f.sourceRunId)).toEqual(reviewed);
+    await runs.saveArtifacts(artifacts); await f.save();
+});
+
 test('version drift blocks launch and Runtime verifies the execution actually selected after preflight', async () => {
     const f = await fixture(), recipe = await f.save(), manifest = knowledgeMarkdownPlugin.agents![0]!.manifest, original = f.host.registry.resolve('workspace-default', 'bot-default', capability);
     const guarded = await f.host.runLocal(capability, input, randomUUID(), { installationId: original.installation.id, manifestHash: '0'.repeat(64) });

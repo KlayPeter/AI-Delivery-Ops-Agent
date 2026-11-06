@@ -9,7 +9,7 @@ import RunDrawer from './RunDrawer';
 import { mcpArguments as parseMcpArguments } from './mcpInput';
 
 interface Recipe { id: string; name: string; sourceRunId: string; capability: string; agentName: string; agentVersion: string; input: Record<string, unknown>; available: boolean; reason?: string }
-interface Source { run: RunInfo; steps: { kind: string; name: string; status: string }[] }
+interface Source { run: RunInfo; steps: { kind: string; name: string; status: string }[]; artifacts: { metadata?: Record<string, unknown> }[] }
 export default function RecipesPage() {
   const { data: workspace, mutate: refreshWorkspace } = useWorkspace();
   const { data, error: loadError, mutate } = useSWR<{ recipes: Recipe[]; capabilities: string[] }>('recipes', api.fetchRecipes);
@@ -46,6 +46,7 @@ export default function RecipesPage() {
     } finally { setBusy(false); }
   };
   const sourceSupported = source?.run.status === 'succeeded' && !source.run.parentRunId && data?.capabilities.includes(source.run.capability)
+    && !source.artifacts.some(artifact => artifact.metadata?.reusableInput === false)
     && source.steps.filter(step => step.kind === 'agent' && !step.name.startsWith('delegate:')).length === 1;
   return <div className="workspace-page">
     <div className="page-heading"><div><h1>任务配方</h1><p>把完成过的任务保存下来，下次核对参数后再运行。每次都有新的执行记录。</p></div></div>
@@ -60,7 +61,7 @@ export default function RecipesPage() {
       {validSource && !source && !sourceError && <Spin />}
       {source && <>
         <p className="muted"><Button type="link" onClick={() => setRunId(source.run.id)}>查看来源结果</Button>配方保存的是目标与参数，模型服务、知识内容和工具实现仍使用当前环境。</p>
-        {!sourceSupported ? <Alert type="info" title="这条运行暂不支持配方" description="请使用已审查的个人读取任务。人工多轮任务需先用完整参数重新执行，旧记录也可能缺少执行凭证。" /> : <Form key={source.run.id} layout="vertical" onFinish={save} initialValues={{ name: `${capabilityName(source.run.capability, workspace?.agents.find(agent => agent.capabilities.includes(source.run.capability))?.name)}配方`, parameters: formatRunInput(readRunInput(source.run.id) || {}) }} disabled={busy}>
+        {!sourceSupported ? <Alert type="info" title="这条运行暂不支持配方" description="请使用已审查的个人读取任务。需要重新确认的输入请从原功能准备；人工多轮任务需用完整参数重新执行，旧记录也可能缺少执行凭证。" /> : <Form key={source.run.id} layout="vertical" onFinish={save} initialValues={{ name: `${capabilityName(source.run.capability, workspace?.agents.find(agent => agent.capabilities.includes(source.run.capability))?.name)}配方`, parameters: formatRunInput(readRunInput(source.run.id) || {}) }} disabled={busy}>
           <Form.Item name="name" label="配方名称" rules={[{ required: true, whitespace: true, message: '请填写名称' }]}><Input maxLength={80} /></Form.Item>
           <Form.Item name="parameters" label="原任务参数（JSON）" rules={[{ required: true, message: '请填写原任务参数' }]} extra={readRunInput(source.run.id) ? '已带入本页提交的参数；保存前会核对原输入指纹。' : '此页面会话未保留原参数，请粘贴原始 JSON。不会根据模型输出猜测参数。'}><Input.TextArea rows={5} maxLength={32768} /></Form.Item>
           <p className="muted">确认后在本机保存完整参数，请检查其中的私密内容。修改参数可在下次运行时进行。</p>

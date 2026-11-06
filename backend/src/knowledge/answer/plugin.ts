@@ -7,15 +7,18 @@ import { RunToolCallBudget } from '@/platform/tools/budget';
 import { KNOWLEDGE_SEARCH_TOOL } from '@/knowledge/markdown/plugin';
 import { requirePersonalScope } from '../scope';
 import { retrievalEvidence, selectEvidence, verifyDraft } from './evidence';
+import { readReanswerSource, reanswerInput, questionSchema } from './reanswer';
+import { checkHash } from '@/platform/plugins/checks';
+import { DEFAULT_BOT_INSTANCE_ID, DEFAULT_WORKSPACE_ID } from '@/platform/runtime/scope';
 
 export const KNOWLEDGE_ANSWER_CAPABILITY = 'knowledge.answer';
-const questionInput = z.object({ question: z.string().trim().min(1).max(500), limit: z.number().int().min(1).max(10).default(5) }).strict();
+const questionInput = z.object({ question: questionSchema, limit: z.number().int().min(1).max(10).default(5), reanswer: reanswerInput.optional() }).strict();
 
 export const knowledgeAnswerManifest: AgentManifest = {
-    schemaVersion: '1.1', id: 'native.knowledge-answer', name: 'Evidence-backed knowledge answer', version: '1.0.0',
+    schemaVersion: '1.1', id: 'native.knowledge-answer', name: 'Evidence-backed knowledge answer', version: '1.1.0',
     description: 'Retrieves personal knowledge through a governed Tool, generates cited claims, and checks citation identity and exact quotes before publishing.',
     runtime: { type: 'native' }, capabilities: [KNOWLEDGE_ANSWER_CAPABILITY], triggers: ['manual', 'agent'],
-    inputSchema: { type: 'object', required: ['question'], properties: { question: { type: 'string' }, limit: { type: 'integer' } } },
+    inputSchema: z.toJSONSchema(questionInput, { io: 'input' }) as unknown as AgentManifest['inputSchema'],
     outputSchema: { type: 'object' }, requirements: { tools: [KNOWLEDGE_SEARCH_TOOL], secrets: [], networkHosts: [] },
     limits: { timeoutSeconds: 60, maxSteps: 2, maxToolCalls: 1, maxAgentCalls: 0, maxOutputBytes: 512 * 1024 },
     delivery: { allowedArtifactTypes: ['json'], directDelivery: false },
@@ -34,13 +37,39 @@ export function createKnowledgeAnswerPlugin(source: { pluginId: string; searchTo
     const toolCalls = source.toolCalls ?? 1;
     const manifest: AgentManifest = { ...knowledgeAnswerManifest, limits: { ...knowledgeAnswerManifest.limits, timeoutSeconds: toolCalls > 1 ? 90 : 60, maxToolCalls: toolCalls }, requirements: { ...knowledgeAnswerManifest.requirements, tools: [source.searchTool] } };
     return {
-        manifest: { apiVersion: '1.0', id: 'knowledge.answer', name: 'Personal knowledge RAG', version: '1.0.0', description: knowledgeAnswerManifest.description, requires: [source.pluginId] },
+        manifest: { apiVersion: '1.0', id: 'knowledge.answer', name: 'Personal knowledge RAG', version: '1.1.0', description: knowledgeAnswerManifest.description, requires: [source.pluginId] },
         agents: [{ manifest, installationId: 'install-knowledge-answer' }],
         apply(ctx) {
+            const nonce = randomUUID();
+            const reviewContext = () => {
+                const ai = ctx.delivery.getContext().config.ai;
+                let endpoint = '供应商默认地址';
+                if (ai?.api_base) { try { endpoint = new URL(ai.api_base).origin; } catch { endpoint = '自定义服务地址'; } }
+                return { contextHash: checkHash({ nonce, source, ai }), model: { provider: ai?.provider || '', name: ai?.model || '', endpoint } };
+            };
+            ctx.delivery.web.register({ id: 'knowledge.answer', runLinks: [{ id: 'knowledge.reanswer', label: '按最新资料重新回答', path: '/knowledge', appliesTo: [KNOWLEDGE_ANSWER_CAPABILITY] }],
+                api: { prefix: '/api/knowledge-answer', routes: [{ method: 'GET', path: '/api/knowledge-answer/reanswer/:runId' }], async handle(request) {
+                    try {
+                        const match = /^\/api\/knowledge-answer\/reanswer\/([^/]+)$/.exec(new URL(request.url).pathname);
+                        if (request.method !== 'GET' || !match || new URL(request.url).search) return Response.json({ error: '接口不存在' }, { status: 404 });
+                        const original = await readReanswerSource(ctx.delivery.getContext().store, { workspaceId: DEFAULT_WORKSPACE_ID, botInstanceId: DEFAULT_BOT_INSTANCE_ID }, match[1]!);
+                        return Response.json({ ...original, ...reviewContext(), limit: 5 });
+                    } catch { return Response.json({ error: '无法读取原问题，请确认它是当前工作区成功的知识回答' }, { status: 400 }); }
+                } },
+            });
             ctx.delivery.nativeAgents.register(manifest.id, manifest.version, async (request, _resolved, signal) => {
                 signal.throwIfAborted();
                 const input = questionInput.parse(request.input);
                 requirePersonalScope(request.scope);
+                let reanswerOf: { runId: string; artifactId: string; artifactHash: string } | undefined;
+                const verifyReview = () => { if (input.reanswer && input.reanswer.contextHash !== reviewContext().contextHash) throw new Error('当前知识来源或模型配置已变化，请重新打开确认页'); };
+                if (input.reanswer) {
+                    verifyReview();
+                    const original = await readReanswerSource(ctx.delivery.getContext().store, request.scope, input.reanswer.runId);
+                    if (original.artifactHash !== input.reanswer.artifactHash || original.question !== input.question) throw new Error('原问题或回答记录已变化，请重新确认');
+                    const { question: _question, ...provenance } = original; reanswerOf = provenance;
+                    await new PersistentAgentRunStore(ctx.delivery.getContext().store).saveStep({ id: randomUUID(), runId: request.runId, kind: 'guardrail', name: 'knowledge.answer.reanswer.review', status: 'succeeded', startedAt: new Date().toISOString(), completedAt: new Date().toISOString(), metadata: { privateKnowledge: true, reanswerOf, contextHash: input.reanswer.contextHash } });
+                }
                 const budget = new RunToolCallBudget(toolCalls);
                 const retrieved = retrievalEvidence.parse(await ctx.delivery.toolGateway.execute(source.searchTool, { query: input.question, limit: input.limit }, {
                     runId: request.runId, agentId: manifest.id, scope: request.scope,
@@ -58,6 +87,7 @@ export function createKnowledgeAnswerPlugin(source: { pluginId: string; searchTo
                     const step: AgentStep = { id: randomUUID(), runId: request.runId, kind: 'model', name: 'knowledge.answer.generate', status: 'running', startedAt: new Date().toISOString(), metadata: { privateKnowledge: true } };
                     await runs.saveStep(step);
                     try {
+                        verifyReview();
                         const generated = await ctx.delivery.orchestrator.run({
                             agentId: manifest.id, instructions,
                             messages: [{ role: 'user', content: JSON.stringify({ question: input.question, partialIndex: retrieved.source.partial,
@@ -79,14 +109,14 @@ export function createKnowledgeAnswerPlugin(source: { pluginId: string; searchTo
                     }
                 }
                 const data = {
-                    ...draft, question: input.question, evidence,
+                    ...draft, question: input.question, evidence, ...(reanswerOf ? { reanswerOf } : {}),
                     retrieval: { method: retrieved.retrieval, sourceId: retrieved.source.sourceId, version: retrieved.source.version, syncedAt: retrieved.source.syncedAt,
                         partial: retrieved.source.partial, ...(retrieved.source.sources ? { sources: retrieved.source.sources } : {}), candidateCount: retrieved.hits.length, suppliedCount: evidence.length, contextTruncated: evidence.length < retrieved.hits.length },
                     verification: { citationIdentityAndQuotePresence: draft.status === 'answered' ? 'checked' : 'not_applicable', semanticSupport: 'not_verified' },
                 };
                 return {
                     status: 'succeeded', data, metrics: { modelCalls, toolCalls: budget.used + modelToolCalls, inputTokens, outputTokens },
-                    artifacts: [{ type: 'json', mediaType: 'application/json', schemaVersion: '1.0', content: data, metadata: { privateKnowledge: true, title: 'Personal knowledge answer', semanticSupport: 'not_verified' } }],
+                    artifacts: [{ type: 'json', mediaType: 'application/json', schemaVersion: '1.0', content: data, metadata: { privateKnowledge: true, title: 'Personal knowledge answer', semanticSupport: 'not_verified', ...(reanswerOf ? { reusableInput: false } : {}) } }],
                 };
             });
         },
