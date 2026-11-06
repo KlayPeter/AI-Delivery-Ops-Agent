@@ -21,6 +21,9 @@ last_reviewed: 2026-11-06
 
 ```mermaid
 flowchart TD
+    QUOTED_HISTORY[历史结果实际引用的逐字引文] --> QUOTE_SOURCE[明确来源的版本与可选引文检查]
+    QUOTE_SOURCE --> QUOTE_DETAIL[当前正文仍找到或未找到；不返回新正文]
+    QUOTE_DETAIL --> QUOTE_REVIEW[文档变化仍需复核；原产物与语义边界保留]
     U[本地 CLI --ask / 手动 SDK / 本机工作台] --> P[Cordis: knowledge.answer]
     S[选定来源插件：Markdown 或 Web] --> P
     P --> V[验证问题、范围与取消状态]
@@ -216,3 +219,9 @@ flowchart LR
 Skill 工作台复用本目录 evidence.ts 的 retrievalEvidence 与 selectEvidence，读取已成功检索的私有历史产物，人工确认后提供片段。RAG 的生成、结构与 verifyCitations 核验保持；自由文本 Skill 不调用 verifyDraft/verifyCitations，不能沿用 RAG 的“引文存在已检查”标记。它只保存选入快照，不证明实际采用或来源仍最新。验证：backend/test/skillKnowledgeContext.test.ts 及既有 knowledgeAnswer.test.ts；实现见[Skill 功能卡](../../connectors/skill-workbench/FEATURE.md)。
 
 共享 Scope 回归（2026-11-06）：requirePersonalScope 本体和本功能的原 manual/agent 限制不变。仅引用复核 Agent 及来源 versions Tool 改用独立 requirePersonalVersionScope 接受无群聊 schedule；本功能不因此获得定时执行或新写入权限。验证：backend/test/localSchedules.test.ts 和本功能既有回归。
+
+## 文档版本与逐字引文复核（2026-11-06）
+
+回答生成、选中片段、精确 quote 校验和保存的原证据契约保持。后续 impact 从实际 claims 引文提出有界存在性检查；文档版本变化时，即使原引文仍在也要求复核，不改变原回答或 semanticSupport。实现：impact/service.ts / plugin.ts；验证：knowledgeImpact.test.ts（原证据不变、否定上下文与异常引文）、knowledgeMixed.test.ts 及原 RAG 回归。
+
+完整协议、边界与测试地图由 backend/src/knowledge/impact/FEATURE.md 统一维护；使用说明见 docs/KNOWLEDGE_IMPACT.md。

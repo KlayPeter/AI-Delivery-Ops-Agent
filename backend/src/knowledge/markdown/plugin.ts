@@ -3,7 +3,7 @@ import type { AgentManifest } from '@/platform/agents/contracts';
 import type { FeaturePlugin } from '@/platform/plugins/contracts';
 import { MarkdownKnowledgeSource, markdownSourceConfig } from './source';
 import { requirePersonalScope, requirePersonalVersionScope } from '../scope';
-import { versionRequest } from '../versions';
+import { versionRequest, versionInputSchema } from '../versions';
 export { requirePersonalScope } from '../scope';
 
 export const KNOWLEDGE_MARKDOWN_CAPABILITY = 'knowledge.markdown.retrieve';
@@ -34,8 +34,8 @@ export const knowledgeMarkdownPlugin: FeaturePlugin = {
     apply(ctx, config) {
         const source = new MarkdownKnowledgeSource(markdownSourceConfig.parse(config));
         ctx.delivery.tools.register({
-            id: KNOWLEDGE_MARKDOWN_VERSIONS_TOOL, version: '1.1.0', description: 'Check explicitly supplied document references against the configured folder. Distinguishes changed/missing documents from unavailable or out-of-scope sources; returns no note bodies.',
-            inputSchema: { type: 'object', required: ['documents'], properties: { documents: { type: 'array' } } }, outputSchema: { type: 'object' },
+            id: KNOWLEDGE_MARKDOWN_VERSIONS_TOOL, version: '1.2.0', description: 'Check explicitly supplied document references against the configured folder. Distinguishes changed/missing documents from unavailable or out-of-scope sources; returns no note bodies.',
+            inputSchema: versionInputSchema, outputSchema: { type: 'object' },
             sideEffect: 'read', riskLevel: 'low', idempotent: true, timeoutSeconds: 30,
         }, async (input, execution) => {
             requirePersonalVersionScope(execution.scope);

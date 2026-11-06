@@ -13,6 +13,7 @@ import { WebKnowledgeSource } from '@/knowledge/web/source';
 import { knowledgeImpactPlugin, KNOWLEDGE_IMPACT_CAPABILITY } from '@/knowledge/impact/plugin';
 import { knowledgeWebImpactPlugin } from '@/knowledge/impact/webPlugin';
 import { KnowledgeImpactService, type ImpactReport } from '@/knowledge/impact/service';
+import { versionInputSchema } from '@/knowledge/versions';
 import type { ReleaseDraft } from '@/domains/release/evidence';
 import type { FeaturePlugin } from '@/platform/plugins/contracts';
 import { KNOWLEDGE_MARKDOWN_VERSIONS_TOOL } from '@/knowledge/markdown/plugin';
@@ -64,15 +65,28 @@ describe('knowledge version impact', () => {
     test('only actual cited documents affect an answer or release; original evidence stays immutable', async () => {
         const f = await fixture(), answer = await seed(f.store, f.hits), release = await seed(f.store, f.hits, { release: true });
         const runs = new PersistentAgentRunStore(f.store), original = await runs.listArtifacts(answer);
-        expect(assessment(await f.call([answer])).state).toBe('current');
+        const initial = assessment(await f.call([answer]));
+        expect(initial.state).toBe('current'); expect(initial.references[0].quoteChecks).toEqual([{ quote: f.hits[0].excerpt, status: 'found' }]);
         await writeFile(path.join(f.root, 'Unused.md'), '# Release Preferences\nNotification rules changed.');
         expect(assessment(await f.call([answer])).state).toBe('current');
+        await writeFile(path.join(f.root, 'Rule.md'), '# Release Rule\nAPI release requires migration notes.\n\nAn unrelated paragraph changed.');
+        const outside = assessment(await f.call([answer])); expect(outside.state).toBe('needs_review'); expect(outside.references[0].quoteChecks[0].status).toBe('found');
         await writeFile(path.join(f.root, 'Rule.md'), '# Release Rule\nAPI release now requires human approval.');
         const changed = await f.call([answer, release]);
         expect((changed.execution!.result.data as any).assessments.map((item: any) => item.state)).toEqual(['needs_review', 'needs_review']);
         expect(assessment(changed).references[0].status).toBe('changed');
+        expect(assessment(changed).references[0].quoteChecks[0].status).toBe('not_found');
         expect(await runs.listArtifacts(answer)).toEqual(original);
         expect(changed.execution!.result.metrics).toEqual({ modelCalls: 0, toolCalls: 1 });
+    });
+
+    test('a quote still present in a changed negative context never makes the result current', async () => {
+        const f = await fixture(), id = await seed(f.store, f.hits), runs = new PersistentAgentRunStore(f.store);
+        const artifacts = await runs.listArtifacts(id); (artifacts[0]!.content as any).claims[0].citations[0].quote = 'API release requires migration notes.';
+        await runs.saveArtifacts(artifacts);
+        await writeFile(path.join(f.root, 'Rule.md'), '# Release Rule\nIt is no longer true that API release requires migration notes.');
+        const result = assessment(await f.call([id])); expect(result.state).toBe('needs_review'); expect(result.semanticImpact).toBe('not_assessed');
+        expect(result.references[0].quoteChecks).toEqual([{ quote: 'API release requires migration notes.', status: 'found' }]);
     });
 
     test('rename/delete is missing; unreadable or excluded sources are not falsely treated as deleted', async () => {
@@ -133,16 +147,34 @@ describe('knowledge version impact', () => {
 
     test('a source plugin cannot claim current with a mismatched hash or unrelated reference', async () => {
         const f = await fixture(), id = await seed(f.store, f.hits);
-        for (const mode of ['wrong-hash', 'wrong-reference']) {
+        for (const mode of ['wrong-hash', 'wrong-reference', 'wrong-quote', 'duplicate-quote', 'missing-quote', 'legacy']) {
             const badSource: FeaturePlugin = { manifest: { apiVersion: '1.0', id: 'knowledge.markdown', name: 'Fixture source', version: '1.0.0', description: 'Malformed source fixture' }, apply(ctx) {
-                ctx.delivery.tools.register({ id: KNOWLEDGE_MARKDOWN_VERSIONS_TOOL, version: '1.0.0', description: 'Fixture', inputSchema: { type: 'object' }, outputSchema: { type: 'object' }, sideEffect: 'read', riskLevel: 'low', idempotent: true, timeoutSeconds: 1 }, async (input: any) => ({ checkedAt: new Date().toISOString(), documents: input.documents.map((doc: any) => ({ ...doc,
+                ctx.delivery.tools.register({ id: KNOWLEDGE_MARKDOWN_VERSIONS_TOOL, version: '1.0.0', description: 'Fixture', inputSchema: mode.includes('quote') ? versionInputSchema : { type: 'object' }, outputSchema: { type: 'object' }, sideEffect: 'read', riskLevel: 'low', idempotent: true, timeoutSeconds: 1 }, async (input: any) => ({ checkedAt: new Date().toISOString(), documents: input.documents.map(({ quotes, ...doc }: any) => ({ ...doc,
                     path: mode === 'wrong-reference' ? 'Unrequested.md' : doc.path, status: 'current', currentVersion: mode === 'wrong-hash' ? '0'.repeat(64) : doc.documentVersion,
+                    ...(mode === 'wrong-quote' ? { quoteChecks: [{ quote: 'unrequested', status: 'found' }] } : mode === 'duplicate-quote' ? { quoteChecks: [0, 1].map(() => ({ quote: quotes[0], status: 'found' })) } : mode === 'missing-quote' ? { quoteChecks: [{ quote: quotes[0], status: 'not_found' }] } : {}),
                 })) }));
             } };
             const host = new AgentHost(() => ({ store: f.store, config: { feishu: { bot_name: 'Protocol test' }, groups: [] } }) as any, 10, undefined, [], { plugins: [knowledgeImpactPlugin, badSource] });
             cleanup.push(() => host.stop());
-            expect(assessment(await check(host, [id]))).toMatchObject({ state: 'unverifiable', reason: 'source_check_failed' });
+            const result = assessment(await check(host, [id]));
+            if (mode === 'legacy') { expect(result.state).toBe('current'); expect(result.references[0].quoteChecks).toBeUndefined(); }
+            else expect(result).toMatchObject({ state: 'unverifiable', reason: mode === 'missing-quote' ? 'citation_quote_not_found' : 'source_check_failed' });
         }
+    });
+
+    test('a batch over the quote budget keeps all document checks and explicitly leaves excess quotes unchecked', async () => {
+        const f = await fixture(), words = Array.from({ length: 32 }, (_, i) => `probe-${i}`), runs = new PersistentAgentRunStore(f.store), ids: string[] = [];
+        for (let i = 0; i < 7; i++) {
+            const filename = `Budget${i}.md`; await writeFile(path.join(f.root, filename), '# Budget\n' + words.join(' '));
+            const hit = (await new MarkdownKnowledgeSource({ root: f.root }).search('Budget', 10)).hits.find(hit => hit.path === filename)!;
+            const id = await seed(f.store, [hit]), artifacts = await runs.listArtifacts(id);
+            (artifacts[0]!.content as any).claims = Array.from({ length: 8 }, (_, claim) => ({ text: 'Synthetic budget fixture', citations: words.slice(claim * 4, claim * 4 + 4).map(quote => ({ citationId: hit.citationId, quote })) }));
+            await runs.saveArtifacts(artifacts); ids.push(id);
+        }
+        const result = await f.call(ids), reports = (result.execution!.result.data as any).assessments;
+        expect(reports.every((report: any) => report.state === 'current')).toBe(true);
+        expect(reports.map((report: any) => report.references[0].quoteChecks?.length || 0)).toEqual([32, 32, 32, 32, 32, 32, 0]);
+        expect(result.execution!.result.metrics).toEqual({ modelCalls: 0, toolCalls: 1 });
     });
 
     test('an old concurrent check cannot overwrite a newer reservation or clear an unfinished check', async () => {

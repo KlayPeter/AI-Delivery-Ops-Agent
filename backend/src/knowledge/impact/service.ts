@@ -3,26 +3,27 @@ import type { Artifact, AgentRun } from '@/platform/agents/contracts';
 import { PersistentAgentRunStore } from '@/platform/agents/persistentRunStore';
 import type { PersistentKeyValueStore } from '@/platform/persistence/keyValueStore';
 import { citationReference, verifyCitations } from '../answer/evidence';
-import { contentVersion } from '../versions';
+import { contentVersion, quoteCheck, quoteBudget } from '../versions';
 
 type Scope = { workspaceId: string; botInstanceId: string };
 export interface ImpactReference {
-    path: string; documentVersion: string; sourceKey?: string; sourceKind?: 'markdown' | 'web'; citationIds: string[];
+    path: string; documentVersion: string; sourceKey?: string; sourceKind?: 'markdown' | 'web'; citationIds: string[]; quotes?: string[];
 }
 export interface ImpactTarget { run: AgentRun; artifactIds: string[]; references: ImpactReference[]; problem?: string }
 export interface ImpactReport {
     runId: string; checkRunId: string; artifactIds: string[]; checkedAt: string;
     state: 'current' | 'needs_review' | 'unverifiable' | 'not_applicable'; reason?: string;
-    references: Array<ImpactReference & { status: 'current' | 'changed' | 'missing' | 'unavailable' | 'out_of_scope' | 'legacy_unverifiable'; currentVersion?: string }>;
+    references: Array<ImpactReference & { status: 'current' | 'changed' | 'missing' | 'unavailable' | 'out_of_scope' | 'legacy_unverifiable'; currentVersion?: string; quoteChecks?: z.infer<typeof quoteCheck>[] }>;
     semanticImpact: 'not_assessed';
 }
 export const assessmentSchema = z.object({
     runId: z.string().min(1).max(256), checkRunId: z.string().min(1).max(256).optional(), checkedAt: z.string().datetime({ offset: true }).optional(),
     state: z.enum(['current', 'needs_review', 'unverifiable', 'not_applicable']), reason: z.string().optional(),
     references: z.array(z.object({ path: z.string().max(1024), documentVersion: z.string().length(64), currentVersion: z.string().length(64).optional(),
-        status: z.enum(['current', 'changed', 'missing', 'unavailable', 'out_of_scope', 'legacy_unverifiable']) })).max(10).default([]),
+        status: z.enum(['current', 'changed', 'missing', 'unavailable', 'out_of_scope', 'legacy_unverifiable']), quoteChecks: z.array(quoteCheck).min(1).max(quoteBudget.perDocument).refine(checks => new Set(checks.map(check => check.quote)).size === checks.length).optional() })
+        .refine(reference => ['current', 'changed'].includes(reference.status) || reference.quoteChecks === undefined)).max(10).default([]),
 }).refine(value => !['current', 'needs_review'].includes(value.state) || Boolean(value.checkedAt && value.checkRunId && value.references.length), 'A checked assessment requires its evidence and check time')
-    .refine(value => value.state !== 'current' || value.references.every(reference => reference.status === 'current' && reference.currentVersion === reference.documentVersion), 'Current assessments require matching reference versions')
+    .refine(value => value.state !== 'current' || value.references.every(reference => reference.status === 'current' && reference.currentVersion === reference.documentVersion && reference.quoteChecks?.every(check => check.status === 'found') !== false), 'Current assessments require matching reference versions and quotes')
     .refine(value => value.state !== 'needs_review' || value.references.some(reference => ['changed', 'missing'].includes(reference.status)), 'Review assessments require a changed or missing reference');
 
 
@@ -54,6 +55,7 @@ function references(capability: string, artifacts: Artifact[]): ImpactReference[
         const key = JSON.stringify([item.sourceKind, item.sourceKey, item.path, item.documentVersion]);
         const current = grouped.get(key) || { path: item.path, documentVersion: item.documentVersion, sourceKey: item.sourceKey, sourceKind: item.sourceKind, citationIds: [] };
         current.citationIds.push(item.citationId);
+        current.quotes = [...new Set([...(current.quotes || []), ...cited.flatMap(claim => claim.citations.filter(reference => reference.citationId === item.citationId).map(reference => reference.quote))])];
         grouped.set(key, current);
     }
     if (grouped.size > 10) throw new Error('Artifact exceeds knowledge reference budget');

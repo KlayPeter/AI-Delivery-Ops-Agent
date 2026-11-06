@@ -4,7 +4,7 @@ name: 个人资料库
 status: active
 agent_mapping:
   - native.knowledge-library
-last_reviewed: 2026-11-05
+last_reviewed: 2026-11-06
 ---
 
 # 个人资料库
@@ -19,6 +19,9 @@ knowledge.library 是独立插件，拥有收录动作、资料库页面/API、N
 
 ```mermaid
 flowchart TD
+    QUOTED_HISTORY[历史结果实际引用的逐字引文] --> QUOTE_SOURCE[明确来源的版本与可选引文检查]
+    QUOTE_SOURCE --> QUOTE_DETAIL[当前正文仍找到或未找到；不返回新正文]
+    QUOTE_DETAIL --> QUOTE_REVIEW[文档变化仍需复核；原产物与语义边界保留]
     O[成功的网页/文档私有 Markdown 结果] --> C[用户点击收录；固定原 Run ID]
     C --> A[个人范围 Native Agent]
     A --> T[同 Run Tool Gateway；一次写入预算]
@@ -121,3 +124,9 @@ flowchart TD
 ## 定时复核资料版本（2026-11-06）
 
 资料库作为知识来源时仍复用 workspace-library 身份与固定 libraryRoot 的 Markdown 版本工具；新版本入口只允许无群聊的 schedule 核对引用版本。资料收录、资料检索 Tool 和管理 Agent 的 manual/agent 限制不变，定期复核没有收录或改写授权。验证：backend/test/localSchedules.test.ts 的资料库版本正向及收录/搜索拒绝，原 knowledgeLibrary.test.ts 回归。
+
+## 文档版本与逐字引文复核（2026-11-06）
+
+资料库作为知识来源时复用 Markdown versions Tool 1.2.0，支持逐字引文存在性检查。固定资料目录和 workspace-library 身份、私有文件、原收录信息及保存入口保持；没有新增资料写入或新索引持久化。实现仍由 markdown/source.ts 与 versions.ts 拥有，验证包括 knowledgeQuoteChecks.test.ts、knowledgeImpact.test.ts 和原 knowledgeLibrary.test.ts。
+
+完整协议、边界与测试地图由 backend/src/knowledge/impact/FEATURE.md 统一维护；使用说明见 docs/KNOWLEDGE_IMPACT.md。

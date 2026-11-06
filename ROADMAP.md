@@ -51,8 +51,12 @@ are deferred while the local product is being validated.
   compare the same task manually and with the product, record useful output,
   review time, false alarms and second-week reuse. Invitations are maintainer-led.
 - [ ] Evaluate passage/conclusion-level change impact and a user-reviewed revision
-  draft against real examples. Current checks only detect document version changes;
+  draft against real examples. Current checks detect document version changes and optional exact quote presence;
   they do not establish that a conclusion is wrong or update it automatically.
+
+- [x] Supplement version reviews with bounded exact quote presence checks across
+  notes, extracted webpages and mixed sources. Changed documents still need review;
+  quote presence does not establish unchanged context or semantic correctness.
 
 - [x] Add an optional knowledge watch plugin for up to 20 explicitly selected cited
   results: persistent intervals, pause/resume, governed native checks and run provenance.

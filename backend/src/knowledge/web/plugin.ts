@@ -5,7 +5,7 @@ import { requirePersonalScope, requirePersonalVersionScope } from '../scope';
 import { knowledgeSearchInput } from '../search';
 import { fetchPublicPage } from './network';
 import { WebKnowledgeSource, webSourceConfig } from './source';
-import { versionRequest } from '../versions';
+import { versionRequest, versionInputSchema } from '../versions';
 
 export const KNOWLEDGE_WEB_CAPABILITY = 'knowledge.web.retrieve';
 export const KNOWLEDGE_WEB_SEARCH_TOOL = 'knowledge.web.search';
@@ -28,8 +28,8 @@ export function createKnowledgeWebPlugin(loadPage: typeof fetchPublicPage = fetc
         apply(ctx, config) {
             const source = new WebKnowledgeSource(webSourceConfig.parse(config), loadPage);
             ctx.delivery.tools.register({
-                id: KNOWLEDGE_WEB_VERSIONS_TOOL, version: '1.1.0', description: 'Check supplied version references using only configured public URLs. Returns document status, not page bodies; an unreadable page is unavailable, not proven deleted.',
-                inputSchema: { type: 'object', required: ['documents'], properties: { documents: { type: 'array' } } }, outputSchema: { type: 'object' },
+                id: KNOWLEDGE_WEB_VERSIONS_TOOL, version: '1.2.0', description: 'Check supplied version references using only configured public URLs. Returns document status, not page bodies; an unreadable page is unavailable, not proven deleted.',
+                inputSchema: versionInputSchema, outputSchema: { type: 'object' },
                 sideEffect: 'read', riskLevel: 'low', idempotent: true, timeoutSeconds: 45,
             }, async (input, execution) => {
                 requirePersonalVersionScope(execution.scope);

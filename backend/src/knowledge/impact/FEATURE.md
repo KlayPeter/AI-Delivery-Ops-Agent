@@ -21,6 +21,9 @@ last_reviewed: 2026-11-06
 
 ```mermaid
 flowchart TD
+    QUOTED_HISTORY[历史结果实际引用的逐字引文] --> QUOTE_SOURCE[明确来源的版本与可选引文检查]
+    QUOTE_SOURCE --> QUOTE_DETAIL[当前正文仍找到或未找到；不返回新正文]
+    QUOTE_DETAIL --> QUOTE_REVIEW[文档变化仍需复核；原产物与语义边界保留]
     FS[可选 CLI 状态：已有文件仅元数据检查] --> LK[SQLite 独占会话锁]
     LK --> U
     CENTER[知识复核页面：最近 50 次根运行候选] --> CACHE[GET 批量摘要：先核对全部归属，仅取原引用与缓存]
@@ -72,7 +75,7 @@ flowchart TD
 5. 引用 ID 也绑定来源身份；旧 Artifact 保持原引用，不迁移或伪造旧身份。缺少新身份的记录返回 legacy_unverifiable，不能按当前目录猜测来源。
 6. 文档版本相同为 current，不同为 changed。Markdown 在成功扫描范围内找不到旧路径时为 missing；改名按旧路径缺失处理。读取/解析失败为 unavailable，排除/符号链接/来源身份不匹配为 out_of_scope。网页请求失败不能证明页面删除，因此为 unavailable。
 7. 目标有 changed/missing 时 needs_review；只有全部可核验且版本相同才为 current。其余未知情况为 unverifiable；没有实际知识引用为 not_applicable。current 仅表示文档字节/提取版本吻合，不证明旧结论仍正确。
-8. 使用文档级版本：同一被引用文档的其他段落变化也会要求复核，不宣称精确判断语义影响。未引用文档的修改不影响结果。
+8. 文档级版本继续决定需复核状态；另检查实际逐字引文是否仍出现在当前正文。引文可出现在其他位置或否定上下文中，因此找到不代表原段落、上下文或结论未变。未引用文档的修改不影响结果。
 9. 根目录/整轮读取失败或跨插件协议不一致时，把本次检查记为 unverifiable，不回退旧 current。取消则中止运行，留下的不完整评估在 status 中显示 check_incomplete。
 10. 每次检查以 CAS 领取新 revision；完成时仅更新自己仍持有的 revision。后完成的旧检查不能覆盖更新检查。独立检查 Artifact 仍记录其实际结果，并返回 recordedAsLatest。
 11. 原 Run/Artifact/正文/引文不修改。评估按 workspace/bot/目标 Run 独立保存；状态读取返回最近评估及其 checkedAt，不刷新来源，不声称是当前实时状态。
@@ -204,3 +207,13 @@ knowledge.watch 为明确选择的最多二十条结果保存频率与暂停状�
 ## 正式本机调度契约（2026-11-06）
 
 Native Agent 升至 1.1.0，插件为 1.2.0，声明 manual/agent/schedule。仅无 chat/conversation 的 schedule 能通过 requirePersonalVersionScope；一般 requirePersonalScope 保持原限制。Markdown、Web、Mixed 的 versions Tool 升至 1.1.0，输出协议与共享预算不变。旧历史原样保留；旧计划 Manifest hash 不再吻合时由 knowledge.watch 自动暂停，需明确重新保存后继续。验证：backend/test/localSchedules.test.ts、knowledgeWatch.test.ts 与原知识复核回归。
+
+## 文档版本与逐字引文复核（2026-11-06）
+
+knowledge.impact 1.3.0 / native.knowledge-impact 1.2.0 从实际 claims/draft citations 提取并去重旧引文，在原 versions Tool 调用中附带可选 quotes。Markdown/Web/mixed versions Tool 1.2.0 通过正式输入 Schema 声明支持；旧来源没有声明时保持原文档检查，不发送新字段。混合来源仅向声明支持的上游转发 quotes，失败引用保留 unavailable；调用预算和来源范围保持。应用资料库使用同一 Markdown 来源实现。
+
+当前正文做逐字子串匹配（Markdown 统一换行并排除属性区；网页使用提取后的正文），跨当前分块仍能匹配。正文只保留在有界内存索引，不新增持久副本或输出完整当前正文。每文档最多 32 条引文，每批最多 200 条及 64 KiB UTF-8，引文超过预算时整份文档保留版本检查、明确未检查引文。只有可读且范围匹配的引用返回 quoteChecks；接收端核对全部引文对应关系，拒绝重复或多报结果。相同版本却找不到旧引文为 unverifiable；文档变化即使旧引文仍存在也保持 needs_review，不能据此证明位置、上下文、规则或原结论没变。
+
+原回答/草稿/Artifact 不修改，独立评估继续按 Scope、CAS、检查时间与原来源身份保存。通用文本面板显示找到/未找到数量及首条未找到引文的短预览，旧评估或未支持/超预算时明确未检查引文。原生成输入、检索引用 ID、来源版本算法和知识权限保持，不增加模型调用或 Agent。原定期计划按既有执行契约检查处理升级后的版本，不绕过计划复核。
+
+实现：backend/src/knowledge/versions.ts、markdown/parser.ts / source.ts / plugin.ts、web/source.ts / plugin.ts、mixed/plugin.ts、impact/service.ts / plugin.ts / presentation.ts。验证：backend/test/knowledgeQuoteChecks.test.ts（完整正文/分块、换行、Web、范围/失败与预算），knowledgeImpact.test.ts（引文存在/缺失、否定上下文、旧来源、错误/重复结果、批量降级与原证据不变），knowledgeMixed.test.ts（两种来源实际引文结果），以及既有库/回答/发布/计划回归。浏览器桌面与 375px 验证真实 HTTP 报告；范围和用法见 docs/KNOWLEDGE_IMPACT.md。

@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import { z } from 'zod';
 import { contentHash, parseNote, resolveNoteLinks, type MarkdownNote, type ResolvedNoteLink } from './parser';
 import { knowledgeSearchInput, rankNotes } from '../search';
-import { versionRequest } from '../versions';
+import { versionRequest, checkQuotes, type VersionResult } from '../versions';
 
 const excludedPath = z.string().trim().min(1).refine(value => !path.isAbsolute(value) && !value.startsWith('\\')
     && !/^[A-Za-z]:|[\0*?\[\]]/.test(value) && !value.replace(/\\/g, '/').split('/').some(part => part === '..' || part === '.'), 'Use a relative file or directory prefix, without glob patterns');
@@ -61,19 +61,19 @@ export class MarkdownKnowledgeSource {
         };
     }
 
-    async versions(value: unknown, signal?: AbortSignal) {
+    async versions(value: unknown, signal?: AbortSignal): Promise<VersionResult> {
         const input = versionRequest.parse(value);
         const snapshot = await this.refresh(signal);
-        const current = new Map(snapshot.notes.map(note => [note.path, note.version]));
+        const current = new Map(snapshot.notes.map(note => [note.path, note]));
         return {
             checkedAt: snapshot.report.syncedAt,
-            documents: input.documents.map(reference => {
+            documents: input.documents.map(({ quotes, ...reference }) => {
                 const skipped = [...snapshot.skippedPaths].some(prefix => reference.path === prefix || reference.path.startsWith(`${prefix}/`));
-                const currentVersion = current.get(reference.path);
+                const note = current.get(reference.path), currentVersion = note?.version;
                 const status = reference.sourceKey !== snapshot.sourceKey || skipped ? 'out_of_scope' as const
                     : snapshot.failedPaths.has(reference.path) ? 'unavailable' as const
                     : !currentVersion ? 'missing' as const : currentVersion === reference.documentVersion ? 'current' as const : 'changed' as const;
-                return { ...reference, status, ...(status === 'current' || status === 'changed' ? { currentVersion } : {}) };
+                return { ...reference, status, ...(status === 'current' || status === 'changed' ? { currentVersion, ...checkQuotes(quotes, note!.text) } : {}) };
             }),
         };
     }

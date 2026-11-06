@@ -108,6 +108,7 @@ test('historical checks independently detect changed notes and webpages without 
     f.setWeb('# Online API\nPublic API policy now requires a rollback guide.');
     const result = await f.review(id), report = (result.execution!.result.data as any).assessments[0];
     expect(report.state).toBe('needs_review'); expect(report.references.map((ref: any) => ref.status)).toEqual(['changed', 'changed']);
+    expect(report.references.map((ref: any) => ref.quoteChecks[0].status)).toEqual(['not_found', 'not_found']);
     expect(result.execution!.result.metrics?.toolCalls).toBe(3);
     expect(JSON.stringify((await f.host.getLocalRunDetails(id))!.artifacts)).toBe(before);
 });

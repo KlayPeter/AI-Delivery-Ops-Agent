@@ -18,6 +18,9 @@ knowledge.watch 是可选控制面插件，依赖 knowledge.impact。计划属�
 
 ```mermaid
 flowchart TD
+    QUOTED_HISTORY[历史结果实际引用的逐字引文] --> QUOTE_SOURCE[明确来源的版本与可选引文检查]
+    QUOTE_SOURCE --> QUOTE_DETAIL[当前正文仍找到或未找到；不返回新正文]
+    QUOTE_DETAIL --> QUOTE_REVIEW[文档变化仍需复核；原产物与语义边界保留]
     UI[知识复核页明确选择一至二十条历史结果] --> VALID[全部归属、实际引用与复核绑定检查]
     VALID --> SAVE[CAS 保存单份计划与下一到期时间]
     SAVE --> TIMER[Cordis 拥有的三十秒定时器]
@@ -125,3 +128,9 @@ flowchart TD
 | --- | --- | --- |
 | 2026-11-06 | 1.1.0：正式 schedule 触发、绑定变化自动暂停，原计划无需重新选择即可调整/恢复 | 正式触发专项、旧计划保护、全量回归与实际升级验收 |
 | 2026-11-06 | 新增独立可选计划插件，复用既有 Native 复核并保存自动来源 | 专项、原功能回归、前端门禁与本地浏览器；见项目证据 |
+
+## 文档版本与逐字引文复核（2026-11-06）
+
+复用的 native.knowledge-impact 升至 1.2.0，定期执行也可产生逐字引文信息；计划范围、时间和共享调用预算保持。旧计划按既有执行契约变化规则暂停，用户核对后重新保存；不静默迁移确认或重写历史。实现复用 impact/plugin.ts 与 versions.ts；验证：原 knowledgeWatch.test.ts 的契约保护和 knowledgeImpact.test.ts 的检查链路。
+
+完整协议、边界与测试地图由 backend/src/knowledge/impact/FEATURE.md 统一维护；使用说明见 docs/KNOWLEDGE_IMPACT.md。

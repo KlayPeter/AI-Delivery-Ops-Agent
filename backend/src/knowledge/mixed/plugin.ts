@@ -6,7 +6,7 @@ import { knowledgeSearchInput } from '../search';
 import { requirePersonalScope, requirePersonalVersionScope } from '../scope';
 import { retrievalEvidence } from '../answer/evidence';
 import { contentHash } from '../markdown/parser';
-import { versionRequest, versionResult } from '../versions';
+import { versionRequest, versionResult, versionInputSchema, acceptsQuoteChecks } from '../versions';
 
 export const MIXED_CAPABILITY = 'knowledge.mixed.retrieve';
 export const mixedSourcePort = { pluginId: 'knowledge.mixed', searchTool: 'knowledge.mixed.search', toolCalls: 3 };
@@ -57,8 +57,8 @@ export const knowledgeMixedPlugin: FeaturePlugin = {
             return { query: input.query, retrieval: 'keyword', merge: 'interleaved', source: { sourceId: 'mixed', version: contentHash(JSON.stringify(sources)),
                 syncedAt: new Date().toISOString(), indexed: sources.reduce((sum, source) => sum + source.indexed, 0), partial: sources.some(source => source.partial), sources }, hits };
         });
-        ctx.delivery.tools.register({ id: MIXED_VERSIONS_TOOL, version: '1.1.0', description: 'Route saved note and public URL references to their configured source version tools without changing source identity.',
-            inputSchema: { type: 'object', required: ['documents'], properties: { documents: { type: 'array' } }, additionalProperties: false }, outputSchema: { type: 'object' },
+        ctx.delivery.tools.register({ id: MIXED_VERSIONS_TOOL, version: '1.2.0', description: 'Route saved note and public URL references and optional quote probes to their configured source version tools without changing source identity.',
+            inputSchema: versionInputSchema, outputSchema: { type: 'object' },
             sideEffect: 'read', riskLevel: 'low', idempotent: true, timeoutSeconds: 55 }, async (value, execution) => {
             requirePersonalVersionScope(execution.scope);
             if (!execution.budget) throw new Error('混合知识检索必须沿用共享 Tool 预算');
@@ -67,7 +67,9 @@ export const knowledgeMixedPlugin: FeaturePlugin = {
                 const documents = input.documents.filter(document => /^https?:\/\//i.test(document.path) === (kind === 'web'));
                 if (!documents.length) return [];
                 try {
-                    const result = versionResult.parse(await invoke(kind, 'versions', { documents }, execution));
+                    const upstream = ctx.delivery.tools.list().find(tool => tool.id === `knowledge.${kind}.versions`);
+                    const input = acceptsQuoteChecks(upstream?.inputSchema) ? documents : documents.map(({ quotes: _quotes, ...reference }) => reference);
+                    const result = versionResult.parse(await invoke(kind, 'versions', { documents: input }, execution));
                     const key = (reference: typeof documents[number]) => JSON.stringify([reference.path, reference.sourceKey, reference.documentVersion]);
                     const expected = new Set(documents.map(key));
                     if (result.documents.length !== documents.length || new Set(result.documents.map(key)).size !== expected.size || result.documents.some(reference => !expected.has(key(reference)))) throw new Error('版本结果不匹配');
@@ -75,7 +77,7 @@ export const knowledgeMixedPlugin: FeaturePlugin = {
                 } catch (error: any) {
                     execution.signal.throwIfAborted();
                     if (error?.code === 'TOOL_CALL_LIMIT_EXCEEDED' || !execution.budget) throw error;
-                    return documents.map(document => ({ ...document, status: 'unavailable' as const }));
+                    return documents.map(({ quotes: _quotes, ...document }) => ({ ...document, status: 'unavailable' as const }));
                 }
             }));
             execution.signal.throwIfAborted();

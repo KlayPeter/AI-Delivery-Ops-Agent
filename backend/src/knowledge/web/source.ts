@@ -3,7 +3,7 @@ import { contentHash } from '../markdown/parser';
 import { knowledgeSearchInput, rankNotes } from '../search';
 import { fetchPublicPage, publicPageUrl } from './network';
 import { parsePage } from './parser';
-import { versionRequest } from '../versions';
+import { versionRequest, checkQuotes, type VersionResult } from '../versions';
 
 const urlInput = z.string().trim().min(1).max(1024).transform((value, ctx) => {
     try { return publicPageUrl(value).href; }
@@ -47,17 +47,17 @@ export class WebKnowledgeSource {
         };
     }
 
-    async versions(value: unknown, signal?: AbortSignal) {
+    async versions(value: unknown, signal?: AbortSignal): Promise<VersionResult> {
         const input = versionRequest.parse(value);
         const snapshot = await this.refresh(signal);
-        const current = new Map(snapshot.pages.map(page => [page.url, page.note.version]));
+        const current = new Map(snapshot.pages.map(page => [page.url, page.note]));
         return {
             checkedAt: snapshot.report.syncedAt,
-            documents: input.documents.map(reference => {
-                const currentVersion = current.get(reference.path);
+            documents: input.documents.map(({ quotes, ...reference }) => {
+                const note = current.get(reference.path), currentVersion = note?.version;
                 const status = !this.config.urls.includes(reference.path) || reference.sourceKey !== this.sourceKey(reference.path) ? 'out_of_scope' as const
                     : !currentVersion ? 'unavailable' as const : currentVersion === reference.documentVersion ? 'current' as const : 'changed' as const;
-                return { ...reference, status, ...(status === 'current' || status === 'changed' ? { currentVersion } : {}) };
+                return { ...reference, status, ...(status === 'current' || status === 'changed' ? { currentVersion, ...checkQuotes(quotes, note!.text) } : {}) };
             }),
         };
     }

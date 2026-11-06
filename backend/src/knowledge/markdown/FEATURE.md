@@ -21,6 +21,9 @@ Native Agent 是该确定性能力进入现有 Host、Trigger、Run 和 Artifact
 
 ```mermaid
 flowchart TD
+    QUOTED_HISTORY[历史结果实际引用的逐字引文] --> QUOTE_SOURCE[明确来源的版本与可选引文检查]
+    QUOTE_SOURCE --> QUOTE_DETAIL[当前正文仍找到或未找到；不返回新正文]
+    QUOTE_DETAIL --> QUOTE_REVIEW[文档变化仍需复核；原产物与语义边界保留]
     MIX[可选混合知识：沿用本来源 Tool 与引用身份] --> N
     C[可信插件配置：固定目录与排除前缀] --> P[Cordis: knowledge.markdown]
     P --> N[Native Agent / 只读 Tool]
@@ -194,3 +197,9 @@ flowchart LR
 ## 本机 schedule 的只读版本检查（2026-11-06）
 
 本来源插件与 versions Tool 为 1.1.0，版本入口改用 requirePersonalVersionScope，允许无 chat/conversation 的本机 schedule；search/sync/检索 Agent 继续使用原 requirePersonalScope 和原 triggers，不接受 schedule。内容、来源身份、URL/目录边界、输出与预算保持。混合检查沿原共享预算传递相同 Scope，资料库知识来源复用 Markdown 版本入口。验证：backend/test/localSchedules.test.ts，及原知识/混合/引用回归。
+
+## 文档版本与逐字引文复核（2026-11-06）
+
+versions Tool 1.2.0 声明可选 quotes，并对当前完整规范化正文做逐字匹配，跨分块仍可找到；属性区不参与。完整正文只保留于有界内存索引，不进入检索输出或新持久副本。来源身份、排除项、权限和刷新预算保持，范围外/缺失/失败不返回引文结果。代码：versions.ts、markdown/parser.ts / source.ts / plugin.ts；验证：knowledgeQuoteChecks.test.ts、knowledgeImpact.test.ts 及原 Markdown 回归。
+
+完整协议、边界与测试地图由 backend/src/knowledge/impact/FEATURE.md 统一维护；使用说明见 docs/KNOWLEDGE_IMPACT.md。

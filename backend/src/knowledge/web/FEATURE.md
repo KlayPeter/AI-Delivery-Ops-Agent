@@ -21,6 +21,9 @@ last_reviewed: 2026-11-06
 
 ```mermaid
 flowchart TD
+    QUOTED_HISTORY[历史结果实际引用的逐字引文] --> QUOTE_SOURCE[明确来源的版本与可选引文检查]
+    QUOTE_SOURCE --> QUOTE_DETAIL[当前正文仍找到或未找到；不返回新正文]
+    QUOTE_DETAIL --> QUOTE_REVIEW[文档变化仍需复核；原产物与语义边界保留]
     MIX[可选混合知识：沿用本来源 Tool 与引用身份] --> N
     C[可信配置：最多五个公开链接] --> P[Cordis: knowledge.web]
     U[CLI --url / 本地 SDK] --> N[Native Agent / knowledge.web.search Tool]
@@ -200,3 +203,9 @@ WebTransport.request 可选第五个 Accept 参数供独立 OpenAPI 读取使用
 ## 本机 schedule 的只读版本检查（2026-11-06）
 
 本来源插件与 versions Tool 为 1.1.0，版本入口改用 requirePersonalVersionScope，允许无 chat/conversation 的本机 schedule；search/sync/检索 Agent 继续使用原 requirePersonalScope 和原 triggers，不接受 schedule。内容、来源身份、URL/目录边界、输出与预算保持。混合检查沿原共享预算传递相同 Scope，资料库知识来源复用 Markdown 版本入口。验证：backend/test/localSchedules.test.ts，及原知识/混合/引用回归。
+
+## 文档版本与逐字引文复核（2026-11-06）
+
+versions Tool 1.2.0 声明可选 quotes，匹配的是本轮提取后的完整正文。沿用一次来源刷新、原公开 URL、DNS/IP/TLS、字节及超时边界，不为每条引文额外请求；失败或范围外不返回旧引文结果或正文。代码：versions.ts、web/source.ts / plugin.ts；验证：knowledgeQuoteChecks.test.ts、knowledgeImpact.test.ts 及原 Web 回归。
+
+完整协议、边界与测试地图由 backend/src/knowledge/impact/FEATURE.md 统一维护；使用说明见 docs/KNOWLEDGE_IMPACT.md。

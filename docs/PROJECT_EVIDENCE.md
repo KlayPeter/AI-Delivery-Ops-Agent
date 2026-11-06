@@ -668,3 +668,16 @@ builtin.ai-news 1.1.0 将默认机器人的意图选择和本次 Host 的续问�
 新增 botEntryPlugins.test.ts 四项测试：ID/优先级/合法性/准入与可用性，真实新闻插件的开关/共用与独立应用/会话隔离，一个独立 Native 插件经通用 Feishu 入站层和实际 Host 生成持久 Run/Artifact，以及跨 Host 恢复保存的独立机器人。最后一项确认：移除插件时原有 Host 逻辑将机器人标为不可连接，零凭据读取、零连接；重新装配后用受控客户端恢复一次凭据读取和一次连接。此处为既有行为的回归覆盖，没有修改连接管理器。pluginRuntime.test.ts 另验证正常释放及装配失败回滚；multiBotIngress.test.ts 覆盖其他 Capability 的通用提示。
 
 本地类型检查通过；隔离 SQLite 全量后端 782 通过、1 个原有 TAPD 写入测试跳过。HTTP 默认个人实例实际重载后 readyz=ready，插件/页面和连接值保持，六条旧根 Run 的 run/steps/artifacts 逐项一致，原 .env SHA 和权限保持。本批未修改前端或部署配置，未发送真实飞书消息；入站实验使用受控适配器，不证明真实飞书权限或网络可用。
+
+
+## 文档版本之外的逐字引文复核（2026-11-06）
+
+本批增加可选 quotes/quoteChecks 协议，保留文档级 needs_review。对一个已有的本机样例回答，在同一隔离 HTTP 实例中执行三次实际检查：保留原引文并追加其他内容、替换引文、恢复原笔记。第一种显示一条仍可找到，第二种显示一条未找到及原引文短预览；两次都保持 needs_review。恢复原笔记后再检查，原引文仍存在且文档版本不同，继续提示复核。原回答来自之前的本地模型协议样例，本批不调用模型或验证模型质量。
+
+![原回答与逐字引文复核](images/quote-found-review.png)
+![未找到旧引文时的定位提示](images/quote-missing-review.png)
+![375px 引文复核面板](images/quote-review-mobile.png)
+
+本机桌面和 375px 浏览器核对文本面板、检查时间、返回原结果和长引文换行；文档宽度等于 375px，已恢复默认视口。原测试笔记按字节恢复，六条旧根 Run 的 run/steps/artifacts 逐项一致，连接配置保持。新检查使用原来源刷新和一次受治理 Tool 调用，没有重新生成答案。
+
+本地类型通过；隔离 SQLite 全量后端 787 通过、1 个原有 TAPD 写入测试跳过。专项覆盖跨分块/换行、当前提取网页、范围/失败不泄漏结果、预算、旧工具兼容、重复/不相关返回、相同版本的引用不匹配、否定上下文仍需复核，以及混合来源。新增 knowledgeQuoteChecks.test.ts 三项，扩展 knowledgeImpact.test.ts 和 knowledgeMixed.test.ts；没有新增依赖、模型调用或部署工作。当前检查只判断精确文字串是否仍在正文，不定位语义变化，也不生成修订稿。

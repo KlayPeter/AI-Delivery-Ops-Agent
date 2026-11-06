@@ -21,6 +21,9 @@ CLI、配置档与插件拥有的本地 /release 页面均可使用。HTTP 默�
 
 ```mermaid
 flowchart TD
+    QUOTED_HISTORY[历史结果实际引用的逐字引文] --> QUOTE_SOURCE[明确来源的版本与可选引文检查]
+    QUOTE_SOURCE --> QUOTE_DETAIL[当前正文仍找到或未找到；不返回新正文]
+    QUOTE_DETAIL --> QUOTE_REVIEW[文档变化仍需复核；原产物与语义边界保留]
     UISET[默认或 base personal 的本机设置：固定仓库与可选读取密钥] --> BOOT[重启后组合 GitHub 与匹配知识源的发布插件]
     BOOT --> PAGE[插件拥有的 /release 时间段与规则表单]
     PAGE --> ACK[Web 先返回持久 Run 回执；可在详情请求停止]
@@ -202,3 +205,9 @@ flowchart LR
 来源配置提示回归：backend/test/workspaceComposition.test.ts 验证个人基底仍装配当前 GitHub/知识设置、旧显式文件保持替换。发布取证与生成协议保持。
 
 共享 Scope 回归（2026-11-06）：requirePersonalScope 本体和本功能的原 manual/agent 限制不变。仅引用复核 Agent 及来源 versions Tool 改用独立 requirePersonalVersionScope 接受无群聊 schedule；本功能不因此获得定时执行或新写入权限。验证：backend/test/localSchedules.test.ts 和本功能既有回归。
+
+## 文档版本与逐字引文复核（2026-11-06）
+
+发布取证、生成与原草稿契约保持。后续 impact 只提取实际 draft citations 中的知识引文，GitHub 事实不作为知识来源检查；新增逐字存在性信息继续不证明规则适用性或结论正确性，不覆盖草稿。实现：knowledge/impact/service.ts / plugin.ts；验证：knowledgeImpact.test.ts、knowledgeMixed.test.ts 及原 releasePreparation.test.ts。
+
+完整协议、边界与测试地图由 backend/src/knowledge/impact/FEATURE.md 统一维护；使用说明见 docs/KNOWLEDGE_IMPACT.md。

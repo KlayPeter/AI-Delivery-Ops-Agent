@@ -18,6 +18,9 @@ knowledge.workspace 是独立的确定性界面插件，不创建 Agent、模型
 
 ```mermaid
 flowchart TD
+    QUOTED_HISTORY[历史结果实际引用的逐字引文] --> QUOTE_SOURCE[明确来源的版本与可选引文检查]
+    QUOTE_SOURCE --> QUOTE_DETAIL[当前正文仍找到或未找到；不返回新正文]
+    QUOTE_DETAIL --> QUOTE_REVIEW[文档变化仍需复核；原产物与语义边界保留]
     C[默认 HTTP 组合或显式插件配置] --> P[knowledge.workspace；检查来源依赖]
     P --> W[插件拥有 /knowledge 与描述 API]
     W --> V[页面读取明确来源及检索 Capability]
@@ -153,3 +156,9 @@ flowchart LR
 2026-11-06 来源配置体验：KnowledgePage.tsx 保存后请求既有本机控制面重载，只有新实例确认才展示“已应用”，再刷新来源描述和 Agent 状态。忙碌时保留设置并引导到连接页应用；没有启动器则明确保留手动重启。底层检索/回答、来源归属及个人数据权限保持。代码增加 frontend/src/api.ts 的 applyConnections 与启动器/API 链路；验证见 workspace.test.ts、localLauncher.test.ts、frontend/src/api.test.mjs 和本机浏览器记录。
 
 应用中的前端状态由同一 SWR 标记共享：主内容 inert/aria-busy，顶部显示正在应用；插件页在这个已知重载窗口保留已加载界面，避免短暂断线卸载表单。先读取新工作区状态再解除标记，其他普通断线仍显示错误；该 UI 缓存不改变后端插件授权。代码追加 MainLayout.tsx、PluginPage.tsx、state.ts；浏览器复测完成提示保留及恢复后检索。
+
+## 文档版本与逐字引文复核（2026-11-06）
+
+知识页的原检索/回答入口与来源配置保持。既有运行详情文本面板显示独立 impact 检查的引文数量和短预览，不新增前端业务解析或额外模型调用；文档变化仍提示复核。实现：knowledge/impact/presentation.ts；验证：knowledgeQuoteChecks.test.ts、knowledgeImpact.test.ts 及真实 HTTP 桌面/375px 结果面板。
+
+完整协议、边界与测试地图由 backend/src/knowledge/impact/FEATURE.md 统一维护；使用说明见 docs/KNOWLEDGE_IMPACT.md。

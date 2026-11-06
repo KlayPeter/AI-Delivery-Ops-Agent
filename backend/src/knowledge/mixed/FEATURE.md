@@ -21,6 +21,9 @@ knowledge.mixed 是独立确定性编排插件，依赖已有 knowledge.markdown
 
 ```mermaid
 flowchart TD
+    QUOTED_HISTORY[历史结果实际引用的逐字引文] --> QUOTE_SOURCE[明确来源的版本与可选引文检查]
+    QUOTE_SOURCE --> QUOTE_DETAIL[当前正文仍找到或未找到；不返回新正文]
+    QUOTE_DETAIL --> QUOTE_REVIEW[文档变化仍需复核；原产物与语义边界保留]
     CFG[选定目录、排除项、最多五个公开 URL] --> MD[knowledge.markdown]
     CFG --> WEB[knowledge.web]
     MD --> MIX[knowledge.mixed：明确依赖与固定上游]
@@ -81,3 +84,9 @@ flowchart TD
 ## 本机 schedule 的只读版本检查（2026-11-06）
 
 本来源插件与 versions Tool 为 1.1.0，版本入口改用 requirePersonalVersionScope，允许无 chat/conversation 的本机 schedule；search/sync/检索 Agent 继续使用原 requirePersonalScope 和原 triggers，不接受 schedule。内容、来源身份、URL/目录边界、输出与预算保持。混合检查沿原共享预算传递相同 Scope，资料库知识来源复用 Markdown 版本入口。验证：backend/test/localSchedules.test.ts，及原知识/混合/引用回归。
+
+## 文档版本与逐字引文复核（2026-11-06）
+
+mixed versions Tool 1.2.0 通过统一输入 Schema 声明可选 quotes，只转发给声明支持的固定上游；旧上游保持原文档请求。失败来源返回 unavailable 且不回显 probes；本地引用与 URL 的独立身份、共享三次预算和部分失败语义保持。代码：mixed/plugin.ts、versions.ts；验证：knowledgeMixed.test.ts 确认两种来源均产生实际引文结果，原混合回归保持。
+
+完整协议、边界与测试地图由 backend/src/knowledge/impact/FEATURE.md 统一维护；使用说明见 docs/KNOWLEDGE_IMPACT.md。

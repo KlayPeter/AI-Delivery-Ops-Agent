@@ -13,6 +13,7 @@ export interface MarkdownNote {
     headings: string[];
     links: NoteLink[];
     chunks: NoteChunk[];
+    text: string;
 }
 
 export const contentHash = (value: string | Buffer): string => createHash('sha256').update(value).digest('hex');
@@ -37,7 +38,7 @@ export function parseNote(filename: string, raw: Buffer): MarkdownNote {
     }
     const note: MarkdownNote = {
         path: filename, version: contentHash(raw), title: path.posix.basename(filename, path.posix.extname(filename)),
-        aliases: stringList(properties.aliases), tags: stringList(properties.tags), headings: [], links: [], chunks: [],
+        aliases: stringList(properties.aliases), tags: stringList(properties.tags), headings: [], links: [], chunks: [], text: lines.slice(start).join('\n'),
     };
     let heading = '';
     let fence: { char: string; length: number } | undefined;
