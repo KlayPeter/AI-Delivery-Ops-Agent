@@ -178,7 +178,7 @@ ctx.delivery.web.register({
 
 页面只能使用站内静态路径；label 最长 80 字符，section 为 workspace/team。view.kind=agent 打开指定 Capability 的现有工作台；kind=builtin 使用已打包 renderer ID（包括团队页面，以及 knowledge、release-preparation、web-capture、documents、knowledge-library、plugin-checks、mcp-setup、mcp-runner、personal-research、run-recipes）。builtin view 可声明可选的 capability，让 Agent 卡片和任务选择进入所属结构化表单；网页收集和文档导入是实际例子。未知 renderer 显示恢复入口，不执行远程 HTML、JS 或 React 包。已保留的核心/旧页面不能覆盖，路径与贡献 ID 不得重复；Agent 导航跳转后保持当前项选中。
 
-API 声明 prefix、routes（method/path）与接收标准 Request、返回 Response 的 handle。每条声明必须位于所属前缀，前缀不可重叠或覆盖保留 API。应用在 Host 初始化后核对已有 API 命名空间，冲突时拒绝装配，不覆盖旧接口；随后装配声明路由，因此 OpenAPI 保留路径；请求体由所属 Fetch handler 解析，代理不会先消耗 body。`builtin.standup` 和 `backend/src/domains/standup/api.ts` 是真实例子。通过 Host.handlePluginRequest 进入本机来源校验与在途跟踪，停止时先等待请求，再释放资源。
+API 声明 prefix、routes（method/path）与接收标准 Request、返回 Response 的 handle。每条声明必须位于所属前缀，前缀不可重叠或覆盖保留 API。应用在 Host 初始化后核对已有 API 命名空间，冲突时拒绝装配，不覆盖旧接口；随后装配声明路由，因此 OpenAPI 保留路径；请求体由所属 Fetch handler 解析，代理不会先消耗 body。声明同时是请求分发边界：前缀只表示归属，未声明的方法或路径返回 404，不进入 handler，也不解析正文。参数路径、通配路径与 ALL 使用应用现有 Elysia 路由规则；直接 Host 分发与 HTTP 入口一致。`builtin.standup` 和 `backend/src/domains/standup/api.ts` 是真实例子。通过 Host.handlePluginRequest 进入本机来源校验与在途跟踪，停止时先等待请求，再释放资源。
 
 manualJobs 声明现有 Legacy Job 名称的所有者，不添加任意命令或自动生成执行器。原有九项任务分别由站会、任务、日报、看板插件声明；/api/jobs 同时核对标准任务名与已装配所有者，缺失时返回 404。预览、日期、工作日、投递与审计仍由原执行逻辑处理，Host 跟踪任务并在停机时等待。
 

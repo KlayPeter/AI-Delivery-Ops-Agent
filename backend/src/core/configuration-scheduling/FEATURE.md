@@ -30,6 +30,9 @@ flowchart TD
     PH --> COL[可选网页/文档插件及其页面、上传 API]
     COL --> E
     PH --> VIS[五类团队 Web 入口按插件装配；纪要仍隐藏]
+    WREQ[本机插件 API 请求] --> WMATCH{声明方法与路径匹配?}
+    WMATCH -- 是 --> WHANDLER[原 Request 交给所属 Fetch handler]
+    WMATCH -- 否 --> W404[404；不解析正文或调用插件]
     VIS --> E
     PH --> E
     A["Config Page / API"] --> B["Schema 校验与持久化"]
@@ -262,3 +265,9 @@ flowchart LR
     MP_PLUGIN[显式模型插件] --> MP_REG[Host 共享模型网关]
     MP_REG --> MP_RUN[原有 Agent 或生成管线]
 ```
+
+## 插件 API 声明分发边界（2026-11-06）
+
+PluginWebRegistry 注册时为每项 API 建立现有 Elysia 路由；前缀只标识所有者，方法与路径必须匹配声明才进入原 Fetch handler。未知路径、未声明方法和已释放贡献返回 404；本机来源检查与 Host 停机等待保持。代理不预先解析正文，参数路径、通配与 ALL 沿用应用路由规则。可信原生插件仍需自行校验参数、数据范围与写入授权。
+
+代码：backend/src/platform/plugins/web.ts。验证：backend/test/pluginWeb.test.ts 先复现前缀内未声明请求返回 200，再覆盖直接/HTTP 两个入口、声明匹配、原始 POST 正文、不读取错误正文、处理器未调用、卸载、初始化回滚与在途等待；现有业务 API 回归检查声明完整性。

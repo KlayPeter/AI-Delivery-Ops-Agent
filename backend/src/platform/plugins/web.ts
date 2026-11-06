@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Elysia } from 'elysia';
 import { isLocalWorkspaceRequest } from '@/platform/workspace/connections';
 
 const pageSchema = z.object({
@@ -39,6 +40,12 @@ export class PluginWebRegistry {
         if (entry.api && (entry.api.routes.some(route => !contains(entry.api!.prefix, route.path)) || new Set(entry.api.routes.map(route => `${route.method}:${route.path}`)).size !== entry.api.routes.length)) throw new Error('Invalid plugin API route declarations');
         if (entry.api && (reservedApis.some(prefix => contains(prefix, entry.api!.prefix) || contains(entry.api!.prefix, prefix))
             || [...this.entries.values()].some(other => other.api && (contains(other.api.prefix, entry.api!.prefix) || contains(entry.api!.prefix, other.api.prefix))))) throw new Error('Overlapping or reserved plugin API prefix');
+        if (entry.api) {
+            const router = new Elysia(), handle = entry.api.handle;
+            for (const route of entry.api.routes) router.route(route.method, route.path, ({ request }) => handle(request), { parse: 'none' });
+            router.all('*', () => Response.json({ error: '当前插件未提供此接口' }, { status: 404 }), { parse: 'none' });
+            entry.api.handle = request => router.handle(request);
+        }
         this.entries.set(entry.id, entry);
         return () => { if (this.entries.get(entry.id) === entry) this.entries.delete(entry.id); };
     }

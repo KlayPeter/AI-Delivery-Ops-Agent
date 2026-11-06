@@ -36,7 +36,8 @@ flowchart TD
     SJ --> Z
     S --> A["消息 / Scheduler / API"]
     HOME[本地首页：已装配任务入口与高级表单] --> A
-    A --> WOWN[插件声明的 Web 页面、API 与手动任务]
+    A --> WOWN[已装配 Web 贡献；API 分发核对声明方法与路径]
+    WOWN -- 未匹配 API --> W404[404；不解析正文或调用插件]
     WOWN --> PV[看板文件读取与甘特计划；缺少所有者返回 404]
     PV --> PA[TaskService 计划审计；保留历史数据]
     WOWN --> EMAIL[纪要邮件：真实服务接受后记录标记与审计]
@@ -603,3 +604,9 @@ workspaceKnowledge 只静态追加 skills.setup / openapi.setup；未选择时�
 ## 首页任务入口（2026-11-06）
 
 默认个人首页保留任务概览与最近运行；只有实际贡献的可见已知任务页才显示入口。显式能力链接继续走原路由，其他组合保留原表单。仅调整前端入口，Agent、输入契约、Run/Step/Artifact 与历史不变。代码：frontend/src/pages/workspace/WorkspacePage.tsx、pages.ts；验证：pages.test.mjs、前端类型/lint/测试/构建，以及桌面和 375px 浏览器任务导航、折叠表单、历史详情与显式链接。
+
+## 插件 API 声明分发边界（2026-11-06）
+
+PluginWebRegistry 注册时为每项 API 建立现有 Elysia 路由；前缀只标识所有者，方法与路径必须匹配声明才进入原 Fetch handler。未知路径、未声明方法和已释放贡献返回 404；本机来源检查与 Host 停机等待保持。代理不预先解析正文，参数路径、通配与 ALL 沿用应用路由规则。可信原生插件仍需自行校验参数、数据范围与写入授权。
+
+代码：backend/src/platform/plugins/web.ts。验证：backend/test/pluginWeb.test.ts 先复现前缀内未声明请求返回 200，再覆盖直接/HTTP 两个入口、声明匹配、原始 POST 正文、不读取错误正文、处理器未调用、卸载、初始化回滚与在途等待；现有业务 API 回归检查声明完整性。

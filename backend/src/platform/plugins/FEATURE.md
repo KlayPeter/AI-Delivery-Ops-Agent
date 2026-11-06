@@ -35,6 +35,9 @@ flowchart TD
     D --> SJ[注册插件拥有的群业务计划与轮询]
     SJ --> E
     D --> WEB[注册页面、API 与原有手动任务授权]
+    WEB --> WR[插件请求：本机检查后按声明的方法与路径匹配]
+    WR -- 未匹配 --> W404[404；不解析正文或调用处理器]
+    WR -- 匹配 --> WH[原 Request 交给插件 Fetch handler]
     WEB --> VIS[站会、看板、甘特、周报与隐藏纪要 API；卸载保留事实数据]
     VIS --> E
     WEB --> COL[网页收集、文档导入；可声明结构化 Capability 入口]
@@ -443,3 +446,9 @@ plugins.compose 1.2.0 的默认个人页不再要求下载助手 YAML。页面�
 workspaceKnowledge 只静态追加 skills.setup / openapi.setup；未选择时仍为十五插件九 Agent，两项时为十七插件十一 Agent（示例来源且无额外 GitHub）。不会追加实际第三方 Skill、API 或 MCP Runner。显式 AGENT_PLUGINS_FILE 保持完整控制权，包含 base personal 时也忽略本机助手偏好；API 拒绝改写此字段，防止静默叠加和重复模块。高级助手导出及已审查能力组合仍可用，不能把发现入口称为已安装第三方能力。
 
 代码：connectors/profile-workbench/compose.ts / plugin.ts、platform/workspace/knowledge.ts / composition.ts / connections.ts 和 frontend/src/pages/workspace/ProfileComposerPage.tsx。验证：workspaceComposition.test.ts 的设置前后实际 Host、清空、历史及文件优先专项，profileComposer.test.ts、workspace.test.ts、featureIndex.test.ts 和本机页面启用/停用/实际入口/API 释放。完整规则见[配置组合功能卡](../../connectors/profile-workbench/FEATURE.md)。
+
+## 插件 API 声明分发边界（2026-11-06）
+
+PluginWebRegistry 注册时为每项 API 建立现有 Elysia 路由；前缀只标识所有者，方法与路径必须匹配声明才进入原 Fetch handler。未知路径、未声明方法和已释放贡献返回 404；本机来源检查与 Host 停机等待保持。代理不预先解析正文，参数路径、通配与 ALL 沿用应用路由规则。可信原生插件仍需自行校验参数、数据范围与写入授权。
+
+代码：backend/src/platform/plugins/web.ts。验证：backend/test/pluginWeb.test.ts 先复现前缀内未声明请求返回 200，再覆盖直接/HTTP 两个入口、声明匹配、原始 POST 正文、不读取错误正文、处理器未调用、卸载、初始化回滚与在途等待；现有业务 API 回归检查声明完整性。本批本地后端 766 通过、1 个原有真实 TAPD 写入测试跳过，类型检查通过；隔离 HTTP 实例重新加载后四项已声明 GET 返回 200、未声明请求返回 404，17 个插件、页面和 6 条根运行历史保持。

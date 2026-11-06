@@ -35,6 +35,43 @@ test('Web contributions validate ownership boundaries, reject duplicate entries 
     dispose(); dispose(); expect(registry.pages()).toEqual([]); expect(registry.manualJobs()).toEqual([]); expect(registry.routes()).toEqual([]);
 });
 
+test('declared plugin routes govern direct and HTTP dispatch before entering an unrestricted handler', async () => {
+    const registry = new PluginWebRegistry();
+    const calls: string[] = [];
+    const dispose = registry.register({ id: 'test.declared', api: {
+        prefix: '/api/example', routes: [
+            { method: 'GET', path: '/api/example/items/:id' },
+            { method: 'POST', path: '/api/example/items/:id' },
+            { method: 'GET', path: '/api/example/files/*' },
+            { method: 'ALL', path: '/api/example/any' },
+        ],
+        handle: async request => {
+            calls.push(`${request.method} ${new URL(request.url).pathname}`);
+            return Response.json({ body: await request.text(), search: new URL(request.url).search });
+        },
+    } });
+    const app = createPluginApi({ web: registry, handlePluginRequest: request => registry.handle(request) } as AgentHost);
+    for (const dispatch of [request => registry.handle(request), request => app.handle(request)] as Array<(request: Request) => Promise<Response>>) {
+        for (const [method, url] of [['GET', '/api/example/items/42?source=notes'], ['HEAD', '/api/example/items/42'], ['GET', '/api/example/files/a/b.md'], ['PATCH', '/api/example/any']]) {
+            expect((await dispatch(new Request('http://localhost' + url, { method }))).status).toBe(200);
+        }
+        const written = await dispatch(request('/api/example/items/42', { text: 'original body' }));
+        expect(written.status).toBe(200);
+        expect(await written.json()).toEqual({ body: '{"text":"original body"}', search: '' });
+        const before = calls.length;
+        for (const [method, url] of [['DELETE', '/api/example/items/42'], ['POST', '/api/example/files/a.md'], ['GET', '/api/example/items'], ['POST', '/api/example/undeclared'], ['GET', '/api/example-other/items/42']]) {
+            expect((await dispatch(new Request('http://localhost' + url, { method }))).status).toBe(404);
+        }
+        const malformed = new Request('http://localhost/api/example/undeclared', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{broken' });
+        expect((await dispatch(malformed)).status).toBe(404);
+        expect(malformed.bodyUsed).toBe(false);
+        expect(calls.length).toBe(before);
+    }
+    dispose();
+    expect((await app.handle(request('/api/example/items/42', {}))).status).toBe(404);
+    expect(calls).toHaveLength(10);
+});
+
 test('third-party Web API keeps POST bodies, core routes and OpenAPI paths without frontend code changes', async () => {
     const feature = plugin(ctx => {
         const app = new Elysia().post('/api/example/input', ({ body }) => ({ received: body }));

@@ -47,7 +47,8 @@ flowchart TD
     X --> MR["消息路由、引用上下文与帮助贡献"]
     MR --> Q
     X --> WEB[页面、API 与手动任务贡献]
-    WEB --> WREQ[本机请求与 Host 在途跟踪]
+    WEB --> WREQ[本机与声明路由检查；Host 在途跟踪]
+    WREQ -- 未声明方法或路径 --> W404[404；不进入插件处理器]
     WEB --> FORM[可选 Capability 元数据：Agent 入口进入结构化表单]
     WREQ --> DOC[私有文档暂存 ID；Native Tool 转换与来源 Artifact]
     WREQ --> PV[报告/纪要受限文件 API / TaskService 甘特与计划审计]
@@ -182,7 +183,7 @@ Host 持有 RunActionRegistry，Cordis 管理注册生命周期。状态 GET 先
 
 ## 插件 Web 生命周期
 
-Host 提供 PluginWebRegistry，由 Cordis 管理页面/API/原有手动任务授权。handlePluginRequest 与 executePluginJob 统一进入在途跟踪；停止后拒绝新请求，等待已接受请求和任务后才释放插件。路由声明用于 HTTP 装配与 OpenAPI，Fetch handler 保留原 Request 请求体；本机 Host/Origin 边界仍生效。页面元数据不提供认证或原生代码沙箱，旧业务路由仍逐项迁移。
+Host 提供 PluginWebRegistry，由 Cordis 管理页面/API/原有手动任务授权。handlePluginRequest 与 executePluginJob 统一进入在途跟踪；停止后拒绝新请求，等待已接受请求和任务后才释放插件。路由声明同时用于 HTTP 装配、OpenAPI 和直接分发检查；未声明方法/路径返回 404，不进入处理器或解析正文。匹配复用 Elysia 的参数、通配与 ALL 规则，Fetch handler 保留原 Request 请求体；本机 Host/Origin 边界仍生效。页面元数据不提供认证或原生代码沙箱，旧业务路由仍逐项迁移。
 
 已打包 builtin 页面可选声明 capability，让 Agent 卡片和任务选择进入所属结构化表单。网页收集与 MarkItDown 文档导入分别以独立 Native Agent/Tool 使用现有 Run、Scope、预算、幂等与私有 Artifact，不修改 Agent 执行协议。文档通过不透明上传 ID 消费私有暂存；转换器独立子进程固定上游版本，不接收用户提供的主机路径。专项验证见 backend/test/webCapture.test.ts、backend/test/markitdown.test.ts，页面入口回归见 frontend/src/pages/workspace/pages.test.mjs。
 
@@ -533,3 +534,9 @@ plugins.compose 1.2.0 的默认个人页不再要求下载助手 YAML。页面�
 workspaceKnowledge 只静态追加 skills.setup / openapi.setup；未选择时仍为十五插件九 Agent，两项时为十七插件十一 Agent（示例来源且无额外 GitHub）。不会追加实际第三方 Skill、API 或 MCP Runner。显式 AGENT_PLUGINS_FILE 保持完整控制权，包含 base personal 时也忽略本机助手偏好；API 拒绝改写此字段，防止静默叠加和重复模块。高级助手导出及已审查能力组合仍可用，不能把发现入口称为已安装第三方能力。
 
 代码：connectors/profile-workbench/compose.ts / plugin.ts、platform/workspace/knowledge.ts / composition.ts / connections.ts 和 frontend/src/pages/workspace/ProfileComposerPage.tsx。验证：workspaceComposition.test.ts 的设置前后实际 Host、清空、历史及文件优先专项，profileComposer.test.ts、workspace.test.ts、featureIndex.test.ts 和本机页面启用/停用/实际入口/API 释放。完整规则见[配置组合功能卡](../connectors/profile-workbench/FEATURE.md)。
+
+## 插件 API 声明分发边界（2026-11-06）
+
+PluginWebRegistry 注册时为每项 API 建立现有 Elysia 路由；前缀只标识所有者，方法与路径必须匹配声明才进入原 Fetch handler。未知路径、未声明方法和已释放贡献返回 404；本机来源检查与 Host 停机等待保持。代理不预先解析正文，参数路径、通配与 ALL 沿用应用路由规则。可信原生插件仍需自行校验参数、数据范围与写入授权。
+
+代码：backend/src/platform/plugins/web.ts。验证：backend/test/pluginWeb.test.ts 先复现前缀内未声明请求返回 200，再覆盖直接/HTTP 两个入口、声明匹配、原始 POST 正文、不读取错误正文、处理器未调用、卸载、初始化回滚与在途等待；现有业务 API 回归检查声明完整性。
