@@ -20,6 +20,8 @@ last_reviewed: 2026-11-06
 
 ```mermaid
 flowchart TD
+    EXTERNAL_OWNER[builtin.ai-hot-schedule：专用安装 API] --> INSTALL_PORT[宿主通用 installExternal 端口]
+    INSTALL_PORT --> CATALOG[原 Catalog、安装与 Binding；移除入口保留记录]
     RETENTION_PLUGIN[可选 platform.maintenance] --> RETENTION_TICK[全局 tick：无群也执行；自主检查时刻与每日 Claim]
     RETENTION_TICK --> RETENTION_SERVICE[原 DataRetentionService：批量审计及白名单临时键]
     RETENTION_SERVICE --> RETENTION_KEEP[保留 Run、Step、Artifact 与业务事实]
@@ -119,7 +121,7 @@ POST 仅接受完整的 runtime/schedule 对象和 groups 数组；groups 是完
 
 ## 核心规则
 
-`AGENT_PLUGINS_FILE` 属于重启生效的可信代码装配配置，选择 Agent、Tool、Skill、确定性消息与群业务调度贡献。团队 SDK/显式团队组合为十二个功能/平台插件和三个模型插件，继续提供七个 Agent；移除插件关闭其指令、引用、帮助和群业务计划。builtin.directory 同时拥有通讯录 API 与自动群同步；审计维护由 platform.maintenance 独立贡献；专用外部 Agent 安装与业务服务构造仍有宿主耦合。动态业务配置重载复用同一个消息注册表，不重复装配路由。
+`AGENT_PLUGINS_FILE` 属于重启生效的可信代码装配配置，选择 Agent、Tool、Skill、确定性消息与群业务调度贡献。团队 SDK/显式团队组合为十二个功能/平台插件和三个模型插件，继续提供七个 Agent；移除插件关闭其指令、引用、帮助和群业务计划。builtin.directory 同时拥有通讯录 API 与自动群同步；审计维护由 platform.maintenance 独立贡献；专用外部 Agent 安装现由所属插件贡献，业务服务构造仍有宿主耦合。动态业务配置重载复用同一个消息注册表，不重复装配路由。
 
 自动调度统一通过 `backend/src/core/scheduleCalendar.ts` 判断群级 `schedule.calendar`。指定日期的触发/暂停优先于基础策略；`workdays` 使用中国工作日（含调休），`every_day` 不限制节假日，`selected_dates` 仅执行指定触发日。日期放行不绕过模块开关、任务开关或原定时刻，手动触发不受该日历限制。未配置或 `legacy` 保留原有 `workdays_only` 规则及周报、承诺到期提醒的例外；无效日期与非布尔覆盖值在读取配置时丢弃。
 
@@ -320,3 +322,11 @@ Scheduler 先执行到期 global-poll，再执行每 tick 的 global-tick，随�
 DataRetentionService 策略未改：只删除严格早于保留边界的审计和 scheduled:/maintenance:/feishu:event:/history-sync: 四类有效过期键；不扩展到 Agent Run、Step、Artifact、业务消息或未知/无有效时间键。审计与临时键共用单次批数预算，可能分多日消化积压；每日失败不在同日自动重试。
 
 代码地图：backend/src/agents/plugins/maintenance.ts、builtins.ts；platform/scheduling/registry.ts；core/scheduler.ts / dataRetention.ts；platform/workspace/knowledge.ts；profiles/agents/team.yaml。验证：maintenancePlugin.test.ts（空组合零清理、时刻/批量/跨 Host 每日去重、关闭、失败隔离、在途停止与阶段顺序），maintenanceScheduler.test.ts 显式安装维护贡献，dataRetention.test.ts 保留策略不变；workspaceComposition.test.ts / pluginConfiguration.test.ts 及导出组合测试同步数量。另在全新临时 SQLite 中生成真实 Echo Run，验证分批清理、四类临时键、历史三条 Run/Step/Artifact 字节不变与卸载释放；不使用模型或个人库。
+
+## 专用外部 Agent 入口归属（2026-11-06）
+
+builtin.ai-hot-schedule 同时拥有原 POST /api/agents/ai-hot/install 和原定时贡献；个人/空组合不装配。旧 URL、安装/绑定 ID 与成功响应保持。移除插件关闭快捷 API 和定时调度，保留已安装外部 Agent 的 Catalog/Binding；通用手动运行和通用安装接口仍可管理它，不承诺删除插件会卸载持久化外部包。插件通过可选 installExternal 端口调用原 Host 安装服务，不自行操作 Catalog。未提供端口先返回 503、不读取正文；输入限制 16 KiB/十秒，严格字段、HTTPS 和 env:// 引用检查后才安装，跨工作区或持久化失败返回错误。
+
+Web 注册仍保留核心命名空间；/api/agents 改为保留 list/install/run 三个实际控制入口，允许不相交的插件子前缀。装配时按实际路径段检查核心路由冲突，静态、参数、通配符和尾斜杠冲突均拒绝，不只比较首层目录；插件间前缀仍禁止重叠。团队特定调度快捷方法移到 agents/dispatcher.ts；旧 platform/bootstrap/scheduledAgentDispatcher.ts 仅兼容转出，HTTP 组合层使用应用路径，通用 Host 没有导入 AI Hot 工厂。
+
+代码：agents/external/aiHotApi.ts、aiHotAgent.ts；agents/plugins/aiHotSchedule.ts；agents/dispatcher.ts；platform/plugins/contracts.ts / web.ts；platform/bootstrap/agentHost.ts；platform/workspace/api.ts；index.ts 移除专用路由。验证：aiHotPlugin.test.ts（安装/移除/恢复、零写入拒绝、缺端口与在途停止）；pluginWeb.test.ts（实际路径冲突和并存）；原 SDK 调度/安装与 Web 回归。此批只验证安装协议与保存，不请求真实外部 Agent 服务。

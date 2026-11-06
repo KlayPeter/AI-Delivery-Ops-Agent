@@ -1,3 +1,4 @@
+import { createAiHotInstallHandler } from '@/agents/external/aiHotApi';
 import type { FeaturePlugin } from '@/platform/plugins/contracts';
 import { localTimePlan } from '@/platform/scheduling/calendar';
 
@@ -15,5 +16,7 @@ export const aiHotSchedulePlugin: FeaturePlugin = {
             return context.agents.aiHot(context.group.chat_id, context.day, context.retryAttempt);
         },
     }],
-    apply() {},
+    apply(ctx) {
+        ctx.delivery.web.register({ id: 'builtin.ai-hot-install', api: { prefix: '/api/agents/ai-hot', routes: [{ method: 'POST', path: '/api/agents/ai-hot/install' }], handle: createAiHotInstallHandler(ctx.delivery.installExternal) } });
+    },
 };

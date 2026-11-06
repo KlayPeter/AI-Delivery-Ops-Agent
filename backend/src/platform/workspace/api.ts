@@ -1,3 +1,4 @@
+import { apiRoutesOverlap } from '@/platform/plugins/web';
 import { randomUUID } from 'node:crypto';
 import { Elysia } from 'elysia';
 import { z } from 'zod';
@@ -13,10 +14,8 @@ const actionInput = z.object({ triggerId: z.string().uuid().optional() }).strict
 
 export function createPluginApi(host: AgentHost, applicationRoutes: readonly { path: string }[] = []) {
     const api = new Elysia({ name: 'plugin-web-api' });
-    const namespace = (path: string) => /^\/api\/[^/:*]+/.exec(path)?.[0];
-    const occupied = new Set(applicationRoutes.map(route => namespace(route.path)).filter(Boolean));
     for (const route of host.web.routes()) {
-        if (occupied.has(namespace(route.path))) throw new Error(`Plugin API overlaps an existing application namespace: ${namespace(route.path)}`);
+        if (applicationRoutes.some(existing => apiRoutesOverlap(existing.path, route.path))) throw new Error(`Plugin API overlaps an existing application route: ${route.path}`);
         api.route(route.method, route.path, ({ request }) => host.handlePluginRequest(request), { parse: 'none' });
     }
     return api.all('/api/*', ({ request }) => host.handlePluginRequest(request), { parse: 'none' });

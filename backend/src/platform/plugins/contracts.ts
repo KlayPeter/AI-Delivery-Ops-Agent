@@ -1,5 +1,6 @@
 import type { Context, Plugin } from '@deepseek-ai/cordis';
 import type { AgentManifest } from '@/platform/agents/contracts';
+import type { ExternalAgentInstallOptions, ExternalAgentPackage } from '@/platform/agents/externalInstaller';
 import type { AgentRegistry } from '@/platform/agents/registry';
 import type { NativeAgentAdapter } from '@/platform/agents/nativeAdapter';
 import type { ModelLoopAgentAdapter } from '@/platform/agents/modelLoopAdapter';
@@ -35,6 +36,7 @@ export interface PluginAgent {
 export interface PluginHostServices {
     getContext: () => HandlerContext;
     reloadConfiguration?: () => Promise<void>;
+    installExternal?: (manifest: AgentManifest, options: ExternalAgentInstallOptions) => Promise<ExternalAgentPackage>;
     modelProviders?: Pick<ModelProviderRegistry, 'register' | 'configured' | 'resolve'>;
     runLocal?: (capability: string, input: unknown, triggerId: string, expected?: { installationId: string; manifestHash: string }) => Promise<{ runId?: string; status: string; error?: { code?: string; message: string } }>;
     runScheduledLocal?: PluginHostServices['runLocal'];

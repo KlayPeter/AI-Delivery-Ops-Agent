@@ -1,6 +1,6 @@
 # 功能插件规范 v1
 
-当前 SDK 面向本仓库内或由部署者审查的 TypeScript 原生插件。使用 Cordis 4.1.0，协议版本为 `1.0`。现阶段提供 Agent、Tool、Skill、消息路由、群业务调度和运行后续动作的独立装配、依赖校验和资源清理；页面、业务 API 与审计维护也由插件贡献；剩余专用安装入口和业务服务构造继续按路线图收尾。
+当前 SDK 面向本仓库内或由部署者审查的 TypeScript 原生插件。使用 Cordis 4.1.0，协议版本为 `1.0`。现阶段提供 Agent、Tool、Skill、消息路由、群业务调度和运行后续动作的独立装配、依赖校验和资源清理；页面、业务 API 与审计维护也由插件贡献；业务服务构造继续按路线图收尾。
 
 ## 包结构
 
@@ -365,3 +365,9 @@ plugins.compose 1.1.0 的独立 setup 导出只接受 skills/openapi 枚举，�
 PluginHostServices.runScheduledLocal 是可选可信端口，参数/平面回执与 runLocal 相同，但触发类型固定为 schedule；不接受自定义 workspace/bot/chat，不产生直接投递。插件应在 Host 初始化完成后使用，apply/restored 阶段调用会拒绝，停止后同样拒绝。未声明 schedule 的 Agent 在 Adapter 前被拒绝，原执行指纹和触发幂等沿用平台；普通工作台 HTTP 调用不能选择该通道。
 
 knowledge.watch 使用该端口调度 Native 引用复核；requirePersonalVersionScope 只为无群聊 schedule 放行来源 versions。requirePersonalScope 及其他检索、生成、写入权限保持原状。参考[定期复核契约](../backend/src/knowledge/watch/FEATURE.md)与 backend/test/localSchedules.test.ts。原生插件仍是用户信任的本机代码，端口声明不是代码沙箱。
+
+## 外部 Agent 的专用安装入口
+
+可信插件可通过可选 ctx.delivery.installExternal(manifest, options) 复用 Host 的通用安装服务；它不是模型 Tool 授权，也不自动调用远端。builtin.ai-hot-schedule 已拥有原专用安装 URL，移除插件关闭接口/调度，保留 Catalog 与通用管理能力。团队快捷 Dispatcher 位于 agents/dispatcher.ts，旧平台路径仅兼容转出。
+
+插件间 API 前缀不重叠。核心 /api/agents、/api/agents/install、/api/agents/run 保留；其余独立子前缀可以由插件拥有。createPluginApi 还按实际应用路由校验路径段，参数和通配符相交、尾斜杠同路径均拒绝；不会因为同一首级目录就拒绝完全不相交的子路径。其余保留核心命名空间规则不变。

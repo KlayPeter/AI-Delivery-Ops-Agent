@@ -16,7 +16,7 @@ import { MessageHandler } from './services/messageHandler';
 import { MessageRouteRegistry } from './services/messageHandler/routes';
 import { ScheduleRegistry } from './platform/scheduling/registry';
 import { InProcessScheduler } from './core/scheduler';
-import { ScheduledAgentDispatcher } from './platform/bootstrap/scheduledAgentDispatcher';
+import { ScheduledAgentDispatcher } from './agents/dispatcher';
 import { AgentHost } from './platform/bootstrap/agentHost';
 import { ScheduledJobs } from './services/jobs';
 import dayjs from 'dayjs';
@@ -195,16 +195,6 @@ const app = new Elysia()
         }) };
     })
     .get('/api/skills', async ({ query }) => ({ ok: true, skills: await agentHost!.listSkills(query.agentId ? String(query.agentId) : undefined) }))
-    .post('/api/agents/ai-hot/install', async ({ body }) => {
-        const input = body as any;
-        return { ok: true, agent: await scheduledAgents!.installAiHot({
-            endpoint: String(input.endpoint || ''),
-            apiTokenRef: input.apiTokenRef ? String(input.apiTokenRef) : undefined,
-            priority: input.priority ? Number(input.priority) : undefined,
-            workspaceId: input.workspaceId ? String(input.workspaceId) : undefined,
-            botInstanceId: input.botInstanceId ? String(input.botInstanceId) : undefined,
-        }) };
-    })
     .post('/api/agents/install', async ({ body }) => {
         const input = body as any; const manifest = input.manifest;
         if (!manifest?.id || !manifest?.version) throw new Error('Agent manifest id and version are required');

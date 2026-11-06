@@ -27,8 +27,19 @@ export interface WebContribution {
 }
 // Existing bundled routes stay reserved until their owning plugins migrate them.
 const reservedPages = new Set(['/', '/runs', '/agents', '/plugins', '/connections', '/logs', '/debug', '/contexts']);
-const reservedApis = ['/api/workspace', '/api/agents', '/api/agent-runs', '/api/bots', '/api/jobs', '/api/health', '/api/logs', '/api/contexts', '/api/swagger'];
+const reservedApis = ['/api/workspace', '/api/agent-runs', '/api/bots', '/api/jobs', '/api/health', '/api/logs', '/api/contexts', '/api/swagger'];
+const reservedEndpoints = ['/api/agents', '/api/agents/install', '/api/agents/run'];
 const contains = (prefix: string, path: string) => path === prefix || path.startsWith(prefix + '/');
+export function apiRoutesOverlap(leftPath: string, rightPath: string): boolean {
+    const left = leftPath.replace(/\/$/, '').split('/'), right = rightPath.replace(/\/$/, '').split('/');
+    for (let i = 0; i < Math.max(left.length, right.length); i++) {
+        if (left[i] === '*' || right[i] === '*') return true;
+        if (left[i] === undefined || right[i] === undefined) return false;
+        if (left[i] !== right[i] && !left[i]!.startsWith(':') && !right[i]!.startsWith(':')) return false;
+    }
+    return true;
+}
+
 
 export class PluginWebRegistry {
     private readonly entries = new Map<string, WebContribution>();
@@ -48,6 +59,7 @@ export class PluginWebRegistry {
         if (new Set(linkIds).size !== linkIds.length || [...this.entries.values()].some(other => other.runLinks?.some(link => linkIds.includes(link.id)))) throw new Error('Duplicate plugin run link');
         if (entry.api && (entry.api.routes.some(route => !contains(entry.api!.prefix, route.path)) || new Set(entry.api.routes.map(route => `${route.method}:${route.path}`)).size !== entry.api.routes.length)) throw new Error('Invalid plugin API route declarations');
         if (entry.api && (reservedApis.some(prefix => contains(prefix, entry.api!.prefix) || contains(entry.api!.prefix, prefix))
+            || reservedEndpoints.some(path => contains(entry.api!.prefix, path))
             || [...this.entries.values()].some(other => other.api && (contains(other.api.prefix, entry.api!.prefix) || contains(entry.api!.prefix, other.api.prefix))))) throw new Error('Overlapping or reserved plugin API prefix');
         if (entry.api) {
             const router = new Elysia(), handle = entry.api.handle;

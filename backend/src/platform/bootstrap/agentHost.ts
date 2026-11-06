@@ -552,6 +552,7 @@ export class AgentHost {
         this.pluginRuntime = new PluginRuntime(this.options.plugins || [], {
             getContext: this.getContext,
             reloadConfiguration: this.options.reloadConfiguration,
+            installExternal: (manifest, options) => this.installExternal(manifest, options),
             modelProviders: this.modelProviders,
             runLocal: async (capability, input, triggerId, expected) => {
                 if (!this.initialized || this.stopped) throw new Error('Host 尚未就绪或已停止');

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { Elysia } from 'elysia';
-import { PluginWebRegistry, type WebContribution } from '@/platform/plugins/web';
+import { PluginWebRegistry, apiRoutesOverlap, type WebContribution } from '@/platform/plugins/web';
 import { AgentHost } from '@/platform/bootstrap/agentHost';
 import { InMemoryPersistentKeyValueStore } from '@/platform/persistence/keyValueStore';
 import { createPluginApi } from '@/platform/workspace/api';
@@ -92,7 +92,7 @@ test('third-party Web API keeps POST bodies, core routes and OpenAPI paths witho
     const host = new AgentHost(context, 1000, undefined, [], { plugins: [feature] }); await host.initialize();
     const app = new Elysia().use(createApiDocumentation()).get('/api/config', () => ({ core: true })).use(createPluginApi(host));
     try {
-        expect(() => createPluginApi(host, [{ path: '/api/example/legacy/:id' }])).toThrow('existing application namespace');
+        expect(() => createPluginApi(host, [{ path: '/api/example/:id' }])).toThrow('existing application route');
         const result = await app.handle(request('/api/example/input', { text: 'body preserved' }));
         expect(result.status).toBe(200); expect(await result.json()).toEqual({ received: { text: 'body preserved' } });
         expect(await (await app.handle(request('/api/config'))).json()).toEqual({ core: true });
@@ -169,4 +169,22 @@ test('Host waits for contributed HTTP and manual jobs before releasing plugin re
     const job = host.executePluginJob('standup-summary', async () => { jobEntered(); await finish; expect(disposed).toBe(false); return true; }); await jobReading;
     const stopping = host.stop(); await Promise.resolve(); expect(disposed).toBe(false); release();
     expect((await pending).status).toBe(200); expect(await job).toBe(true); await stopping; expect(disposed).toBe(true);
+});
+
+
+test('core route reservations allow sibling plugin prefixes while rejecting static, parameter and wildcard collisions', () => {
+    for (const [left, right, expected] of [
+        ['/api/agents', '/api/agents/ai-hot/install', false], ['/api/agents/install', '/api/agents/ai-hot/install', false],
+        ['/api/example/legacy/:id', '/api/example/input', false], ['/api/example/:id', '/api/example/input', true],
+        ['/api/example/*', '/api/example/input', true], ['/api/example/*', '/api/example', true],
+        ['/api/example/', '/api/example', true], ['/api/example/:id/edit', '/api/example/a/read', false],
+    ] as const) { expect(apiRoutesOverlap(left, right)).toBe(expected); expect(apiRoutesOverlap(right, left)).toBe(expected); }
+    const registry = new PluginWebRegistry();
+    for (const prefix of ['/api/agents', '/api/agents/install', '/api/agents/run', '/api/workspace/escape']) {
+        expect(() => registry.register({ id: 'test.reserved', api: { prefix, routes: [{ method: 'POST', path: prefix }], handle: () => Response.json({}) } })).toThrow('reserved');
+    }
+    registry.register({ id: 'test.sibling', api: { prefix: '/api/agents/example', routes: [{ method: 'POST', path: '/api/agents/example/install' }], handle: () => Response.json({}) } });
+    const host = { web: registry } as AgentHost;
+    expect(() => createPluginApi(host, [{ path: '/api/agents' }, { path: '/api/agents/install' }])).not.toThrow();
+    for (const path of ['/api/agents/:id/install', '/api/agents/*', '/api/agents/example/install/']) expect(() => createPluginApi(host, [{ path }])).toThrow('existing application route');
 });
