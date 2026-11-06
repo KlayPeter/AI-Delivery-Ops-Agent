@@ -643,3 +643,19 @@ skills.prompt.run、openapi.tools.run、mcp.tools.run 均未启用。分别点�
 配置页按实际插件状态加载目录：禁用时不挂载目录树，刷新按钮不可操作；可以填写群 ID，未保存的演示输入在离页前清除。桌面与 375px 提示可读、无页面横向溢出。截图未包含真实成员或凭据。
 
 ![通讯录未启用时保留配置并关闭远端刷新](images/directory-disabled.png)
+
+
+## 已审查插件组合的页面保存、应用与恢复（2026-11-06）
+
+本批为 plugins.compose 1.3.0。隔离本地副本从原个人组合（已选两个 Inspector）开始，保留六条根 Run。浏览器上传自编写的固定版本 Skill 测试导出文件，查看来源/完整 YAML，确认前保存按钮不可用；明确确认后点击保存并应用，启动器保持 API/页面端口，实际新实例显示保存组合已启用并出现 Skill Runner，未选 OpenAPI Inspector 移除。恢复个人预设后保存组合为已停用，原助手与页面恢复，六条旧 Run 的 run/steps/artifacts 逐项完全相等；模型、知识与其他连接值不变。插件 ID/页面恢复，组合器版本按本批从 1.2.0 升至 1.3.0。
+
+![已应用的组合](images/plugin-composition-applied.png)
+![恢复个人预设后仍保留组合](images/plugin-composition-restored.png)
+
+375px 浏览器下文档宽度等于视口，长来源 SHA 换行，核对复选框和保存按钮可用。桌面预设视口已恢复。
+
+![375px 的来源确认与保存入口](images/plugin-composition-mobile.png)
+
+新增 savedPluginProfiles.test.ts 六项专项覆盖强制确认、同 Host 并发旧版本拒绝、私有文件/符号链接/硬链接条件/超量/FIFO、未知模块不执行、显式文件优先、本机 Origin、接口卸载、助手偏好所有权与真实 CLI 恢复。端到端调用原 Prompt Skill Runtime 和真实模型 SDK，使用本地 OpenAI 协议样例验证固定指令与来源 SHA进入执行记录；一项内置人工输入工具保留，零外部 Tool 调用。浏览器上传的是自编写测试文件，不是本批新的第三方仓库验证；此前真实 GitHub/MCP/OpenAPI 实验仍在本文相应章节。协议样例不证明真实模型质量。
+
+本地门禁：后端类型检查与隔离 SQLite 全量 777 通过、1 个原有 TAPD 写入测试跳过；前端类型、lint（0 错误，159 个既有警告）、28 项测试及构建通过。未增加依赖或部署步骤。新文件 plugin-profile.json 及临时文件被任意目录 Git 忽略，保存权限 0600；显式配置/损坏文件保持失败关闭，不自动删除。启动器仍不自动回滚或重试第三方启动失败，已提供 plugins:reset 离线停用入口。

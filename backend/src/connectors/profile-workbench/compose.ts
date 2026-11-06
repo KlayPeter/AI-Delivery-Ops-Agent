@@ -5,7 +5,7 @@ import { runnerConfig } from '../mcp-workbench/runner';
 import { connectorConfig } from '../openapi/contracts';
 import { preparePromptSkills, promptConfig } from '../skill-workbench/catalog';
 
-const inputSchema = z.object({ files: z.array(z.object({
+export const compositionInput = z.object({ files: z.array(z.object({
     name: z.string().min(1).max(180).regex(/^[^/\\\x00-\x1f]+\.ya?ml$/i), yaml: z.string().min(1).max(1024 * 1024),
 }).strict()).min(1).max(3) }).strict();
 const profileSchema = z.object({ apiVersion: z.literal('1.0'), base: z.literal('personal').optional(),
@@ -45,7 +45,7 @@ function parseYaml(text: string) {
 }
 
 export function composeProfiles(value: unknown) {
-    const { files } = inputSchema.parse(value);
+    const { files } = compositionInput.parse(value);
     if (files.reduce((total, file) => total + Buffer.byteLength(file.yaml), 0) > 1024 * 1024) reject('配置总量超过 1 MiB，请减少文件或 Skill 内容。');
     const seen = new Set<Kind>(), plugins: Array<{ module: string; config?: Record<string, unknown> }> = [];
     const summary: Array<{ kind: Kind; file: string; items: string[] }> = [];

@@ -18,6 +18,10 @@ last_reviewed: 2026-11-06
 
 ```mermaid
 flowchart TD
+    REVIEWED_PROFILE[已审查 Skill/MCP/OpenAPI：预览后明确确认] --> PRIVATE_PROFILE[固定导出契约复验；私有 CAS 保存]
+    PRIVATE_PROFILE --> PROFILE_APPLY[空闲重载；新实例与同一保存版本确认]
+    PROFILE_APPLY --> PROFILE_OWNER[显式文件优先；否则启用保存组合或个人预设]
+    PRIVATE_PROFILE --> PROFILE_RESET[停用并恢复个人预设；组合与 Run 历史保留]
     ASSIST_UI[默认个人：选择 Skill/OpenAPI 助手] --> ASSIST_SAVE[私有偏好保存；严格枚举，可空值停用]
     ASSIST_SAVE --> ASSIST_BOOT[已有本地应用流程；新实例确认后生效]
     ASSIST_BOOT --> PL
@@ -94,7 +98,7 @@ flowchart TD
     REC[任务配方：原参数与版本审查] --> RECRUN[固定本机新运行；Runtime 核对实际契约]
     RECRUN --> RECEIPT[独立来源回执，原记录保留]
     PC[插件页组合入口] --> PVF[固定 Skill/MCP/OpenAPI 导出契约校验]
-    PVF --> PD[下载个人基底配置；用户保存重启]
+    PVF --> PD[预览确认后私有保存应用；也可下载显式启动]
     RFIX[研究任务：用户确认固定外部请求] --> RSNAP[持久确认与目的地址/契约指纹]
     RSNAP --> RPOL[仅收紧已声明委派；执行前检查常量参数]
     RPOL --> RCHILD[原 MCP/OpenAPI 子任务与真实资料索引]
@@ -117,7 +121,7 @@ flowchart TD
 ### 非目标
 
 - 不提供多人认证、远端管理、在线任意仓库代码安装或可视化工作流画布。
-- 插件列表展示已装配插件；安装组合仍使用可信文件配置并重启生效。
+- 插件列表展示已装配插件；已审查导出可在页面保存并重载应用，可信原生插件仍通过显式文件配置。
 - 回复策略为 none 只关闭最终结果投递；Agent 的业务 Tool 仍可能按任务执行写操作。
 - 仅显示最近 50 个根 Run；目前底层 KV 仍遍历 Run 前缀，数据规模增加时需改为分页索引。
 
@@ -130,7 +134,7 @@ flowchart TD
 5. 本地连接字段采用 allowlist；密钥只返回已配置布尔值。省略字段保留当前值，null 仅用于明确清除密钥；空凭据的飞书可保持未连接，部分凭据拒绝保存。
 6. 配置写入独占创建的临时文件、flush、原子 rename，文件权限 0600；读取拒绝符号链接、硬链接和共享权限文件。配置为本机明文，不声称加密。连接更新串行合并，失败保留原文件。
 7. 保存不改变在途任务的配置。重启时本地文件覆盖同名环境值；模型供应商/地址/名称和 TAPD 项目/地址/工作项环境值优先于旧 config.json。页面持续提示待重启状态。
-8. HTTP 入口通过 loadWorkspacePlugins 默认只选择示例 Markdown 来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收、MCP 接入助手、个人研究及任务配方，合计十四个插件、九个 Agent。选择公开网页时替换来源组合。明确保存 GitHub 仓库后再增装 GitHub/发布两个插件，合计 16 个插件、10 个 Agent；清空仓库并重启停用。SDK 团队工厂仍为十三个插件、七个 Agent，HTTP 可用 profiles/agents/team.yaml 显式选择该组合。未声明 base: personal 的显式 AGENT_PLUGINS_FILE 完全管理组合，不自动叠加页面知识配置。
+8. HTTP 入口通过 loadWorkspacePlugins 默认只选择示例 Markdown 来源、回答、复核、知识界面、网页收集、文档导入、资料库、结果验收、MCP 接入助手、个人研究及任务配方，合计十五个插件、九个 Agent。选择公开网页时替换来源组合。明确保存 GitHub 仓库后再增装 GitHub/发布两个插件，合计 17 个插件、10 个 Agent；清空仓库并重启停用。SDK 团队工厂仍为十三个插件、七个 Agent，HTTP 可用 profiles/agents/team.yaml 显式选择该组合。未声明 base: personal 的显式 AGENT_PLUGINS_FILE 完全管理组合，不自动叠加页面知识配置。
 9. 知识请求保留无 chat/conversation 的个人手动 Scope。检索不调用模型，生成回答使用当前宿主模型并发送所选片段；证据沿用来源和引用核验协议。
 10. 结果 Markdown 不执行 HTML，不自动加载远端图片；原文链接仅允许 HTTP/HTTPS 和 Obsidian open。原始 JSON 放在详情，不作为主要操作入口。
 11. 首页新工作台保留 `?groupId` / `?dashboardId` 的既有看板入口，以及旧根目录 HTML 长链接；这些入口都核对看板插件是否装配，项目看板使用 `/dashboard` 导航。
@@ -529,3 +533,11 @@ Host 可选 reloadConfiguration 只供可信原生插件重载应用配置；HTT
 代码：agents/plugins/directory.ts、core/configuration-scheduling/api.ts / publicConfig.ts、platform/scheduling/registry.ts、core/scheduler.ts、platform/plugins/contracts.ts、platform/bootstrap/agentHost.ts、index.ts、agents/plugins/builtins.ts、profiles/agents/team.yaml（均在 backend）。验证：backend/test/directoryPlugin.test.ts（五接口、脱敏、禁用零调用、重载条件、逐群前同步、六小时间隔、失败保留与停机等待），schedulePlugins.test.ts（无群全局轮询、频率、错误隔离）及原群同步、配置、调度和插件回归。
 
 配置页同步：frontend/src/pages/ConfigPage.tsx 根据实际 builtin.directory 装配状态使用 SWR 请求群列表；缺少插件时不挂载通讯录树，GroupConfigList 停用远端刷新、保留成员配置并允许直接输入群 ID。配置保存与业务表单保持。验证包含前端类型/lint/测试/构建与本地禁用状态浏览器检查。
+
+## 已审查组合的本地保存与应用（2026-11-06）
+
+plugins.compose 1.3.0 在预览后接收 expectedRevision 与 confirmed:true，将原始导出文件私有保存到 data_path/plugin-profile.json；串行写入、原子替换和文件 SHA 防止同一 Host 中旧页面覆盖新配置。每次读取及启动重新执行固定模块/授权/来源校验，拒绝链接、非普通文件、共享权限及超量内容。预览/保存不联网、不创建业务 Run；新 Host 装配时才连接所选 MCP。只在新实例、目标保存版本和 pending=false 均确认后报告应用成功。
+
+装配优先级是显式 AGENT_PLUGINS_FILE、启用的保存组合、个人预设。显式文件不读取保存文件且拒绝页面改写。保存组合随自身配置选择接入助手，忽略旧助手偏好；恢复个人预设后恢复原偏好。base personal 的知识来源/模型/GitHub 配置仍沿用本机设置，原 Run/Step/Artifact 不改写。保存、启停和恢复不删除原配置。独立后端保留手动重启提示；服务启动失败不会自动回滚，可停止服务后用根命令 bun run plugins:reset 再启动 local 恢复个人预设，损坏文件只报错。
+
+代码：backend/src/connectors/profile-workbench/saved.ts / plugin.ts、backend/src/platform/workspace/composition.ts / api.ts / connections.ts、backend/src/platform/plugins/configuration.ts、backend/src/index.ts、backend/src/scripts/resetPluginProfile.ts、frontend/src/api.ts / pages/workspace/ProfileComposerPage.tsx / state.ts。验证：backend/test/savedPluginProfiles.test.ts、profileComposer.test.ts（复用 helpers/profileExports.ts）、featureIndex.test.ts，以及既有组合/重载回归；浏览器实际应用与恢复，核对六条旧 Run 的完整步骤与产物不变，桌面及 375px 确认操作。模型 SDK 端到端用本地协议样例，不代表真实模型质量。完整边界见 docs/PLUGIN_PROFILES.md。

@@ -55,7 +55,7 @@ export class LocalConnections {
         return { values, secrets, restartRequired: connectionKeys.some(key => (this.saved[key] ?? this.active[key] ?? '') !== this.active[key]) };
     }
 
-    save(input: unknown, modelProviderIds: readonly string[] = []): Promise<ReturnType<LocalConnections['snapshot']>> {
+    save(input: unknown, modelProviderIds: readonly string[] = [], pluginFileManaged = false): Promise<ReturnType<LocalConnections['snapshot']>> {
         const task = this.tail.then(async () => {
             const update = updateSchema.parse(input);
             const next = { ...this.saved };
@@ -65,7 +65,7 @@ export class LocalConnections {
             }
             const merged = { ...this.active, ...next };
             if (update.PLUGIN_SETUP_ASSISTANTS !== undefined) {
-                if (process.env.AGENT_PLUGINS_FILE) throw new Error('当前插件由配置文件管理，请在该文件中选择接入助手');
+                if (process.env.AGENT_PLUGINS_FILE || pluginFileManaged) throw new Error('当前插件由配置文件管理，请在该文件中选择接入助手');
                 const { setupAssistantIds } = await import('@/connectors/profile-workbench/compose');
                 next.PLUGIN_SETUP_ASSISTANTS = setupAssistantIds.parse(lines(merged.PLUGIN_SETUP_ASSISTANTS || '')).join('\n');
             }

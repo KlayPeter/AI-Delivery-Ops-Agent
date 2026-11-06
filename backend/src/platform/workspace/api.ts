@@ -3,6 +3,7 @@ import { Elysia } from 'elysia';
 import { z } from 'zod';
 import type { AgentHost } from '@/platform/bootstrap/agentHost';
 import type { AppConfig } from '@/core/config';
+import type { PluginSelection } from '@/platform/plugins/configuration';
 import { isLocalWorkspaceRequest, type LocalConnections } from './connections';
 
 const runInput = z.object({ capability: z.string().min(1).max(200), input: z.record(z.string(), z.unknown()).refine(value => Buffer.byteLength(JSON.stringify(value)) <= 32768), triggerId: z.string().uuid().optional() }).strict();
@@ -21,7 +22,7 @@ export function createPluginApi(host: AgentHost, applicationRoutes: readonly { p
     return api.all('/api/*', ({ request }) => host.handlePluginRequest(request), { parse: 'none' });
 }
 
-export function createWorkspaceApi(host: AgentHost, connections: LocalConnections, _getConfig: () => AppConfig, base?: 'personal', reload?: () => void) {
+export function createWorkspaceApi(host: AgentHost, connections: LocalConnections, _getConfig: () => AppConfig, base?: 'personal', reload?: () => void, composition?: PluginSelection['composition']) {
     const instanceId = randomUUID();
     let reloadRequest: Request | undefined;
     return new Elysia({ prefix: '/api/workspace', name: 'local-agent-workspace' })
@@ -42,14 +43,14 @@ export function createWorkspaceApi(host: AgentHost, connections: LocalConnection
         .get('/state', async () => {
             const [agents, runs] = await Promise.all([host.listAgents(), host.listLocalRuns()]);
             const plugins = host.listPlugins();
-            const managedByPluginFile = Boolean(process.env.AGENT_PLUGINS_FILE);
+            const managedByPluginFile = Boolean(process.env.AGENT_PLUGINS_FILE) || composition?.source === 'file' || composition?.source === 'saved';
             const sourceSettingsManagedByPluginFile = managedByPluginFile && base !== 'personal';
             const knowledgeKind = plugins.some(plugin => plugin.id === 'knowledge.mixed') ? 'mixed' : plugins.some(plugin => plugin.id === 'knowledge.web') ? 'web'
                 : plugins.some(plugin => plugin.id === 'knowledge.markdown') ? (sourceSettingsManagedByPluginFile ? 'markdown' : process.env.KNOWLEDGE_KIND || 'sample') : 'none';
-            return { agents, runs, plugins, pages: host.web.pages(), manualJobs: host.web.manualJobs(), health: host.health(), modelConfigured: host.isModelAvailable(), modelProviders: host.modelProviders.list(), knowledgeKind, managedByPluginFile, sourceSettingsManagedByPluginFile, ...(base ? { base } : {}) };
+            return { agents, runs, plugins, pages: host.web.pages(), manualJobs: host.web.manualJobs(), health: host.health(), modelConfigured: host.isModelAvailable(), modelProviders: host.modelProviders.list(), knowledgeKind, managedByPluginFile, sourceSettingsManagedByPluginFile, ...(base ? { base } : {}), ...(composition ? { compositionSource: composition.source } : {}) };
         })
         .get('/connections', () => ({ ...connections.snapshot(), reloadAvailable: Boolean(reload), instanceId }))
-        .put('/connections', async ({ body }) => ({ ...await connections.save(body, host.modelProviders.list().map(provider => provider.id)), reloadAvailable: Boolean(reload), instanceId }))
+        .put('/connections', async ({ body }) => ({ ...await connections.save(body, host.modelProviders.list().map(provider => provider.id), composition?.source === 'saved' || composition?.source === 'file'), reloadAvailable: Boolean(reload), instanceId }))
         .post('/reload', ({ body, request, set }) => {
             z.object({}).strict().parse(body);
             if (!reload) { set.status = 409; return { error: '请从仓库根目录使用 bun run local 启动，或手动重启后端应用配置' }; }

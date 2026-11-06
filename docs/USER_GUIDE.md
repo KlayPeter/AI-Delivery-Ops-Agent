@@ -124,7 +124,11 @@ Obsidian 接入的是本机 Vault 文件夹，不需要登录 Obsidian 账号。
 | MCP | 可调用的外部工具 | 先发现和选择工具，再按明确授权运行；有 stdio / HTTPS 连接能力 |
 | OpenAPI | 按公开接口规范读取数据 | 审查服务和参数，运行已授权的固定 GET 接口 |
 
-**助手启停已经可以直接在页面完成；实际第三方能力仍需要审查并通过配置文件启用。** 普通 GitHub 小项目需要按插件规范适配，不能直接当成任意可执行插件安装。导入的文本 Skill 不会自动获得脚本执行或文件访问权限。
+助手启停和已审查能力的组合都可以在页面保存应用：下载接入助手导出的 YAML，进入「组合已有配置」，预览、核对并确认后点击「保存并应用组合」。可随时「恢复个人预设」，保留组合与历史；显式配置文件仍优先。普通 GitHub 小项目需要按插件规范适配，不能直接当成任意可执行插件安装。导入的文本 Skill 不会自动获得脚本执行或文件访问权限。
+
+![已审查插件组合在本地应用](images/plugin-composition-applied.png)
+
+若保存的组合导致本地启动失败，停止服务后运行 `bun run plugins:reset`，再 `bun run local` 恢复个人预设。它会保留组合，不会删除历史；详情见[插件组合的启动恢复](PLUGIN_PROFILES.md#高级显式文件与启动恢复)。
 
 具体步骤见[GitHub Skill](GITHUB_SKILLS.md)、[MCP 工具](MCP_TOOLS.md)、[OpenAPI 接入](OPENAPI_TOOLS.md)和[插件组合](PLUGIN_PROFILES.md)。开发自己的功能可参考[插件作者规范](PLUGIN_AUTHORING.md)。
 

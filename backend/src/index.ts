@@ -150,7 +150,7 @@ const app = new Elysia()
     })
     .use(createWorkspaceApi(agentHost, localConnections, () => config, pluginSelection.base, process.env.LOCAL_DEV_SESSION ? () => {
         void shutdown().then(() => process.exit(75), error => { console.error('本地配置应用失败：', error); process.exit(1); });
-    } : undefined))
+    } : undefined, pluginSelection.composition))
     .get('/healthz', () => livenessReport())
     .get('/readyz', async ({ set }) => {
         const report = await readinessReport({

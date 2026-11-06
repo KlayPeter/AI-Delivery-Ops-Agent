@@ -15,6 +15,7 @@ export interface WorkspaceState {
   plugins: { id: string; name: string; description: string; version: string; requires?: string[]; agents: string[] }[];
   health: { started: boolean; initialized: boolean }; modelConfigured: boolean; knowledgeKind: string; managedByPluginFile: boolean; sourceSettingsManagedByPluginFile?: boolean; base?: 'personal';
   pages: PluginPage[]; manualJobs: string[]; modelProviders?: { id: string; name: string }[];
+  compositionSource?: 'default' | 'saved' | 'file';
 }
 export interface ConnectionState { values: Record<string, string>; secrets: Record<string, boolean>; restartRequired: boolean; reloadAvailable?: boolean; instanceId?: string }
 

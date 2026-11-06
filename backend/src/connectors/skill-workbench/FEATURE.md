@@ -42,7 +42,7 @@ flowchart TD
     SK --> MODEL[原 Prompt Executor 与模型网关]
     MODEL --> RESULT[文本 Artifact、实际模型步骤与指令 SHA]
     EXPORT --> PC[可选插件组合：保留原契约并统一路径]
-    PC --> PERSONAL_COMBO[个人基底加不同种类插件；下载后保存重启]
+    PC --> PERSONAL_COMBO[个人基底加不同种类插件；核对后保存应用或下载显式启动]
     DEFAULT_UI[默认插件页：接入与组合] --> SETUP_PREF[勾选助手；私有保存并应用]
     SETUP_PREF --> SETUP_YAML[新实例装配 Inspector；无实际工具授权]
     DEFAULT_UI --> SETUP_EXPORT[自定义文件或高级模式：保留 YAML 导出]
@@ -143,3 +143,7 @@ flowchart TD
 默认插件页的“接入与组合 → 启用接入助手”可选择本功能发现助手，由 plugins.compose 1.1.0 输出固定内置模块的个人基底 YAML。保存重启后出现接入页；实际能力仍经过本功能原来的来源、指令与许可审查后单独导出，再组合使用。不执行任意仓库代码，也不自动并入当前自定义附加插件。原独立 CLI 组合继续可用。代码与验证见[配置组合功能卡](../profile-workbench/FEATURE.md)及 backend/test/profileComposer.test.ts；本功能契约与测试保持。
 
 2026-11-06 助手入口简化：默认个人工作台在「插件 → 接入与组合」勾选并保存应用即可启用本功能的 Inspector；可取消并应用以停用发现入口，历史保留。只注册已有发现 Agent/Tool，不导入第三方能力或扩大授权。显式插件文件仍由原文件控制，原审查/固定版本/导出/运行链路保持。实现与生命周期见[配置组合功能卡](../profile-workbench/FEATURE.md)，验证：workspaceComposition.test.ts、profileComposer.test.ts、既有功能回归与实际浏览器入口。
+
+## 已审查组合的页面应用（2026-11-06）
+
+原导出和授权契约保持；下载后可交给 plugins.compose 的组合页面，核对确认后私有保存并使用既有空闲重载。保存组合随自身配置选择 Inspector；原助手偏好保留但暂不叠加，恢复个人预设后生效。显式 AGENT_PLUGINS_FILE 仍优先，任意代码、认证工具和自动扩大授权不在该入口范围内。实现与恢复流程由 backend/src/connectors/profile-workbench/FEATURE.md 拥有；新增验证为 backend/test/savedPluginProfiles.test.ts，原发现/导出/执行测试保持。

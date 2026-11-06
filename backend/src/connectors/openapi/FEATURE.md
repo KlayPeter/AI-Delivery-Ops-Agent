@@ -35,7 +35,7 @@ flowchart TD
     GET --> NET
     NET --> RESULT[有界 JSON、响应指纹、原始产物与文本预览]
     YAML --> PC[可选插件组合：保留原契约并统一路径]
-    PC --> PERSONAL_COMBO[个人基底加不同种类插件；下载后保存重启]
+    PC --> PERSONAL_COMBO[个人基底加不同种类插件；核对后保存应用或下载显式启动]
     RFIX[研究页：确认固定工具参数与当前契约] --> RDEL[受常量参数策略约束的子任务]
     RDEL --> GATEWAY[既有 Native Runner 与共享两次 Tool 预算]
     DEFAULT_UI[默认插件页：接入与组合] --> SETUP_PREF[勾选助手；私有保存并应用]
@@ -143,3 +143,7 @@ OAuth/Bearer、私网/本机 API、Swagger 2、写入方法、任意 Header/Cook
 默认插件页的“接入与组合 → 启用接入助手”可选择本功能发现助手，由 plugins.compose 1.1.0 输出固定内置模块的个人基底 YAML。保存重启后出现接入页；实际能力仍经过本功能原来的规范、接口与读取用途审查后单独导出，再组合使用。不执行任意仓库代码，也不自动并入当前自定义附加插件。原独立 CLI 组合继续可用。代码与验证见[配置组合功能卡](../profile-workbench/FEATURE.md)及 backend/test/profileComposer.test.ts；本功能契约与测试保持。
 
 2026-11-06 助手入口简化：默认个人工作台在「插件 → 接入与组合」勾选并保存应用即可启用本功能的 Inspector；可取消并应用以停用发现入口，历史保留。只注册已有发现 Agent/Tool，不导入第三方能力或扩大授权。显式插件文件仍由原文件控制，原审查/固定版本/导出/运行链路保持。实现与生命周期见[配置组合功能卡](../profile-workbench/FEATURE.md)，验证：workspaceComposition.test.ts、profileComposer.test.ts、既有功能回归与实际浏览器入口。
+
+## 已审查组合的页面应用（2026-11-06）
+
+原导出和授权契约保持；下载后可交给 plugins.compose 的组合页面，核对确认后私有保存并使用既有空闲重载。保存组合随自身配置选择 Inspector；原助手偏好保留但暂不叠加，恢复个人预设后生效。显式 AGENT_PLUGINS_FILE 仍优先，任意代码、认证工具和自动扩大授权不在该入口范围内。实现与恢复流程由 backend/src/connectors/profile-workbench/FEATURE.md 拥有；新增验证为 backend/test/savedPluginProfiles.test.ts，原发现/导出/执行测试保持。

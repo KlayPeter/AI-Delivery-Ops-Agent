@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "setup:local": "bun run scripts/local/launcher.ts --setup",
-    "local": "bun run scripts/local/launcher.ts"
+    "local": "bun run scripts/local/launcher.ts",
+    "plugins:reset": "cd backend && bun run src/scripts/resetPluginProfile.ts"
   }
 }

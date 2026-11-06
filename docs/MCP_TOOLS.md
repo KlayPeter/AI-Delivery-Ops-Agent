@@ -1,5 +1,7 @@
 # 接入 MCP 工具
 
+已从接入助手审查并导出的配置，可以在「插件 → 接入与组合」预览、确认并保存应用，保留个人工作台与历史；也可继续使用下文的显式文件启动方式。组合页面只支持文本 Skill、匿名公开 HTTPS MCP 和固定 GET OpenAPI。步骤与恢复见[插件组合](PLUGIN_PROFILES.md#组合已审查的能力)。
+
 已有 MCP 接口的开源项目可以通过独立 connector.mcp 插件接入，不需要把其业务代码复制到 Host。支持已审查的本地 stdio 和公开 HTTPS Streamable HTTP 读取工具，统一通过 Tool Gateway、预算和 Run/Step/Artifact 执行。
 
 MCP 插件不在默认组合中。它不提供在线安装、任意仓库分析、OAuth、写工具或 OS 沙箱。工具的 readOnlyHint 仅是上游提示，不能作为授权证明；配置者需要审查所选工具与服务权限。

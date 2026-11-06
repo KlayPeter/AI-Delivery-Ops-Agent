@@ -57,11 +57,15 @@ are deferred while the local product is being validated.
 
 - [x] Let first-time users enable bundled Skill/OpenAPI inspectors on the default
   plugin page and apply saved local preferences. Explicit file compositions retain
-  control; actual reviewed third-party capabilities still use exported profiles.
+  control; actual third-party capabilities require source and grant review before activation.
 
 - [x] Compose reviewed Skill, MCP and OpenAPI export files through a plugin-owned
   preview/download page, preserving the personal workspace and original grants.
   One export per kind; custom native configs and authenticated onboarding remain separate.
+- [x] Save reviewed compositions privately and apply through the local launcher, with
+  explicit-file priority, revision conflicts and restore-to-personal without deleting
+  profiles or history. Standalone mode needs a restart; startup failure has a local
+  reset command, with no automatic rollback.
 
 - [x] Provide local no-credential onboarding with labeled fictional notes, plus
   optional GitHub connection and release preparation from the workspace.

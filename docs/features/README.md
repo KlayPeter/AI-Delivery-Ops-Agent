@@ -83,12 +83,13 @@ flowchart LR
     CHILD --> LEDGER[真实子运行资料索引与待复核研究稿]
     LEDGER --> O
     UI --> COMPOSE[插件组合：受限导出文件、契约校验与规范化路径]
-    COMPOSE --> PROFILE
+    COMPOSE --> SAVED[明确确认、CAS 私有保存；可恢复个人预设]
+    SAVED --> PROFILE
     UI --> SETUP[MCP 发现与授权配置导出]
     UI --> APISETUP[可选 OpenAPI 发现与记录绑定配置导出]
     APISETUP --> APIRUN[用户审查重启后固定 GET 读取]
     APIRUN --> O
-    SETUP --> PROFILE[用户保存配置并重启]
+    SETUP --> PROFILE[已保存组合或显式文件；重启装配]
     PROFILE --> RUNNER[通用 MCP 读取运行器]
     RUNNER --> MG
     FP --> MCP[可选 MCP 连接插件]
@@ -113,7 +114,7 @@ HTTP 默认装配个人知识、采集、验收、工具接入、研究、配方
 | Feature ID | 功能 | 状态 | 运行时 Agent 映射 | 功能文档 |
 | --- | --- | --- | --- | --- |
 | `knowledge-watch` | 正式本机 schedule 的知识引用复核、旧计划保护与独立运行凭证 | active（显式安装） | 控制面插件，复用 `native.knowledge-impact` | [查看](../../backend/src/knowledge/watch/FEATURE.md) |
-| `plugin-profile-composer` | 页面启停 Skill/OpenAPI 助手及已审查能力的校验、预览与组合导出 | active | 控制面插件，无独立 Agent | [查看](../../backend/src/connectors/profile-workbench/FEATURE.md) |
+| `plugin-profile-composer` | 页面启停接入助手、已审查能力组合的私有保存/应用/恢复 | active | 控制面插件，无独立 Agent | [查看](../../backend/src/connectors/profile-workbench/FEATURE.md) |
 | `local-launcher` | 首次初始化、前后端启动、配置应用与本次进程清理 | active | 本地脚本，无独立 Agent | [查看](../../scripts/local/FEATURE.md) |
 | `mixed-knowledge` | 笔记与网页并行检索、跨来源引用与独立版本复核 | active | `native.knowledge-mixed` | [查看](../../backend/src/knowledge/mixed/FEATURE.md) |
 | `model-providers` | 模型提供者插件、配置诊断与无密钥本机 Ollama | active | 宿主模型端口，无独立 Agent | [查看](../../backend/src/platform/models/FEATURE.md) |

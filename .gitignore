@@ -46,3 +46,5 @@ __pycache__/
 # Local workspace credentials
 connections.json
 connections.json.*.tmp
+plugin-profile.json
+plugin-profile.json.*.tmp

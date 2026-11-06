@@ -20,11 +20,16 @@ export interface PluginSelection {
     plugins: FeaturePlugin[];
     config: Record<string, Record<string, unknown>>;
     base?: 'personal';
+    composition?: { source: 'default' | 'saved' | 'file'; revision?: string };
 }
 
 export async function loadPluginConfiguration(file: string, builtins: readonly FeaturePlugin[] = [], personalBase?: () => PluginSelection): Promise<PluginSelection> {
     const filename = path.resolve(file);
-    const configuration = configurationSchema.parse(parse(await readFile(filename, 'utf8')));
+    return loadPluginConfigurationValue(parse(await readFile(filename, 'utf8')), path.dirname(filename), builtins, personalBase);
+}
+
+export async function loadPluginConfigurationValue(value: unknown, directory: string, builtins: readonly FeaturePlugin[] = [], personalBase?: () => PluginSelection): Promise<PluginSelection> {
+    const configuration = configurationSchema.parse(value);
     if (configuration.base && !personalBase) throw new Error('base: personal 需要通过本机工作台组合加载器解析');
     const base = configuration.base ? personalBase!() : undefined;
     const byId = new Map([...builtins, ...(base?.plugins || [])].map(plugin => [plugin.manifest.id, plugin]));
@@ -36,7 +41,7 @@ export async function loadPluginConfiguration(file: string, builtins: readonly F
             if (entry.module.startsWith('builtin.')) throw new Error(`Unknown built-in plugin: ${entry.module}`);
             if (/^[a-z][a-z\d+.-]*:/i.test(entry.module)) throw new Error('Plugin modules must be local paths or installed packages');
             const modulePath = path.isAbsolute(entry.module) || entry.module.startsWith('.')
-                ? pathToFileURL(path.resolve(path.dirname(filename), entry.module)).href
+                ? pathToFileURL(path.resolve(directory, entry.module)).href
                 : entry.module;
             const imported = await import(modulePath);
             plugin = (imported.default || imported) as FeaturePlugin;

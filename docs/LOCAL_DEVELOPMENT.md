@@ -20,6 +20,8 @@ Ctrl+C 或任一服务异常退出会停止本次启动的其他服务及其进�
 
 ## 分开开发与排障
 
+已审查的 Skill/MCP/OpenAPI 导出配置可在「插件 → 接入与组合」预览并保存应用；组合启停保留原配置和运行历史，显式 `AGENT_PLUGINS_FILE` 始终优先。若保存的组合导致启动失败，停止服务后执行 `bun run plugins:reset`，再 `bun run local` 恢复个人预设；命令只停用组合，不删除内容。损坏文件不会自动删除，详见[组合与启动恢复](PLUGIN_PROFILES.md#高级显式文件与启动恢复)。
+
 需要后端代码监听重启时，可沿用两个终端的方式。已初始化后，在 backend 执行 `bun run dev`；另一终端在 frontend 执行 `pnpm dev --host 127.0.0.1`。此方式的 API 地址由 frontend/.env 或 frontend/.env.example 中的 VITE_API_BASE 配置，修改 PORT 时要对应调整。
 
 手动首次初始化可在 backend 依次执行 `bun install --frozen-lockfile`、仅在缺少时复制 .env.example、`bunx prisma generate`、`bun run db:push`，在 frontend 执行 `pnpm install --frozen-lockfile`。不要覆盖已有 .env。

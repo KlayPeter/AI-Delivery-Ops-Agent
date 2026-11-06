@@ -1,5 +1,7 @@
 # 从 GitHub 接入与选择文本 Skill
 
+已从接入助手审查并导出的配置，可以在「插件 → 接入与组合」预览、确认并保存应用，保留个人工作台与历史；也可继续使用下文的显式文件启动方式。组合页面只支持文本 Skill、匿名公开 HTTPS MCP 和固定 GET OpenAPI。步骤与恢复见[插件组合](PLUGIN_PROFILES.md#组合已审查的能力)。
+
 用公开 GitHub 的 SKILL.md 文件链接，查看完整内容、固定版本和可用许可；审查后导出本地配置，再通过已有 Prompt Skill Runtime 运行。适合可用文字完成的写作、规划、设计建议和代码文本任务。
 
 这里只导入指令文本，外部工具权限为 0。不会克隆或安装仓库、执行脚本、读取工作区文件、浏览网页或加载 references/assets。需要这些资源的 Skill 不能完整运行，可继续用[原生插件规范](PLUGIN_AUTHORING.md)或[MCP 工具](MCP_TOOLS.md)适配。

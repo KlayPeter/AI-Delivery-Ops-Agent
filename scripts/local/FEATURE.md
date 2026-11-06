@@ -18,6 +18,8 @@ last_reviewed: 2026-11-06
 
 ```mermaid
 flowchart TD
+    RESET[停止服务后 bun run plugins:reset] --> DISABLE[校验并停用保存组合；原文件和历史保留]
+    DISABLE --> ROOT
     ROOT[根目录 setup:local 或 local] --> CHECK[检查 pnpm]
     CHECK -- setup --> ENV[仅创建缺少的后端 .env]
     ENV --> INSTALL[两个锁定安装与已安装 Prisma 生成]
@@ -49,7 +51,7 @@ flowchart TD
 
 ## 核心规则与运行逻辑
 
-1. 根 package.json 只提供两个脚本，不声明 workspace 或依赖，保留后端 Bun 和前端 pnpm 锁。
+1. 根 package.json 提供初始化、联合启动和保存组合恢复三个脚本，不声明 workspace 或依赖，保留后端 Bun 和前端 pnpm 锁。
 2. --setup 以 wx/0600 创建缺少的 backend/.env。锁定安装后调用已安装的 Prisma generate 和既有 bun run db:push，不使用 accept-data-loss。
 3. 本地启动前检查必要依赖，缺少时给出初始化提示。直接执行 backend/src/index.ts，避免包脚本包装层重复转发停止信号；固定 HOST=127.0.0.1；保留 PORT、DATA_DIR 与插件选择。
 4. 仅监听成功后，后端在 LOCAL_DEV_SESSION 存在时输出 JSON 标记。前端启动要求 event/session/hostname 匹配、port 为 1–65535 整数；忽略其他日志和超过 8 KiB 的行。60 秒未确认则失败清理。
@@ -78,7 +80,7 @@ flowchart TD
 
 ## 代码地图与验证
 
-- package.json：根目录两个命令。
+- package.json：根目录初始化、启动与插件组合恢复命令。
 - scripts/local/launcher.ts：配置初始化、锁定安装、实际端口握手、联合生命周期。
 - backend/src/index.ts：可选的本次会话监听标记。
 - backend/src/scripts/dbPush.ts：复用的安全数据库同步。
@@ -100,3 +102,5 @@ flowchart TD
 2026-11-06 当前个人预设复验：从公开 main 的 166f98a 全新克隆，实际 setup:local 安装锁定依赖并完成无密钥检索；正常退出关闭本次两个端口，再用 local 重启，API 动态端口变化但前端仍连接本次服务，原 Run/Step/Artifact 和 .env（0600）保持。安装后只加入本批 KnowledgePage.tsx 模型入口提示，启动器与后端源代码保持该提交原样；复用普通包缓存。详见 docs/PROJECT_EVIDENCE.md 的“当前个人预设的全新安装与模型入口”，现有生命周期测试保持。
 
 2026-11-06 配置应用：新增已保存配置的本地后端重载，保留前端进程、端口和现有数据；非启动器模式不提供此能力。代码新增入口为 platform/workspace/api.ts 的 POST /reload、AgentHost.isIdle、index.ts 的共享收尾 Promise 与退出 75。验证：localLauncher.test.ts 真实两次重载/稳定端口/普通崩溃清理，workspace.test.ts 空闲、Origin/输入、响应及重复写保护；前端 api.test.mjs 检查丢失回执、旧实例不能冒充生效和忙碌拒绝。浏览器与数据验收记录见 docs/PROJECT_EVIDENCE.md。
+
+2026-11-06 已审查组合：页面保存后沿用既有空闲重载流程。所选服务若导致启动失败，启动器保持正常失败退出，不自动回滚；停止服务后可从根目录执行 bun run plugins:reset，再 bun run local。恢复命令 backend/src/scripts/resetPluginProfile.ts 复用 SavedPluginProfiles，只停用原记录，不删除历史或来源；显式文件仍优先，损坏文件只报错。backend/test/savedPluginProfiles.test.ts 覆盖实际命令子进程与默认装配恢复，原生命周期回归保持。

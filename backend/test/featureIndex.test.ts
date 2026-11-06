@@ -12,7 +12,7 @@ test('local plugin configuration stays ignored in every folder while public exam
         await writeFile(path.join(directory, '.gitignore'), ignore);
         const initialized = Bun.spawnSync(['git', '-c', 'init.templateDir=', 'init', '--quiet', directory]);
         expect(initialized.exitCode).toBe(0);
-        const local = ['backend/profiles/agents/example.local.yaml', 'backend/examples/plugins.context7-http.local.yaml', 'plugins/example.local.yaml'];
+        const local = ['backend/profiles/agents/example.local.yaml', 'backend/examples/plugins.context7-http.local.yaml', 'plugins/example.local.yaml', 'custom-data/plugin-profile.json', 'custom-data/plugin-profile.json.abcd.tmp'];
         const check = (files: string[]) => Bun.spawnSync(['git', '-c', 'core.excludesFile=/dev/null', 'check-ignore', '--stdin'], { cwd: directory, stdin: Buffer.from(files.join('\n') + '\n') });
         const privateFiles = check(local);
         expect(privateFiles.exitCode).toBe(0);
