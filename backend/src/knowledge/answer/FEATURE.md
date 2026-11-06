@@ -214,3 +214,5 @@ flowchart LR
 ## 历史检索作为 Skill 输入
 
 Skill 工作台复用本目录 evidence.ts 的 retrievalEvidence 与 selectEvidence，读取已成功检索的私有历史产物，人工确认后提供片段。RAG 的生成、结构与 verifyCitations 核验保持；自由文本 Skill 不调用 verifyDraft/verifyCitations，不能沿用 RAG 的“引文存在已检查”标记。它只保存选入快照，不证明实际采用或来源仍最新。验证：backend/test/skillKnowledgeContext.test.ts 及既有 knowledgeAnswer.test.ts；实现见[Skill 功能卡](../../connectors/skill-workbench/FEATURE.md)。
+
+共享 Scope 回归（2026-11-06）：requirePersonalScope 本体和本功能的原 manual/agent 限制不变。仅引用复核 Agent 及来源 versions Tool 改用独立 requirePersonalVersionScope 接受无群聊 schedule；本功能不因此获得定时执行或新写入权限。验证：backend/test/localSchedules.test.ts 和本功能既有回归。

@@ -4,12 +4,12 @@ import { readSmallJsonBody } from '@/platform/workspace/request';
 import { KnowledgeWatchService, WatchError } from './service';
 
 export const knowledgeWatchPlugin: FeaturePlugin = {
-    manifest: { apiVersion: '1.0', id: 'knowledge.watch', name: '知识定期复核', version: '1.0.0',
+    manifest: { apiVersion: '1.0', id: 'knowledge.watch', name: '知识定期复核', version: '1.1.0',
         description: '为所选历史结果定期检查实际引用的资料版本，保留独立复核记录和原结果；无需模型。', requires: ['knowledge.impact'] },
     Config: z.object({}).strict(),
     apply(ctx) {
-        if (!ctx.delivery.runLocal) throw new Error('定期复核需要宿主本机运行服务');
-        const service = new KnowledgeWatchService(ctx.delivery.getContext().store, ctx.delivery.agents, ctx.delivery.runLocal);
+        if (!ctx.delivery.runScheduledLocal) throw new Error('定期复核需要宿主本机调度服务');
+        const service = new KnowledgeWatchService(ctx.delivery.getContext().store, ctx.delivery.agents, ctx.delivery.runScheduledLocal);
         ctx.effect(() => {
             const timer = setInterval(() => { void service.tick().catch(() => {
                 void Promise.resolve(ctx.delivery.getContext().store.appendAuditLog('knowledge_watch_tick_failed', { message: '定期复核状态读写失败，请检查本机存储' })).catch(() => {});

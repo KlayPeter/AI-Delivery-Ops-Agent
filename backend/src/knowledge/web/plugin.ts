@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { AgentManifest } from '@/platform/agents/contracts';
 import type { FeaturePlugin } from '@/platform/plugins/contracts';
-import { requirePersonalScope } from '../scope';
+import { requirePersonalScope, requirePersonalVersionScope } from '../scope';
 import { knowledgeSearchInput } from '../search';
 import { fetchPublicPage } from './network';
 import { WebKnowledgeSource, webSourceConfig } from './source';
@@ -22,17 +22,17 @@ export const knowledgeWebManifest: AgentManifest = {
 
 export function createKnowledgeWebPlugin(loadPage: typeof fetchPublicPage = fetchPublicPage): FeaturePlugin {
     return {
-        manifest: { apiVersion: '1.0', id: 'knowledge.web', name: 'Public web knowledge', version: '1.0.0', description: knowledgeWebManifest.description },
+        manifest: { apiVersion: '1.0', id: 'knowledge.web', name: 'Public web knowledge', version: '1.1.0', description: knowledgeWebManifest.description },
         Config: webSourceConfig,
         agents: [{ manifest: knowledgeWebManifest, installationId: 'install-knowledge-web' }],
         apply(ctx, config) {
             const source = new WebKnowledgeSource(webSourceConfig.parse(config), loadPage);
             ctx.delivery.tools.register({
-                id: KNOWLEDGE_WEB_VERSIONS_TOOL, version: '1.0.0', description: 'Check supplied version references using only configured public URLs. Returns document status, not page bodies; an unreadable page is unavailable, not proven deleted.',
+                id: KNOWLEDGE_WEB_VERSIONS_TOOL, version: '1.1.0', description: 'Check supplied version references using only configured public URLs. Returns document status, not page bodies; an unreadable page is unavailable, not proven deleted.',
                 inputSchema: { type: 'object', required: ['documents'], properties: { documents: { type: 'array' } } }, outputSchema: { type: 'object' },
                 sideEffect: 'read', riskLevel: 'low', idempotent: true, timeoutSeconds: 45,
             }, async (input, execution) => {
-                requirePersonalScope(execution.scope);
+                requirePersonalVersionScope(execution.scope);
                 return source.versions(versionRequest.parse(input), execution.signal);
             });
             ctx.delivery.tools.register({

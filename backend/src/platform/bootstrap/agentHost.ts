@@ -436,6 +436,11 @@ export class AgentHost {
         return this.dispatch(createTriggerEnvelope({ scope, occurredAt: new Date().toISOString(), payload: input, trustedContext: expected ? { expectedExecution: expected } : undefined, replyPolicy: { mode: 'none' } }), capability, input);
     }
 
+    async runScheduledLocal(capability: string, input: unknown, triggerId: string, expected?: { installationId: string; manifestHash: string }) {
+        const scope = createTriggerScope({ workspaceId: DEFAULT_WORKSPACE_ID, botInstanceId: DEFAULT_BOT_INSTANCE_ID, triggerType: 'schedule', triggerId });
+        return this.dispatch(createTriggerEnvelope({ scope, occurredAt: new Date().toISOString(), payload: input, trustedContext: expected ? { expectedExecution: expected } : undefined, replyPolicy: { mode: 'none' } }), capability, input);
+    }
+
     async startLocal(capability: string, input: unknown, triggerId: string) {
         await this.initialize();
         return this.track(async () => {
@@ -547,6 +552,11 @@ export class AgentHost {
             runLocal: async (capability, input, triggerId, expected) => {
                 if (!this.initialized || this.stopped) throw new Error('Host 尚未就绪或已停止');
                 const result = await this.runLocal(capability, input, triggerId, expected);
+                return { runId: result.execution?.run.id || result.claim.runId, status: result.execution?.run.status || result.status, error: result.execution?.run.error || result.claim.error };
+            },
+            runScheduledLocal: async (capability, input, triggerId, expected) => {
+                if (!this.initialized || this.stopped) throw new Error('Host 尚未就绪或已停止');
+                const result = await this.runScheduledLocal(capability, input, triggerId, expected);
                 return { runId: result.execution?.run.id || result.claim.runId, status: result.execution?.run.status || result.status, error: result.execution?.run.error || result.claim.error };
             },
             agents: this.registry,

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { AgentManifest } from '@/platform/agents/contracts';
 import type { FeaturePlugin } from '@/platform/plugins/contracts';
 import { MarkdownKnowledgeSource, markdownSourceConfig } from './source';
-import { requirePersonalScope } from '../scope';
+import { requirePersonalScope, requirePersonalVersionScope } from '../scope';
 import { versionRequest } from '../versions';
 export { requirePersonalScope } from '../scope';
 
@@ -28,17 +28,17 @@ const searchInput = z.object({ query: z.string().trim().min(1).max(500), limit: 
 const commandInput = z.object({ operation: z.enum(['sync', 'search']), query: z.string().max(500).optional(), limit: z.number().int().min(1).max(10).optional() }).strict();
 
 export const knowledgeMarkdownPlugin: FeaturePlugin = {
-    manifest: { apiVersion: '1.0', id: 'knowledge.markdown', name: 'Personal Markdown knowledge', version: '1.0.0', description: knowledgeMarkdownManifest.description },
+    manifest: { apiVersion: '1.0', id: 'knowledge.markdown', name: 'Personal Markdown knowledge', version: '1.1.0', description: knowledgeMarkdownManifest.description },
     Config: markdownSourceConfig,
     agents: [{ manifest: knowledgeMarkdownManifest, installationId: 'install-knowledge-markdown' }],
     apply(ctx, config) {
         const source = new MarkdownKnowledgeSource(markdownSourceConfig.parse(config));
         ctx.delivery.tools.register({
-            id: KNOWLEDGE_MARKDOWN_VERSIONS_TOOL, version: '1.0.0', description: 'Check explicitly supplied document references against the configured folder. Distinguishes changed/missing documents from unavailable or out-of-scope sources; returns no note bodies.',
+            id: KNOWLEDGE_MARKDOWN_VERSIONS_TOOL, version: '1.1.0', description: 'Check explicitly supplied document references against the configured folder. Distinguishes changed/missing documents from unavailable or out-of-scope sources; returns no note bodies.',
             inputSchema: { type: 'object', required: ['documents'], properties: { documents: { type: 'array' } } }, outputSchema: { type: 'object' },
             sideEffect: 'read', riskLevel: 'low', idempotent: true, timeoutSeconds: 30,
         }, async (input, execution) => {
-            requirePersonalScope(execution.scope);
+            requirePersonalVersionScope(execution.scope);
             return source.versions(versionRequest.parse(input), execution.signal);
         });
         ctx.delivery.tools.register({

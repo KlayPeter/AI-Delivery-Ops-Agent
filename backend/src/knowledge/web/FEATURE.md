@@ -43,6 +43,7 @@ flowchart TD
     I --> Q[共享关键词排序]
     Q --> R[URL、内容版本、提取文本行号与片段]
     R --> O[JSON Artifact / 引用核验回答]
+    VERSION_SCOPE[手动/Agent 或无群聊的本机 schedule] --> VERSION_ONLY[仅 versions Tool；原目录与链接范围不变]
 ```
 
 ## 能力边界
@@ -195,3 +196,7 @@ flowchart LR
 ## 公网传输复用
 
 WebTransport.request 可选第五个 Accept 参数供独立 OpenAPI 读取使用，网页默认仍为 text/html、text/markdown、text/plain；DNS/IP、Host/TLS、有界读取、网页重定向和正文处理不变。OpenAPI 自行禁止重定向，不扩大知识来源权限。验证：backend/test/knowledgeWeb.test.ts、openApiConnector.test.ts。
+
+## 本机 schedule 的只读版本检查（2026-11-06）
+
+本来源插件与 versions Tool 为 1.1.0，版本入口改用 requirePersonalVersionScope，允许无 chat/conversation 的本机 schedule；search/sync/检索 Agent 继续使用原 requirePersonalScope 和原 triggers，不接受 schedule。内容、来源身份、URL/目录边界、输出与预算保持。混合检查沿原共享预算传递相同 Scope，资料库知识来源复用 Markdown 版本入口。验证：backend/test/localSchedules.test.ts，及原知识/混合/引用回归。

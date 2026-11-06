@@ -24,7 +24,7 @@ export class KnowledgeWatchService {
     private readonly impact: KnowledgeImpactService;
     private pending?: Promise<void>;
     private stopped = false;
-    constructor(private readonly store: PersistentKeyValueStore, private readonly agents: AgentRegistry, private readonly runLocal: NonNullable<PluginHostServices['runLocal']>) {
+    constructor(private readonly store: PersistentKeyValueStore, private readonly agents: AgentRegistry, private readonly runScheduledLocal: NonNullable<PluginHostServices['runScheduledLocal']>) {
         this.impact = new KnowledgeImpactService(store);
     }
     private async plan() {
@@ -37,7 +37,7 @@ export class KnowledgeWatchService {
         let agent;
         try { agent = this.agents.resolve(scope.workspaceId, scope.botInstanceId, KNOWLEDGE_IMPACT_CAPABILITY); }
         catch { throw new WatchError('引用复核能力当前不可用，请恢复插件后重新保存计划', 409); }
-        if (agent.manifest.runtime.type !== 'native' || agent.manifest.id !== 'native.knowledge-impact' || !agent.manifest.triggers.includes('manual')) throw new WatchError('计划只支持已装配的原生引用复核能力', 409);
+        if (agent.manifest.runtime.type !== 'native' || agent.manifest.id !== 'native.knowledge-impact' || !agent.manifest.triggers.includes('schedule')) throw new WatchError('计划只支持声明 schedule 的原生引用复核能力', 409);
         return { installationId: agent.installation.id, manifestHash: checkHash(agent.manifest) };
     }
     async status() {
@@ -87,20 +87,20 @@ export class KnowledgeWatchService {
             lastAttemptAt: now.toISOString(), lastRunStatus: 'running', lastCheckRunId: undefined, lastError: undefined };
         if (!await this.store.compareAndSetIdempotencyKey(this.key, plan, claimed)) return;
         if (this.stopped) return;
-        let result: Awaited<ReturnType<NonNullable<PluginHostServices['runLocal']>>> | undefined, lastError: string | undefined;
+        let result: Awaited<ReturnType<NonNullable<PluginHostServices['runScheduledLocal']>>> | undefined, lastError: string | undefined, enabled = true;
         try {
             const binding = this.binding();
             if (binding.installationId !== plan.installationId || binding.manifestHash !== plan.manifestHash) throw new WatchError('复核执行版本或绑定已变化，请重新保存计划', 409);
-            // shortcut: 定时检查复用 Host 的本机 manual 通道；增加其他个人调度类型时再抽出独立触发服务。
             const triggerKey = `knowledge-watch:${claimed.revision}`;
-            result = await this.runLocal(KNOWLEDGE_IMPACT_CAPABILITY, { operation: 'check', runIds: plan.runIds }, triggerKey, binding);
+            result = await this.runScheduledLocal(KNOWLEDGE_IMPACT_CAPABILITY, { operation: 'check', runIds: plan.runIds }, triggerKey, binding);
             if (result.runId) {
                 try { await this.store.setIdempotencyKey(`${this.key}:run:${result.runId}`, { schemaVersion: '1.0', runId: result.runId, revision: claimed.revision, triggerKey, runIds: plan.runIds, intervalMinutes: plan.intervalMinutes, attemptedAt: now.toISOString() }); }
                 catch { lastError = '检查记录已创建，但计划来源凭证未保存；请查看运行历史'; }
             }
             if (!result.runId || result.status !== 'succeeded') lastError = '本次定期检查未完成，请查看运行记录';
-        } catch (error) { lastError = error instanceof WatchError ? error.message : '本次定期检查未完成，请查看运行记录或恢复插件后重试'; }
-        await this.store.compareAndSetIdempotencyKey(this.key, claimed, { ...claimed, lastCheckRunId: result?.runId, lastRunStatus: lastError ? 'failed' : result!.status, lastError });
+            if (result.error?.code === 'AGENT_CONTRACT_CHANGED') { enabled = false; lastError = '复核执行版本或绑定已变化，请重新保存计划'; }
+        } catch (error) { if (error instanceof WatchError) enabled = false; lastError = error instanceof WatchError ? error.message : '本次定期检查未完成，请查看运行记录或恢复插件后重试'; }
+        await this.store.compareAndSetIdempotencyKey(this.key, claimed, { ...claimed, enabled, lastCheckRunId: result?.runId, lastRunStatus: lastError ? 'failed' : result!.status, lastError });
     }
     async stop() { this.stopped = true; await this.pending?.catch(() => {}); }
 }

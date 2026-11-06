@@ -46,6 +46,7 @@ flowchart TD
     PANEL --> NAV[原结果与独立检查报告互相查看]
     KLIB[应用资料库的真实文件版本] --> T
     WATCH[可选定期计划：CAS 领取与绑定核对] --> U
+    LOCAL_SCHEDULE[Host 正式本机 schedule；无群聊上下文] --> P
 ```
 
 ## 能力边界
@@ -64,7 +65,7 @@ flowchart TD
 
 ## 核心规则
 
-1. 仅允许无 chatId/conversationId 的手动或 Agent Scope。一次最多二十个不同 Run；必须先核对全部目标的 workspaceId/botInstanceId，再读取 Artifact。这个入口检查不是认证。
+1. 仅允许无 chatId/conversationId 的 manual、agent 或本机 schedule Scope；schedule 仅开放版本检查，不扩大检索或写入权限。一次最多二十个不同 Run；必须先核对全部目标的 workspaceId/botInstanceId，再读取 Artifact。这个入口检查不是认证。
 2. 当前支持成功的 knowledge.answer 与 release.prepare。必须有一个受支持的 privateKnowledge JSON Artifact。检查其中实际 claims / draft citations，重新验证引用身份和精确 quote，再提取被引用知识；发布草稿的 GitHub 事实不作为知识源依赖。
 3. 多个片段引用同一文档版本合并，保留 citationIds。最多每个产物十个知识文档，总共二百个版本请求，来源 Tool 在一次刷新中比较，不按查询词重搜旧引用。
 4. 新引用携带 sourceKind/sourceKey。Markdown 身份绑定逻辑来源 ID 与 canonical root；网页身份绑定来源 ID 与原始规范 URL。相同相对路径出现在其他 Vault 时不能据此核验旧资料。路径迁移或来源 ID 改变会要求重新确认范围。
@@ -198,4 +199,8 @@ flowchart LR
 
 ## 可选定期复核消费者
 
-knowledge.watch 为明确选择的最多二十条结果保存频率与暂停状态，通过既有本机 manual 通道调用本功能；独立凭证标记自动发起来源，不改变本功能触发类型、来源权限、引用验证或评估协议。原检查和原 Artifact 保留。实现/验证见[定期复核功能卡](../watch/FEATURE.md)、backend/test/knowledgeWatch.test.ts 及本功能既有回归。
+knowledge.watch 为明确选择的最多二十条结果保存频率与暂停状态，通过正式本机 schedule 通道调用本功能；独立凭证标记自动发起来源，保留原 manual/agent 入口、来源范围、引用验证或评估协议。原检查和原 Artifact 保留。实现/验证见[定期复核功能卡](../watch/FEATURE.md)、backend/test/knowledgeWatch.test.ts 及本功能既有回归。
+
+## 正式本机调度契约（2026-11-06）
+
+Native Agent 升至 1.1.0，插件为 1.2.0，声明 manual/agent/schedule。仅无 chat/conversation 的 schedule 能通过 requirePersonalVersionScope；一般 requirePersonalScope 保持原限制。Markdown、Web、Mixed 的 versions Tool 升至 1.1.0，输出协议与共享预算不变。旧历史原样保留；旧计划 Manifest hash 不再吻合时由 knowledge.watch 自动暂停，需明确重新保存后继续。验证：backend/test/localSchedules.test.ts、knowledgeWatch.test.ts 与原知识复核回归。

@@ -14,6 +14,7 @@ import { KnowledgeWatchService } from '@/knowledge/watch/service';
 import { knowledgeWatchPlugin } from '@/knowledge/watch/plugin';
 import type { AgentRun } from '@/platform/agents/contracts';
 import type { PluginHostServices } from '@/platform/plugins/contracts';
+import { checkHash } from '@/platform/plugins/checks';
 
 const cleanup: Array<() => unknown | Promise<unknown>> = [];
 afterEach(async () => { setSystemTime(); for (const dispose of cleanup.splice(0).reverse()) await dispose(); });
@@ -28,11 +29,11 @@ async function fixture(plugin = false) {
     const host = new AgentHost(context, 100, undefined, [], { plugins: [knowledgeMarkdownPlugin, knowledgeImpactPlugin, ...(plugin ? [knowledgeWatchPlugin] : [])], pluginConfig: { 'knowledge.markdown': { root } } });
     cleanup.push(() => host.stop()); await host.initialize();
     const calls: string[] = [];
-    const runLocal: NonNullable<PluginHostServices['runLocal']> = async (...args) => {
-        calls.push(args[2]); const result = await host.runLocal(...args);
+    const runScheduledLocal: NonNullable<PluginHostServices['runScheduledLocal']> = async (...args) => {
+        calls.push(args[2]); const result = await host.runScheduledLocal(...args);
         return { runId: result.execution?.run.id || result.claim.runId, status: result.execution?.run.status || result.status };
     };
-    const service = new KnowledgeWatchService(store, host.registry, runLocal); cleanup.push(() => service.stop());
+    const service = new KnowledgeWatchService(store, host.registry, runScheduledLocal); cleanup.push(() => service.stop());
     const app = createPluginApi(host);
     const request = (method = 'GET', body?: unknown, suffix = '', origin = 'http://localhost:15173') => app.handle(new Request('http://localhost/api/knowledge-watch' + suffix, { method, headers: { origin, 'content-type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }));
     async function seed(patch: Partial<AgentRun> = {}, content?: unknown) {
@@ -42,7 +43,7 @@ async function fixture(plugin = false) {
             content: content || { status: 'answered', evidence: [hit], claims: [{ text: 'Fixture answer', citations: [{ citationId: hit.citationId, quote: hit.excerpt }] }] } }]);
         return id;
     }
-    return { root, hit, store, runs, host, service, calls, runLocal, request, seed };
+    return { root, hit, store, runs, host, service, calls, runScheduledLocal, request, seed };
 }
 
 test('watch creation validates all targets before persisting, rejects invalid scope and only schedules supported cited results', async () => {
@@ -72,7 +73,7 @@ test('due checks use the real governed Agent and only the cited document; cached
     expect(state.plan).toMatchObject({ enabled: true, lastRunStatus: 'succeeded', nextCheckAt: new Date(due.getTime() + 60_000).toISOString() });
     expect(state.reviews[0]!.assessment.state).toBe('needs_review');
     const details = await f.host.getLocalRunDetails(state.plan!.lastCheckRunId!);
-    expect(details!.run).toMatchObject({ capability: 'knowledge.impact.check', triggerType: 'manual' });
+    expect(details!.run).toMatchObject({ capability: 'knowledge.impact.check', triggerType: 'schedule' });
     expect(f.calls[0]!).toStartWith('knowledge-watch:');
     expect(await f.service.receipt(details!.run.id)).toMatchObject({ runId: details!.run.id, runIds: [id], triggerKey: f.calls[0] });
     expect(details!.artifacts[0]!.metadata.semanticImpact).toBe('not_assessed');
@@ -86,7 +87,7 @@ test('due checks use the real governed Agent and only the cited document; cached
 test('two workers racing for the same due plan dispatch once, persist the next time before dispatch and skip missed intervals after restart', async () => {
     const f = await fixture(), id = await f.seed();
     await f.service.configure({ runIds: [id], intervalMinutes: 1 }, start);
-    const other = new KnowledgeWatchService(f.store, f.host.registry, f.runLocal); cleanup.push(() => other.stop());
+    const other = new KnowledgeWatchService(f.store, f.host.registry, f.runScheduledLocal); cleanup.push(() => other.stop());
     await Promise.all([f.service.tick(due), other.tick(due), f.service.tick(due)]);
     expect(f.calls).toHaveLength(1);
     const later = new Date(due.getTime() + 24 * 60 * 60_000);
@@ -99,7 +100,7 @@ test('pause and replacement during a check do not get overwritten; stop drains a
     const f = await fixture(), id = await f.seed(), replacement = await f.seed();
     let release!: () => void, started!: () => void;
     const began = new Promise<void>(resolve => { started = resolve; }), blocked = new Promise<void>(resolve => { release = resolve; });
-    const service = new KnowledgeWatchService(f.store, f.host.registry, async (...args) => { started(); await blocked; return f.runLocal(...args); });
+    const service = new KnowledgeWatchService(f.store, f.host.registry, async (...args) => { started(); await blocked; return f.runScheduledLocal(...args); });
     await service.configure({ runIds: [id], intervalMinutes: 1 }, start);
     const pending = service.tick(due); await began;
     const reserved = (await service.status()).plan!; expect(reserved.lastRunStatus).toBe('running');
@@ -120,10 +121,28 @@ test('binding changes and dispatch failures are explicit and bounded by the inte
         const agent = resolve(...args); return { ...agent, installation: { ...agent.installation, id: 'different-installation' } };
     });
     await f.service.tick(due); expect(f.calls).toEqual([]); expect((await f.service.status()).plan!.lastError).toContain('绑定已变化'); changed.mockRestore();
+    expect((await f.service.status()).plan!.enabled).toBe(false);
     const failure = new KnowledgeWatchService(f.store, f.host.registry, async () => { throw new Error('PRIVATE_PATH_OR_SECRET'); });
     await failure.configure({ runIds: [id], intervalMinutes: 1 }, start); await failure.tick(due);
     const state = await failure.status(); expect(state.plan!.lastRunStatus).toBe('failed'); expect(JSON.stringify(state)).not.toContain('PRIVATE_PATH_OR_SECRET');
     await failure.tick(due); expect(await failure.status()).toEqual(state);
+});
+
+test('legacy manual-channel plans pause on their old manifest binding and require explicit reconfiguration before scheduled execution', async () => {
+    const f = await fixture(), id = await f.seed(), original = await f.runs.listArtifacts(id);
+    await f.service.configure({ runIds: [id], intervalMinutes: 1 }, start);
+    const manifest = f.host.registry.resolve(scope.workspaceId, scope.botInstanceId, 'knowledge.impact.check').manifest;
+    const entry = (await f.store.listIdempotencyEntries<any>('knowledge:watch:'))[0]!;
+    await f.store.setIdempotencyKey(entry.key, { ...entry.value, manifestHash: checkHash({ ...manifest, version: '1.0.0', triggers: ['manual', 'agent'] }) });
+    await f.service.tick(due);
+    const paused = (await f.service.status()).plan!;
+    expect(paused).toMatchObject({ enabled: false, runIds: [id], lastRunStatus: 'failed' });
+    expect(paused.lastError).toContain('重新保存计划'); expect(f.calls).toHaveLength(0);
+    await f.service.tick(new Date(due.getTime() + 24 * 3600_000)); expect(f.calls).toHaveLength(0);
+    await f.service.configure({ runIds: paused.runIds, intervalMinutes: 1 }, due); await f.service.tick(new Date(due.getTime() + 60_000));
+    const resumed = (await f.service.status()).plan!;
+    expect((await f.host.getLocalRunDetails(resumed.lastCheckRunId!))!.run.triggerType).toBe('schedule');
+    expect(await f.runs.listArtifacts(id)).toEqual(original);
 });
 
 test('API owns its lifecycle, uses local request guards and has no plan or background checks until explicitly configured', async () => {

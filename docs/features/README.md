@@ -110,7 +110,7 @@ HTTP 默认装配个人知识、采集、验收、工具接入、研究、配方
 
 | Feature ID | 功能 | 状态 | 运行时 Agent 映射 | 功能文档 |
 | --- | --- | --- | --- | --- |
-| `knowledge-watch` | 所选历史知识引用的定期复核、暂停恢复与独立运行凭证 | active（显式安装） | 控制面插件，复用 `native.knowledge-impact` | [查看](../../backend/src/knowledge/watch/FEATURE.md) |
+| `knowledge-watch` | 正式本机 schedule 的知识引用复核、旧计划保护与独立运行凭证 | active（显式安装） | 控制面插件，复用 `native.knowledge-impact` | [查看](../../backend/src/knowledge/watch/FEATURE.md) |
 | `plugin-profile-composer` | Skill/OpenAPI 助手启用及已审查能力的校验、预览与组合导出 | active | 控制面插件，无独立 Agent | [查看](../../backend/src/connectors/profile-workbench/FEATURE.md) |
 | `local-launcher` | 首次初始化、前后端启动与本次进程清理 | active | 本地脚本，无独立 Agent | [查看](../../scripts/local/FEATURE.md) |
 | `mixed-knowledge` | 笔记与网页并行检索、跨来源引用与独立版本复核 | active | `native.knowledge-mixed` | [查看](../../backend/src/knowledge/mixed/FEATURE.md) |
@@ -227,7 +227,7 @@ HTTP 默认装配个人知识、采集、验收、工具接入、研究、配方
 | `backend/src/knowledge/markdown/**` | `personal-markdown-knowledge`；影响证据时追加 `personal-knowledge-answer`、`release-preparation`、`knowledge-change-impact` |
 | `backend/src/knowledge/web/**` | `personal-web-knowledge`；证据/版本变化追加 `personal-knowledge-answer`、`release-preparation`、`knowledge-change-impact` |
 | `backend/src/knowledge/search.ts` | `personal-markdown-knowledge`、`personal-web-knowledge`；查询契约变化追加 `release-preparation` |
-| `backend/src/knowledge/scope.ts` | `personal-markdown-knowledge`、`personal-web-knowledge`、`personal-knowledge-answer`、`github-project-facts`、`release-preparation` |
+| `backend/src/knowledge/scope.ts` | `personal-markdown-knowledge`、`personal-web-knowledge`、`personal-knowledge-answer`、`github-project-facts`、`release-preparation`；版本 Scope 变化追加 `knowledge-change-impact`、`knowledge-watch`、`mixed-knowledge`、`personal-knowledge-library` |
 | `backend/src/knowledge/modelConfiguration.ts` | `personal-markdown-knowledge`、`personal-web-knowledge`、`personal-knowledge-answer`、`release-preparation` |
 | `backend/src/knowledge/answer/**` | `personal-knowledge-answer`；共享引用/证据协议变化追加 `release-preparation`、`knowledge-change-impact`；Host/Tool 契约变化时追加平台文档 |
 | `backend/src/scripts/knowledge.ts` | `personal-markdown-knowledge`、`personal-web-knowledge`、`personal-knowledge-answer`、`knowledge-change-impact` |

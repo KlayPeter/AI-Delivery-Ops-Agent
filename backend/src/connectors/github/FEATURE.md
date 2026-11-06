@@ -3,7 +3,7 @@ feature_id: github-project-facts
 name: GitHub 项目事实连接
 status: active
 agent_mapping: []
-last_reviewed: 2026-11-05
+last_reviewed: 2026-11-06
 ---
 
 # GitHub 项目事实连接
@@ -116,3 +116,5 @@ flowchart TD
 | 2026-11-05 | 新增只读 GitHub 项目事实插件 | 类型检查与八项受控 REST 专项（含整轮字节与响应取消）；未执行 GitHub 写入 |
 
 依据：[PR REST API](https://docs.github.com/en/rest/pulls/pulls)、[Issue REST API](https://docs.github.com/en/rest/issues/issues)、[REST 最佳实践](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api)。API 版本固定 2022-11-28，已通过官方 versions 端点核实仍受支持。
+
+共享 Scope 回归（2026-11-06）：requirePersonalScope 本体和本功能的原 manual/agent 限制不变。仅引用复核 Agent 及来源 versions Tool 改用独立 requirePersonalVersionScope 接受无群聊 schedule；本功能不因此获得定时执行或新写入权限。验证：backend/test/localSchedules.test.ts 和本功能既有回归。

@@ -11,6 +11,9 @@ export default function KnowledgeWatchControls({ selected, blocked, onSelectRun 
   const { data, error: loadError, isLoading, mutate } = useSWR<{ plan: WatchPlan | null; reviews: KnowledgeReview[]; unavailable: string }>('knowledge-watch', api.fetchKnowledgeWatch, { refreshInterval: 10_000 });
   const [interval, setInterval] = useState<number | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const plan = data?.plan, minutes = interval ?? plan?.intervalMinutes ?? 60;
+  const targets = selected.length ? selected : plan?.runIds || [];
+  const saveLabel = !plan ? '为所选结果开启计划' : selected.length ? '用所选结果更新计划'
+    : plan.enabled ? '更新原计划频率' : '按此频率启用原计划';
   const save = async (runIds: string[]) => {
     setBusy(true); setError('');
     try { await api.saveKnowledgeWatch({ runIds, intervalMinutes: minutes }); await mutate(); }
@@ -27,7 +30,7 @@ export default function KnowledgeWatchControls({ selected, blocked, onSelectRun 
     {loadError ? <Alert type="error" title="计划加载失败" description={errorMessage(loadError)} action={<Button onClick={() => mutate()}>重试</Button>} /> : isLoading ? <Skeleton active paragraph={{ rows: 1 }} /> : <>
       <label htmlFor="knowledge-watch-interval">复核频率</label>
       <Select id="knowledge-watch-interval" style={{ width: 160 }} value={minutes} disabled={busy || blocked} onChange={setInterval} options={[{ value: 1, label: '每分钟' }, { value: 15, label: '每 15 分钟' }, { value: 60, label: '每小时' }, { value: 1440, label: '每 24 小时' }]} />
-      <div className="form-actions"><Button type="primary" disabled={busy || blocked || !selected.length} loading={busy} onClick={() => save(selected)}>{plan ? '用所选结果更新计划' : '为所选结果开启计划'}</Button>{plan?.enabled ? <Button disabled={busy} onClick={pause}>暂停计划</Button> : plan && <Button disabled={busy || blocked} onClick={() => save(plan.runIds)}>恢复原计划</Button>}</div>
+      <div className="form-actions"><Button type="primary" disabled={busy || blocked || !targets.length} loading={busy} onClick={() => save(targets)}>{saveLabel}</Button>{plan?.enabled && <Button disabled={busy} onClick={pause}>暂停计划</Button>}</div>
       {plan && <>
         <p className="muted">计划包含 {plan.runIds.length} 条结果。{plan.enabled ? <>下一次到期 <time dateTime={plan.nextCheckAt}>{dayjs(plan.nextCheckAt).format('YYYY-MM-DD HH:mm:ss')}</time>，服务约每 30 秒查看到期计划。</> : '已暂停后续检查，正在执行的检查会保留。'}{plan.lastAttemptAt && <> 上次发起 {dayjs(plan.lastAttemptAt).format('YYYY-MM-DD HH:mm:ss')}。</>}</p>
         {plan.lastError && <Alert type="warning" showIcon title="定期检查未完成" description={plan.lastError} />}

@@ -36,6 +36,7 @@ export interface PluginHostServices {
     getContext: () => HandlerContext;
     modelProviders?: Pick<ModelProviderRegistry, 'register' | 'configured' | 'resolve'>;
     runLocal?: (capability: string, input: unknown, triggerId: string, expected?: { installationId: string; manifestHash: string }) => Promise<{ runId?: string; status: string; error?: { code?: string; message: string } }>;
+    runScheduledLocal?: PluginHostServices['runLocal'];
     agents: AgentRegistry;
     nativeAgents: Pick<NativeAgentAdapter, 'register'>;
     modelAgents: Pick<ModelLoopAgentAdapter, 'register'>;

@@ -3,7 +3,7 @@ import type { FeaturePlugin } from '@/platform/plugins/contracts';
 import type { ToolExecutionContext } from '@/platform/tools/contracts';
 import { RunToolCallBudget } from '@/platform/tools/budget';
 import { knowledgeSearchInput } from '../search';
-import { requirePersonalScope } from '../scope';
+import { requirePersonalScope, requirePersonalVersionScope } from '../scope';
 import { retrievalEvidence } from '../answer/evidence';
 import { contentHash } from '../markdown/parser';
 import { versionRequest, versionResult } from '../versions';
@@ -23,7 +23,7 @@ const manifest: AgentManifest = {
 };
 
 export const knowledgeMixedPlugin: FeaturePlugin = {
-    manifest: { apiVersion: '1.0', id: mixedSourcePort.pluginId, name: manifest.name, version: '1.0.0', description: manifest.description, requires: ['knowledge.markdown', 'knowledge.web'] },
+    manifest: { apiVersion: '1.0', id: mixedSourcePort.pluginId, name: manifest.name, version: '1.1.0', description: manifest.description, requires: ['knowledge.markdown', 'knowledge.web'] },
     agents: [{ manifest, installationId: 'install-knowledge-mixed' }],
     apply(ctx) {
         const invoke = (kind: typeof kinds[number], operation: 'search' | 'versions', input: unknown, execution: ToolExecutionContext) => {
@@ -57,10 +57,10 @@ export const knowledgeMixedPlugin: FeaturePlugin = {
             return { query: input.query, retrieval: 'keyword', merge: 'interleaved', source: { sourceId: 'mixed', version: contentHash(JSON.stringify(sources)),
                 syncedAt: new Date().toISOString(), indexed: sources.reduce((sum, source) => sum + source.indexed, 0), partial: sources.some(source => source.partial), sources }, hits };
         });
-        ctx.delivery.tools.register({ id: MIXED_VERSIONS_TOOL, version: '1.0.0', description: 'Route saved note and public URL references to their configured source version tools without changing source identity.',
+        ctx.delivery.tools.register({ id: MIXED_VERSIONS_TOOL, version: '1.1.0', description: 'Route saved note and public URL references to their configured source version tools without changing source identity.',
             inputSchema: { type: 'object', required: ['documents'], properties: { documents: { type: 'array' } }, additionalProperties: false }, outputSchema: { type: 'object' },
             sideEffect: 'read', riskLevel: 'low', idempotent: true, timeoutSeconds: 55 }, async (value, execution) => {
-            requirePersonalScope(execution.scope);
+            requirePersonalVersionScope(execution.scope);
             if (!execution.budget) throw new Error('混合知识检索必须沿用共享 Tool 预算');
             const input = versionRequest.parse(value);
             const results = await Promise.allSettled(kinds.map(async kind => {

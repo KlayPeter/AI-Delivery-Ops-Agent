@@ -24,7 +24,7 @@ flowchart TD
     TIMER --> DUE{已启用且到期且无检查执行?}
     DUE -- 是 --> CLAIM[CAS 先预订下一次时间；不补跑全部错过周期]
     CLAIM --> BIND[核对原 Native Agent 版本与安装绑定]
-    BIND --> HOST[既有本机 manual 通道与 expectedExecution]
+    BIND --> HOST[本机 schedule 通道与 expectedExecution]
     HOST --> IMPACT[knowledge.impact.check 与原来源版本 Tool]
     IMPACT --> ORIGINAL[原回答及引用保持]
     IMPACT --> REPORT[独立检查 Run、步骤、报告和最新评估]
@@ -54,10 +54,10 @@ flowchart TD
 
 1. 每个固定个人范围一份计划；严格 runIds UUID 数组，1–20 项且唯一，频率只接受 1/15/60/1440 分钟。请求不能指定模型、工具、URL、目录、workspace 或 bot。
 2. 配置前先检查所有 Run 归属，再读取实际引用。拒绝失败、无引用、不支持、旧引用缺少来源身份的结果；先创建有效知识回答再配置。
-3. 绑定 native.knowledge-impact 的安装 ID 与 Manifest hash；每次执行前再次核对，Host expectedExecution 再检查实际版本。变化后要求用户重新保存，不静默切换能力。
+3. 绑定 native.knowledge-impact 的安装 ID 与 Manifest hash；每次执行前再次核对，Host expectedExecution 再检查实际版本。变化后自动暂停并要求用户重新保存，不静默切换能力。
 4. 三十秒轮询；保存后等待一整个周期，下一时间按实际发起时间加周期计算。离线期间最多补一次到期检查，不补跑积压，不承诺精确分钟边界。
 5. 先以原 JSON CAS 预订下一次时间和 running 状态，再调用 Agent。多实例竞争仅一个取得 revision，单实例不重叠；同一数据库仍遵守原存储的单后端约定。
-6. 运行复用宿主本机 manual 通道，来源凭证与计划关联用于区别计时器发起；不伪称 Run.triggerType 为 schedule，scope triggerKey 也不是 Run.triggerId。
+6. 运行通过 Host.runScheduledLocal / PluginHostServices.runScheduledLocal 创建固定个人范围、无 chat/conversation 的 schedule 触发；Native Agent 必须声明 schedule。原 manual 入口不变，scope triggerKey 仍不是 Run.triggerId。旧 1.0 计划绑定 manual-only Agent Manifest，到期时自动暂停，保留目标和历史，由用户重新启用后绑定新契约。
 7. 独立来源凭证记录实际 check Run、计划 revision、原目标、频率、发起时间与触发键；重新配置/暂停不删除已产生的凭证和检查。凭证写入失败明确提示，保留实际 Run，不能声称完整执行。
 8. 暂停/替换增加 revision；旧检查完成不能覆盖新计划。暂停停止后续检查，已开始检查仍按原范围完成并保存独立结果。
 9. Agent/来源失败维持明确失败或 unverifiable；执行成功只表示版本检查完成。current 不是语义正确性。所有状态显示原检查时间。
@@ -66,7 +66,7 @@ flowchart TD
 
 ## 用户能力
 
-- 在知识复核页选择结果、选择频率、启用/替换、暂停与恢复原计划。
+- 在知识复核页选择结果、选择频率、启用/替换、暂停与恢复原计划；没有重新勾选记录时可直接调整原计划频率，原目标不必仍在最近五十条或当前筛选中。
 - 查看原结果、上次实际检查、计划目标和各自最近评估；详情显示计划来源。
 
 ## 入口与触发
@@ -113,6 +113,7 @@ flowchart TD
 
 ### 主要测试
 
+- backend/test/localSchedules.test.ts：正式调度端口、就绪/停止、Manifest/执行绑定、HTTP 不可选触发类型、普通 Scope 拒绝及网页/混合/资料库版本 Tool 正向检查。
 - backend/test/knowledgeWatch.test.ts：严格输入/归属、真实 Native 检查、CAS 竞争、漏期、重启、暂停/替换竞态、绑定变化、凭证失败、API/定时器释放与真实配置加载。
 - backend/test/knowledgeReviews.test.ts、knowledgeImpact.test.ts：原引用、版本和评估回归。
 - backend/test/runRecipes.test.ts：宿主 expectedExecution 的实际执行前检查。
@@ -122,4 +123,5 @@ flowchart TD
 
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
+| 2026-11-06 | 1.1.0：正式 schedule 触发、绑定变化自动暂停，原计划无需重新选择即可调整/恢复 | 正式触发专项、旧计划保护、全量回归与实际升级验收 |
 | 2026-11-06 | 新增独立可选计划插件，复用既有 Native 复核并保存自动来源 | 专项、原功能回归、前端门禁与本地浏览器；见项目证据 |

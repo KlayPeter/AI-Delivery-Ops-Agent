@@ -8,7 +8,7 @@ export interface AgentInfo {
 }
 export interface RunInfo {
   id: string; capability: string; status: string; createdAt: string; completedAt?: string;
-  error?: { message: string }; parentRunId?: string;
+  error?: { message: string }; parentRunId?: string; triggerType?: string;
 }
 export interface WorkspaceState {
   agents: AgentInfo[]; runs: RunInfo[];

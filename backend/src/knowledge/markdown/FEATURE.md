@@ -39,6 +39,7 @@ flowchart TD
     Q --> E[来源版本、引用 ID、行号、原文片段与链接状态]
     E --> A[JSON Artifact / CLI 输出]
     KLIB[独立资料库写入应用目录] --> KLREAD[已有只读Markdown检索与版本]
+    VERSION_SCOPE[手动/Agent 或无群聊的本机 schedule] --> VERSION_ONLY[仅 versions Tool；原目录与链接范围不变]
 ```
 
 ## 能力边界
@@ -189,3 +190,7 @@ flowchart LR
 ## 可选新笔记回写消费者
 
 独立 knowledge.writeback 复用本功能的读取/引用/版本契约，未增加原来源写入口或改变复核状态。人工审查后仅向显式收件目录排他新建笔记；如果位于选定 Vault，下次同步沿原规则检索，新笔记保留原运行及引用版本。既有笔记与历史产物不覆盖。见[回写功能卡](../writeback/FEATURE.md)，验证：backend/test/knowledgeWriteback.test.ts 及既有回归。
+
+## 本机 schedule 的只读版本检查（2026-11-06）
+
+本来源插件与 versions Tool 为 1.1.0，版本入口改用 requirePersonalVersionScope，允许无 chat/conversation 的本机 schedule；search/sync/检索 Agent 继续使用原 requirePersonalScope 和原 triggers，不接受 schedule。内容、来源身份、URL/目录边界、输出与预算保持。混合检查沿原共享预算传递相同 Scope，资料库知识来源复用 Markdown 版本入口。验证：backend/test/localSchedules.test.ts，及原知识/混合/引用回归。

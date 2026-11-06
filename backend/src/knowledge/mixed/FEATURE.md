@@ -34,6 +34,7 @@ flowchart TD
     SAVED --> CHECK[混合 versions：按路径类型路由到既有版本 Tool]
     CHECK --> REPORT[分别报告当前、变化、缺失、不可读及范围外]
     REPORT -. 不覆盖 .-> SAVED
+    VERSION_SCOPE[手动/Agent 或无群聊的本机 schedule] --> VERSION_ONLY[仅 versions Tool；原目录与链接范围不变]
 ```
 
 ## 核心规则
@@ -76,3 +77,7 @@ flowchart TD
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
 | 2026-11-06 | 增加明确装配的笔记/网页混合来源，复用 RAG、研究、发布与历史版本复核 | 混合专项、既有回归、类型与本地浏览器验收 |
+
+## 本机 schedule 的只读版本检查（2026-11-06）
+
+本来源插件与 versions Tool 为 1.1.0，版本入口改用 requirePersonalVersionScope，允许无 chat/conversation 的本机 schedule；search/sync/检索 Agent 继续使用原 requirePersonalScope 和原 triggers，不接受 schedule。内容、来源身份、URL/目录边界、输出与预算保持。混合检查沿原共享预算传递相同 Scope，资料库知识来源复用 Markdown 版本入口。验证：backend/test/localSchedules.test.ts，及原知识/混合/引用回归。

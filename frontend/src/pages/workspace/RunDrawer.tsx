@@ -78,7 +78,7 @@ export default function RunDrawer({ runId, onClose, onSelectRun }: { runId: stri
   };
   return <Drawer title={data ? capabilityName(data.run.capability, workspace?.agents.find(agent => agent.capabilities.includes(data.run.capability))?.name) : '运行详情'} open={Boolean(runId)} onClose={onClose} size="large" className="run-drawer">
     {isLoading ? <Spin /> : error ? <Alert type="error" title="加载失败" description={error.message} /> : data ? <>
-      <div className="run-meta"><RunStatus status={data.run.status} /><Typography.Text copyable className="muted">{data.run.id}</Typography.Text></div>
+      <div className="run-meta"><RunStatus status={data.run.status} />{data.run.triggerType === 'schedule' && <Tag>定时触发</Tag>}<Typography.Text copyable className="muted">{data.run.id}</Typography.Text></div>
       {data.controls?.canCancel && <div className="form-actions"><Button onClick={stop} loading={stopping}>请求停止</Button><span className="muted">已完成的操作不会撤销</span></div>}
       {data.controls?.cancellationRequested && ['running', 'queued'].includes(data.run.status) && <Alert type="info" showIcon title="已请求停止，正在更新运行记录" />}
       {stopError && <Alert type="error" showIcon title="停止请求未确认" description={stopError} />}

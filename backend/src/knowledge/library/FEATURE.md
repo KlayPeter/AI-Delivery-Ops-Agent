@@ -31,6 +31,7 @@ flowchart TD
     CFG --> R[既有 RAG、精确引文核验与历史引用复核]
     R --> E[旧回答及引用保持；变更时标记需复核]
     W --> REC[启动时清理自身中断暂存；保留已提交文件]
+    LIB_VERSION_SCOPE[仅本机 schedule 引用复核] --> LIB_VERSION_READ[原 Markdown versions 与应用资料库身份]
 ```
 
 ## 能力边界
@@ -116,3 +117,7 @@ flowchart TD
 | 日期 | 变更 | 验证 |
 | --- | --- | --- |
 | 2026-11-05 | 独立资料库插件，显式收录、检索与选作 RAG 来源 | 专项七项、后端全量与前端门禁、本地界面验收；生成使用本地模拟模型 |
+
+## 定时复核资料版本（2026-11-06）
+
+资料库作为知识来源时仍复用 workspace-library 身份与固定 libraryRoot 的 Markdown 版本工具；新版本入口只允许无群聊的 schedule 核对引用版本。资料收录、资料检索 Tool 和管理 Agent 的 manual/agent 限制不变，定期复核没有收录或改写授权。验证：backend/test/localSchedules.test.ts 的资料库版本正向及收录/搜索拒绝，原 knowledgeLibrary.test.ts 回归。

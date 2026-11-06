@@ -4,7 +4,7 @@ import type { FeaturePlugin } from '@/platform/plugins/contracts';
 import { DEFAULT_BOT_INSTANCE_ID, DEFAULT_WORKSPACE_ID } from '@/platform/runtime/scope';
 import { RunToolCallBudget } from '@/platform/tools/budget';
 import { KNOWLEDGE_MARKDOWN_VERSIONS_TOOL } from '../markdown/plugin';
-import { requirePersonalScope } from '../scope';
+import { requirePersonalVersionScope } from '../scope';
 import { versionResult } from '../versions';
 import { KnowledgeImpactService, type ImpactReport } from './service';
 import { knowledgeReviewPanel } from './presentation';
@@ -18,16 +18,16 @@ export function createKnowledgeImpactPlugin(source = { pluginId: 'knowledge.mark
     const maxToolCalls = source.kind === 'mixed' ? 3 : 1;
     const accepts = (kind: string) => source.kind === 'mixed' ? ['markdown', 'web'].includes(kind) : kind === source.kind;
     const manifest: AgentManifest = {
-        schemaVersion: '1.1', id: 'native.knowledge-impact', name: 'Knowledge change impact', version: '1.0.0',
+        schemaVersion: '1.1', id: 'native.knowledge-impact', name: 'Knowledge change impact', version: '1.1.0',
         description: 'Check actual cited knowledge versions in selected past runs, preserve immutable artifacts, and record a review assessment without a model.',
-        runtime: { type: 'native' }, capabilities: [KNOWLEDGE_IMPACT_CAPABILITY], triggers: ['manual', 'agent'],
+        runtime: { type: 'native' }, capabilities: [KNOWLEDGE_IMPACT_CAPABILITY], triggers: ['manual', 'agent', 'schedule'],
         inputSchema: { type: 'object', required: ['runIds'], properties: { runIds: { type: 'array', items: { type: 'string' } }, operation: { type: 'string', enum: ['check', 'status'] } } },
         outputSchema: { type: 'object' }, requirements: { tools: [source.versionsTool], secrets: [], networkHosts: [] },
         limits: { timeoutSeconds: 90, maxSteps: 1, maxToolCalls, maxAgentCalls: 0, maxOutputBytes: 2 * 1024 * 1024 },
         delivery: { allowedArtifactTypes: ['json'], directDelivery: false },
     };
     return {
-        manifest: { apiVersion: '1.0', id: 'knowledge.impact', name: manifest.name, version: '1.1.0', description: manifest.description, requires: [source.pluginId] },
+        manifest: { apiVersion: '1.0', id: 'knowledge.impact', name: manifest.name, version: '1.2.0', description: manifest.description, requires: [source.pluginId] },
         agents: [{ manifest, installationId: 'install-knowledge-impact' }],
         apply(ctx) {
             ctx.delivery.web.register({ id: 'knowledge.impact', pages: [{ path: '/knowledge-reviews', label: '知识复核', section: 'workspace', view: { kind: 'builtin', id: 'knowledge-reviews', capability: KNOWLEDGE_IMPACT_CAPABILITY } }],
@@ -50,7 +50,7 @@ export function createKnowledgeImpactPlugin(source = { pluginId: 'knowledge.mark
                 readState: async run => knowledgeReviewPanel(await new KnowledgeImpactService(ctx.delivery.getContext().store).latest(run, run.id)),
             });
             ctx.delivery.nativeAgents.register(manifest.id, manifest.version, async (request, _resolved, signal) => {
-                requirePersonalScope(request.scope);
+                requirePersonalVersionScope(request.scope);
                 const input = inputSchema.parse(request.input);
                 signal.throwIfAborted();
                 const service = new KnowledgeImpactService(ctx.delivery.getContext().store);

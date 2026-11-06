@@ -326,3 +326,9 @@ Model Loop 定义可提供 delegationSchema(request, capability) 回调（可异
 可信 HTTP 读取连接器可在 ToolDefinition.binding 声明 kind（mcp-http/openapi-get）、公开 url 和配置/契约 sha256；原 MCP/OpenAPI 插件生成，stdio 不声明。研究目录另绑定路由白名单 Schema、Agent Manifest 和安装 ID。binding 不能携带凭据；它是声明和变更指纹，不证明服务身份、只读行为或语义。
 
 plugins.compose 1.1.0 的独立 setup 导出只接受 skills/openapi 枚举，生成已打包助手的固定模块，不经过通用动态加载器。它与 compose 的审查能力文件接口分开；助手选择不授权第三方技能/工具，不自动合并当前自定义配置。两者都由用户预览、保存并重启，详见[接入流程](PLUGIN_PROFILES.md)。
+
+## 可信插件的本机 schedule 执行
+
+PluginHostServices.runScheduledLocal 是可选可信端口，参数/平面回执与 runLocal 相同，但触发类型固定为 schedule；不接受自定义 workspace/bot/chat，不产生直接投递。插件应在 Host 初始化完成后使用，apply/restored 阶段调用会拒绝，停止后同样拒绝。未声明 schedule 的 Agent 在 Adapter 前被拒绝，原执行指纹和触发幂等沿用平台；普通工作台 HTTP 调用不能选择该通道。
+
+knowledge.watch 使用该端口调度 Native 引用复核；requirePersonalVersionScope 只为无群聊 schedule 放行来源 versions。requirePersonalScope 及其他检索、生成、写入权限保持原状。参考[定期复核契约](../backend/src/knowledge/watch/FEATURE.md)与 backend/test/localSchedules.test.ts。原生插件仍是用户信任的本机代码，端口声明不是代码沙箱。
