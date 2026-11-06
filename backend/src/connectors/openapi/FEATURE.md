@@ -38,6 +38,8 @@ flowchart TD
     PC --> PERSONAL_COMBO[个人基底加不同种类插件；下载后保存重启]
     RFIX[研究页：确认固定工具参数与当前契约] --> RDEL[受常量参数策略约束的子任务]
     RDEL --> GATEWAY[既有 Native Runner 与共享两次 Tool 预算]
+    DEFAULT_UI[默认插件页：接入与组合] --> SETUP_YAML[选择所需助手；下载保存重启]
+    SETUP_YAML --> UI
 ```
 
 ## 能力边界
@@ -132,3 +134,7 @@ OAuth/Bearer、私网/本机 API、Swagger 2、写入方法、任意 Header/Cook
 读取工具现在带公开目的地址与配置/契约 SHA 的 binding；不包含 token、Secret 值或任意本地路径，MCP stdio 不发布该 HTTP binding。MCP 连接插件为 1.2.0，mcp.runner / connector.openapi 为 1.1.0；实际读取和路由 Tool 为 1.1.0，原 Native Agent 的输入和两次共享预算不变。路由 Schema 枚举可信配置的授权工具，保留 handler 白名单检查。研究只能通过原 Runner 委派人工确认的完整固定请求，不能从模型生成新参数或扩展服务。确认会绑定目的地址与契约，配置变化必须新建研究；实际服务行为仍须审查。
 
 完整流程见[研究功能卡](../../agents/personal-research/FEATURE.md)。实现：backend/src/agents/personal-research/externalRequests.ts、platform/agents/modelLoopAdapter.ts、platform/tools/contracts.ts；验证：backend/test/researchRequests.test.ts 与原 MCP/OpenAPI/研究/委派回归。新增目录元数据不替代真实成功 Run/Step/Artifact，原导出及运行输入保持。
+
+## 从默认工作台启用发现助手
+
+默认插件页的“接入与组合 → 启用接入助手”可选择本功能发现助手，由 plugins.compose 1.1.0 输出固定内置模块的个人基底 YAML。保存重启后出现接入页；实际能力仍经过本功能原来的规范、接口与读取用途审查后单独导出，再组合使用。不执行任意仓库代码，也不自动并入当前自定义附加插件。原独立 CLI 组合继续可用。代码与验证见[配置组合功能卡](../profile-workbench/FEATURE.md)及 backend/test/profileComposer.test.ts；本功能契约与测试保持。

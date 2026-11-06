@@ -408,3 +408,44 @@ mcp.setup / openapi.setup 1.1.0 的导出新增显式个人基底选择，页面
 试用反馈可提交到[项目 Issues](https://github.com/KlayPeter/AI-Delivery-Ops-Agent/issues)：
 首次完成任务的步骤与耗时、产物是否需要修改、是否愿意再次使用、失败发生在哪一步。
 反馈使用可公开样例即可，无需上传个人笔记或凭据。
+
+
+## 从默认界面启用接入助手并导入能力
+
+2026-11-06 `plugins.compose` 1.1.0 补齐首次接入：普通个人预设仍为十五插件九 Agent。
+从「插件 → 接入与组合 → 启用接入助手」选择两项，实际下载
+`plugins.setup.personal.local.yaml`，原样保存到隔离实例 backend/ 并按页面根目录命令重启。
+文件 SHA-256 为 `b18ca1209181f19de3c185813af14baa1a165310e509d2ab4e6e839d96e94ca1`；
+重启后为十七插件十一 Agent，出现 Skill/OpenAPI 发现页面，实际 Skill/API/MCP 运行器仍未启用。
+
+浏览器填写固定提交的 Anthropic brand-guidelines Skill 链接，展开原始指令及该目录的
+Apache 2.0 许可，确认后下载能力配置。发现运行
+`04fc77a4-de82-4108-a358-d2384a26a688` 保留原来源及原始 SHA
+`1120b3769e2985cefb3d25be981b1f914abeba57ae079b83c20c666c164fa9fe`。
+另在 OpenAPI 助手读取固定版本 Open-Meteo 规范，审查 GET /v1/forecast 和服务地址，
+实际导出配置；发现运行 `7eb09644-4286-43b1-8a74-029d2459b713` 成功。
+发现阶段不运行 Skill、不调用天气接口。
+
+在「组合已有配置」上传这两份实际下载文件，校验后下载组合配置；SHA-256 为
+`3559254320e6fb94a0a780830abe5ed002674fb9f7c2f16797b8e9f532a1534a`。
+再次按页面命令重启，同一工作台为十九插件十三 Agent，Skill 保留
+`community.imported-prompt`、固定提交及原始内容指纹。实际 API 调用
+`39ab8a6e-1b30-40f0-979b-79dde3854190` 读取公开柏林天气，保存三步和 324 字节 JSON；
+知识检索 `cd122901-4236-49bb-ae44-a6d993ab394e` 成功。原十二份根运行的
+Run/Step/Artifact 逐项保持一致，两份新发现记录也保留可读。天气由
+[Open-Meteo](https://open-meteo.com/) 提供，按
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 标注；坐标为公开城市样例。
+
+![默认可达的助手选择、实际启用状态与配置预览](images/plugin-setup-preview.png)
+
+![下载配置重启后真实 GET 的结果与来源指纹](images/plugin-setup-api-result.png)
+
+切换助手选择或页签立即清除旧预览，生成期间禁止切换；无选择按钮禁用。
+[375px 页面截图](images/plugin-setup-mobile.png)的页面与内容宽度均为 375px，视口已恢复。
+助手选择只接受固定内置枚举，16 KiB/五秒，不写文件或自动激活；已有自定义插件不自动加入。
+该助手启用文件不作为已审查的能力文件输入组合器，完整步骤见[配置指南](PLUGIN_PROFILES.md)。
+
+本批后端全量 **747 通过、1 项真实 TAPD 跳过**，组合专项十一项通过，前端 **27 通过**；
+前后端类型、前端 lint/build 通过，保留 163 项既有 lint 警告与大包提示。
+这次预览复用已安装依赖，真实模型未配置，Skill 页面正确禁用文本生成；
+未调用付费模型、未下载本机模型、未重新干净安装或部署。

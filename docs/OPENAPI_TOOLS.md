@@ -4,13 +4,15 @@
 
 ## 本地开启接入助手
 
-首次在仓库根目录运行：
+推荐从默认工作台的「插件 → 接入与组合 → 启用接入助手」选择 OpenAPI，下载助手配置、保存并按页面命令重启；进入「接入 API」填写规范链接。完整步骤见[首次启用](PLUGIN_PROFILES.md#首次启用接入助手)。
+
+也可在仓库根目录直接使用独立组合：
 
 ```sh
 AGENT_PLUGINS_FILE=examples/plugins.openapi.yaml bun run setup:local
 ```
 
-已安装依赖和初始化数据库时，改用 `bun run local`。打开终端显示的前端地址，进入“接入 API”。这是显式的一插件/一 Agent 组合；默认个人工作台仍为十四插件、九 Agent。配置文件中的路径相对 `backend/`。
+已安装依赖和初始化数据库时，改用 `bun run local`。打开终端显示的前端地址，进入“接入 API”。这是显式的一插件/一 Agent 组合；当前个人工作台实际装配见[首页组合表](../README.md#能力与插件)。`AGENT_PLUGINS_FILE` 的相对路径以 `backend/` 为起点，YAML 内模块路径相对该 YAML 所在目录。
 
 填写公开 HTTPS 的 OpenAPI 3.0/3.1 JSON 或 YAML 原始文件链接与本地标识。GitHub 使用固定提交的 raw 链接；网页形式的仓库链接不是规范文件。发现过程只读取文档，显示可用接口、参数、服务器与不支持原因，不调用列出的接口，也不执行仓库代码。
 

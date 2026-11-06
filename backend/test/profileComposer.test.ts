@@ -4,7 +4,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { parse, stringify } from 'yaml';
-import { composeProfiles } from '@/connectors/profile-workbench/compose';
+import { composeProfiles, exportSetupProfile } from '@/connectors/profile-workbench/compose';
 import { profileWorkbenchPlugin } from '@/connectors/profile-workbench/plugin';
 import { exportMcpProfile } from '@/connectors/mcp-workbench/catalog';
 import { preparePromptSkills } from '@/connectors/skill-workbench/catalog';
@@ -33,6 +33,46 @@ const openapi = () => ({ name: 'openapi.yaml', yaml: stringify({ apiVersion: '1.
     { module: '../src/connectors/openapi/plugin.ts', config: openapiConfig }, { module: '../src/connectors/openapi/setup.ts' },
 ] }) });
 const edit = (file: { name: string; yaml: string }, change: (profile: any) => void) => { const profile = parse(file.yaml); change(profile); return { ...file, yaml: stringify(profile, { aliasDuplicateObjects: false }) }; };
+
+test('setup exports only explicitly selected bundled assistants over the personal preset', () => {
+    for (const assistants of [['skills'], ['openapi'], ['skills', 'openapi']]) {
+        const result = exportSetupProfile({ assistants }), document = parse(result.yaml);
+        expect(result.filename).toBe('plugins.setup.personal.local.yaml');
+        expect(document).toEqual({ apiVersion: '1.0', base: 'personal', plugins: assistants.map(id => ({ module: id === 'skills' ? './src/connectors/skill-workbench/setupPlugin.ts' : './src/connectors/openapi/setup.ts' })) });
+        expect(result.summary[0]!.items).toHaveLength(assistants.length);
+    }
+    for (const value of [{ assistants: [] }, { assistants: ['skills', 'skills'] }, { assistants: ['mcp'] }, { assistants: ['./arbitrary.ts'] }, { assistants: ['openapi'], config: { token: 'DO_NOT_ECHO' } }, { assistants: 'skills' }]) {
+        expect(() => exportSetupProfile(value)).toThrow();
+    }
+});
+
+test('downloaded setup profile loads real inspection pages and preserves a personal knowledge run without enabling unreviewed runners', async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'profile-setup-'));
+    const file = path.resolve(import.meta.dir, `../plugins.setup-${randomUUID()}.local.yaml`);
+    const keys = ['KNOWLEDGE_KIND', 'RELEASE_GITHUB_REPOSITORY'], previous = keys.map(key => process.env[key]);
+    const store = new InMemoryPersistentKeyValueStore();
+    let host: AgentHost | undefined;
+    const create = (selected: Awaited<ReturnType<typeof loadWorkspacePlugins>>) => new AgentHost(() => ({ store, config: { ...buildConfig({}), data_path: directory }, feishu: {}, tapd: {} } as any), 1000, undefined, [], { plugins: selected.plugins, pluginConfig: selected.config });
+    try {
+        for (const key of keys) delete process.env[key];
+        host = create(await loadWorkspacePlugins(directory, ''));
+        const result = await host.runLocal('knowledge.markdown.retrieve', { operation: 'search', query: 'API 迁移说明', limit: 5 }, randomUUID());
+        const before = (await host.getLocalRunDetails(result.execution!.run.id))!;
+        expect(before.run.status).toBe('succeeded'); await host.stop();
+        const profile = exportSetupProfile({ assistants: ['skills', 'openapi'] }); await writeFile(file, profile.yaml);
+        const selected = await loadWorkspacePlugins(directory, file); expect(selected.plugins).toHaveLength(17);
+        host = create(selected); await host.initialize();
+        expect(await host.listAgents()).toHaveLength(11);
+        expect(host.web.pages().map(page => page.path)).toEqual(expect.arrayContaining(['/skills', '/openapi-setup', '/knowledge', '/plugin-profiles']));
+        for (const capability of ['skills.github.inspect', 'openapi.spec.inspect', 'mcp.server.inspect', 'knowledge.markdown.retrieve']) expect(host.canDispatch(capability)).toBe(true);
+        for (const capability of ['skills.prompt.run', 'openapi.tools.run', 'mcp.tools.run', 'delivery.ops.orchestrate']) expect(host.canDispatch(capability)).toBe(false);
+        const after = (await host.getLocalRunDetails(before.run.id))!;
+        for (const key of ['run', 'steps', 'artifacts'] as const) expect(after[key]).toEqual(before[key]);
+    } finally {
+        await host?.stop(); await rm(file, { force: true }); await rm(directory, { recursive: true, force: true });
+        keys.forEach((key, index) => { if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index]; });
+    }
+});
 
 test('combines all three export kinds into canonical personal modules without changing Skill identities or grants', () => {
     const result = composeProfiles({ files: [skill(), mcp(), openapi()] }), document = parse(result.yaml);
@@ -107,12 +147,19 @@ test('composition API is plugin owned, local only, sanitizes schema failures and
         const request = (body: unknown, origin = 'http://localhost') => new Request('http://localhost/api/plugin-profiles/compose', { method: 'POST', headers: { origin, 'content-type': 'application/json' }, body: JSON.stringify(body) });
         expect(host.web.pages()[0]).toMatchObject({ path: '/plugin-profiles', navigation: false });
         expect((await host.web.handle(request({ files: [mcp()] }))).status).toBe(200);
+        const setupRequest = (body: unknown) => new Request('http://localhost/api/plugin-profiles/setup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+        const setup = await host.web.handle(setupRequest({ assistants: ['skills', 'openapi'] }));
+        expect(setup.status).toBe(200); expect((await setup.json() as any).filename).toBe('plugins.setup.personal.local.yaml');
+        const invalidSetup = await host.web.handle(setupRequest({ assistants: ['skills'], token: 'DO_NOT_ECHO' }));
+        expect(invalidSetup.status).toBe(400); expect(await invalidSetup.text()).not.toContain('DO_NOT_ECHO');
+        expect((await host.web.handle(setupRequest({ assistants: ['skills'], large: 'x'.repeat(16384) }))).status).toBe(400);
         expect((await host.web.handle(request({ files: [mcp()] }, 'https://external.example'))).status).toBe(403);
         const bad = await host.web.handle(request({ files: [edit(mcp(), d => { d.plugins[0].config.secret = 'DO_NOT_ECHO'; })] }));
         expect(bad.status).toBe(400); expect(await bad.text()).not.toContain('DO_NOT_ECHO');
         expect(await host.listAgents()).toEqual([]);
     } finally { await host.stop(); }
     expect((await host.web.handle(new Request('http://localhost/api/plugin-profiles/compose', { method: 'POST' }))).status).toBe(404);
+    expect((await host.web.handle(new Request('http://localhost/api/plugin-profiles/setup', { method: 'POST' }))).status).toBe(404);
 });
 
 test('trusted request limit can increase without weakening the default, streamed limit or cancellation', async () => {

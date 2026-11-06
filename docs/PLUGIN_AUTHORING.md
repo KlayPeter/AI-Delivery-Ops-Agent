@@ -324,3 +324,5 @@ retrievalEvidence.source 可选 sources 覆盖数组（最多两项，markdown/w
 Model Loop 定义可提供 delegationSchema(request, capability) 回调（可异步）：返回 null 隐藏该次能力，undefined 保留旧输入，JSON Schema 与原子 Agent 输入通过 allOf 组合。回调只作用于 Manifest 已声明的 delegates/optionalDelegates；执行时 Adapter 再校验策略，并在失败时写 guardrail、阻止子调用。它不授权新的 Capability，也不是原生代码沙箱。个人研究使用常量固定人工确认的 MCP/API 请求，见[使用与确认规则](PERSONAL_RESEARCH.md#让已接入工具参与研究)。
 
 可信 HTTP 读取连接器可在 ToolDefinition.binding 声明 kind（mcp-http/openapi-get）、公开 url 和配置/契约 sha256；原 MCP/OpenAPI 插件生成，stdio 不声明。研究目录另绑定路由白名单 Schema、Agent Manifest 和安装 ID。binding 不能携带凭据；它是声明和变更指纹，不证明服务身份、只读行为或语义。
+
+plugins.compose 1.1.0 的独立 setup 导出只接受 skills/openapi 枚举，生成已打包助手的固定模块，不经过通用动态加载器。它与 compose 的审查能力文件接口分开；助手选择不授权第三方技能/工具，不自动合并当前自定义配置。两者都由用户预览、保存并重启，详见[接入流程](PLUGIN_PROFILES.md)。

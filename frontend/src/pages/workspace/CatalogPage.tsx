@@ -12,7 +12,7 @@ export default function CatalogPage({ plugins = false }: { plugins?: boolean }) 
   const visiblePlugins = data?.plugins.filter(p => matches(`${pluginName(p.id, p.name)} ${p.name} ${p.id}`)) || [];
   const visibleAgents = data?.agents.filter(a => matches(`${a.name} ${agentDescription(a)} ${a.capabilities.map(cap => capabilityName(cap, a.name)).join(' ')}`)) || [];
   return <div className="workspace-page">
-    <div className="page-heading"><div><h1>{plugins ? '插件' : 'Agent'}</h1><p>{plugins ? '每个功能独立装配，组合成你的工作空间。' : '选择适合当前工作的能力，交给对应的 Agent 执行。'}</p></div>{plugins && data?.pages.some(page => page.view.kind === 'builtin' && page.view.id === 'profile-composer') && <Link to="/plugin-profiles">组合接入配置 <ArrowRightOutlined aria-hidden /></Link>}</div>
+    <div className="page-heading"><div><h1>{plugins ? '插件' : 'Agent'}</h1><p>{plugins ? '每个功能独立装配，组合成你的工作空间。' : '选择适合当前工作的能力，交给对应的 Agent 执行。'}</p></div>{plugins && data?.pages.some(page => page.view.kind === 'builtin' && page.view.id === 'profile-composer') && <Link to="/plugin-profiles">接入与组合 <ArrowRightOutlined aria-hidden /></Link>}</div>
     {error && <Alert type="error" title="能力列表加载失败" description={error.message} />}
     <Input.Search className="catalog-search" aria-label={plugins ? '搜索插件' : '搜索 Agent'} placeholder={plugins ? '搜索插件…' : '搜索 Agent 或能力…'} value={search} onChange={e => setSearch(e.target.value)} allowClear />
     {isLoading ? <Skeleton active /> : <div className="catalog-grid">

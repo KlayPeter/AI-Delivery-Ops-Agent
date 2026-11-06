@@ -43,6 +43,8 @@ flowchart TD
     MODEL --> RESULT[文本 Artifact、实际模型步骤与指令 SHA]
     EXPORT --> PC[可选插件组合：保留原契约并统一路径]
     PC --> PERSONAL_COMBO[个人基底加不同种类插件；下载后保存重启]
+    DEFAULT_UI[默认插件页：接入与组合] --> SETUP_YAML[选择所需助手；下载保存重启]
+    SETUP_YAML --> URL
 ```
 
 ## 能力边界
@@ -132,3 +134,7 @@ flowchart TD
 ## 与其他已审查插件组合
 
 个人默认 plugins.compose 可把本功能导出文件与不同种类的 Skill/MCP/OpenAPI 导出文件一起校验、预览并生成 backend 根目录的个人基底配置。每种各一份，拒绝重复或未知模块；原始 Skill 形态/ID、内容/许可与工具授权/来源契约保留。不会合并当前自定义配置或重新审查来源，下载后手动保存重启。当前基底十五插件、九 Agent，历史验证批次的数量以当时提交为准。流程与验证见[组合功能卡](../profile-workbench/FEATURE.md)，代码：connectors/profile-workbench/compose.ts、plugin.ts；测试：backend/test/profileComposer.test.ts 及本功能既有回归。
+
+## 从默认工作台启用发现助手
+
+默认插件页的“接入与组合 → 启用接入助手”可选择本功能发现助手，由 plugins.compose 1.1.0 输出固定内置模块的个人基底 YAML。保存重启后出现接入页；实际能力仍经过本功能原来的来源、指令与许可审查后单独导出，再组合使用。不执行任意仓库代码，也不自动并入当前自定义附加插件。原独立 CLI 组合继续可用。代码与验证见[配置组合功能卡](../profile-workbench/FEATURE.md)及 backend/test/profileComposer.test.ts；本功能契约与测试保持。

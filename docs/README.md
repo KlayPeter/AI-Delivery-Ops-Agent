@@ -6,7 +6,7 @@
 ## 使用者
 
 - [本地运行与工作台](LOCAL_DEVELOPMENT.md)：无需部署的启动步骤、连接表单与实际 Agent 运行。
-- [插件配置组合](PLUGIN_PROFILES.md)：校验、预览并组合已审查的 Skill、MCP 和 OpenAPI 配置。
+- [插件接入与组合](PLUGIN_PROFILES.md)：启用 Skill/OpenAPI 发现助手，再审查、预览并组合实际能力配置。
 - [GitHub Skill 接入](GITHUB_SKILLS.md)：固定来源与许可审查、多份 Skill 选择，以及个人知识快照联用。
 - [个人研究助手](PERSONAL_RESEARCH.md)：模型委派资料子任务、人工补充和真实来源索引。
 - [任务配方](TASK_RECIPES.md)：核对成功运行的原参数与版本，审查后复用并保留关联。

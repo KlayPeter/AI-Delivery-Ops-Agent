@@ -6,7 +6,9 @@
 
 ## 本地使用
 
-在仓库根目录启动独立的发现组合：
+推荐从默认工作台的「插件 → 接入与组合 → 启用接入助手」选择 GitHub Skill，生成配置、下载保存并按页面命令重启，再打开「接入 Skill」。完整步骤见[首次启用](PLUGIN_PROFILES.md#首次启用接入助手)。
+
+也可在仓库根目录直接启动独立的发现组合：
 
 ```bash
 AGENT_PLUGINS_FILE=examples/plugins.skills.yaml bun run local
@@ -23,7 +25,7 @@ AGENT_PLUGINS_FILE=examples/plugins.skills.yaml bun run local
 AGENT_PLUGINS_FILE=plugins.skills-personal.local.yaml bun run local
 ```
 
-保留个人工作台的配置声明 `base: personal`，在重启时按「连接与模型」里的来源和仓库设置组合个人能力，再追加 skills.setup / skills.prompt；标准个人基底下共十六插件、十一 Agent，导航出现「使用 Skill」且保留「知识库」。它不合并其他自定义插件或团队组合，也不冻结整个环境。重复基底插件 ID 会拒绝启动，不会覆盖。
+保留个人工作台的配置声明 `base: personal`，在重启时按「连接与模型」里的来源和仓库设置组合个人能力，再追加 skills.setup / skills.prompt；在个人基底上追加两个插件、两个 Agent（实际总数见[首页组合表](../README.md#能力与插件)），导航出现「使用 Skill」且保留「知识库」。它不合并其他自定义插件或团队组合，也不冻结整个环境。重复基底插件 ID 会拒绝启动，不会覆盖。
 
 取消保留时，单份仍导出 plugins.skill-reviewed.local.yaml（多份为 plugins.skills-reviewed.local.yaml），保持旧的五插件、两 Agent 独立组合，启动时使用下载的实际文件名。
 

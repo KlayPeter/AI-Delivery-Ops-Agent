@@ -21,6 +21,15 @@ type Kind = 'Skill' | 'MCP' | 'OpenAPI';
 export class CompositionError extends Error {}
 const reject = (message: string): never => { throw new CompositionError(message); };
 
+const setupInput = z.object({ assistants: z.array(z.enum(['skills', 'openapi'])).min(1).max(2) }).strict()
+    .refine(value => new Set(value.assistants).size === value.assistants.length, '接入助手不能重复');
+export function exportSetupProfile(value: unknown) {
+    const { assistants } = setupInput.parse(value);
+    const plugins = assistants.map(id => ({ module: `./src/${id === 'skills' ? modules.skillSetup : modules.openapiSetup}` }));
+    return { filename: 'plugins.setup.personal.local.yaml', yaml: stringify({ apiVersion: '1.0', base: 'personal', plugins }),
+        summary: [{ kind: '接入助手', file: '内置模块', items: assistants.map(id => id === 'skills' ? 'GitHub Skill：固定提交、指令和许可审查；审查后再导出文本技能' : 'OpenAPI：发现公开规范、审查固定 GET；审查后再导出读取工具') }] };
+}
+
 function parseYaml(text: string) {
     const doc = parseDocument(text, { schema: 'core', uniqueKeys: true });
     if (doc.errors.length || doc.warnings.length) reject('配置不是有效的单份 YAML，请重新导出。');
