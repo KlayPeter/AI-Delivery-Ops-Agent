@@ -84,6 +84,7 @@ flowchart TD
     SETUP_FILE --> INSPECT_UI[Skill/API 发现与原审查流程]
     INSPECT_UI --> REVIEWED_FILES[实际能力导出后按原契约组合]
     KNOWLEDGE_UI[知识页：同来源回答缺少模型] --> MODEL_GUIDE[进入连接与模型；保存后重启]
+    KW[可选知识计划：目标校验与 CAS 预订] --> KW_HOST[本机受治理复核与独立来源凭证]
 ```
 
 ## 能力边界
@@ -457,3 +458,7 @@ plugins.compose 1.1.0 提供独立 POST /api/plugin-profiles/setup：严格接�
 插件页进入“接入与组合”，两种流程使用有活动状态的页签；切换页签或输入会清除旧预览，处理中禁止改变，助手已启用标签来自真实页面贡献。当前自定义附加插件不自动合并，助手文件仅供首次启用，不作为审查能力文件上传。完整流程见[接入与组合功能卡](../../connectors/profile-workbench/FEATURE.md)。代码：connectors/profile-workbench/compose.ts、plugin.ts，frontend/src/pages/workspace/ProfileComposerPage.tsx / CatalogPage.tsx、frontend/src/api.ts；验证：backend/test/profileComposer.test.ts（固定配置边界、真实加载、原检索历史与未审查运行器拒绝）、原导出/组合回归、前端门禁及浏览器接入。
 
 知识页首次体验（2026-11-06）：匹配的回答能力已装配但模型未配置时，解释禁用原因并链接到“连接与模型”；原文检索保持可用，保存模型后仍需重启。仅调整 frontend/src/pages/workspace/KnowledgePage.tsx 展示，模型/来源/运行协议不变；验证为现有前端回归、类型/lint/build 与全新公开克隆浏览器验收，详见[知识工作台功能卡](../../knowledge/workspace/FEATURE.md)。
+
+## 可选知识定期复核（2026-11-06）
+
+knowledge.watch 依赖 knowledge.impact，在 Cordis effect 中拥有三十秒计时器；每范围一份、最多二十个明确目标，先 CAS 预订下一周期再调用固定 Native 复核。复用原本机 manual 通道和 expectedExecution，独立凭证区分自动来源；没有新增 Agent 或默认插件。卸载清除计时器并等待当前检查，暂停/替换的 revision 防止迟到覆盖。知识复核页按实际插件装配显示控件，GET 只读缓存，详情可读取同范围来源凭证；本机 Host/Origin、16 KiB/五秒边界保持。完整流程与风险见[定期复核功能卡](../../knowledge/watch/FEATURE.md)。代码：knowledge/watch/service.ts、plugin.ts；frontend/src/pages/workspace/KnowledgeWatchControls.tsx、KnowledgeReviewsPage.tsx、RunDrawer.tsx 和 frontend/src/api.ts。验证：backend/test/knowledgeWatch.test.ts、原知识复核/生命周期回归、前端门禁和实际本机计时器验收。

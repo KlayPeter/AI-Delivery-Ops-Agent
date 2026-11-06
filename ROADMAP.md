@@ -35,6 +35,10 @@ are deferred while the local product is being validated.
 
 ## C. First useful product
 
+- [x] Add an optional knowledge watch plugin for up to 20 explicitly selected cited
+  results: persistent intervals, pause/resume, governed native checks and run provenance.
+  It runs with the local host and does not assess semantic correctness.
+
 - [x] Let first-time users choose bundled Skill/OpenAPI inspectors from the default
   plugin page, preview/download a personal setup profile, then review sources and
   compose their actual capability exports without hand-authoring starter YAML.

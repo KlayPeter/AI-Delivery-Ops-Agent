@@ -5,6 +5,8 @@
 
 ## 使用者
 
+- [知识引用定期复核](KNOWLEDGE_IMPACT.md#定期复核)：选择历史结果、保存频率、暂停恢复及查看实际检查来源。
+
 - [本地运行与工作台](LOCAL_DEVELOPMENT.md)：无需部署的启动步骤、连接表单与实际 Agent 运行。
 - [插件接入与组合](PLUGIN_PROFILES.md)：启用 Skill/OpenAPI 发现助手，再审查、预览并组合实际能力配置。
 - [GitHub Skill 接入](GITHUB_SKILLS.md)：固定来源与许可审查、多份 Skill 选择，以及个人知识快照联用。

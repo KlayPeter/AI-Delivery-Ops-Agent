@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import useSWR from 'swr';
+import dayjs from 'dayjs';
 import { Link } from 'react-router-dom';
 import { Alert, Button, Collapse, Drawer, Empty, Input, Spin, Tabs, Tag, Timeline, Typography } from 'antd';
 import ReactMarkdown from 'react-markdown';
@@ -57,6 +58,8 @@ export default function RunDrawer({ runId, onClose, onSelectRun }: { runId: stri
   const { data: workspace, mutate } = useWorkspace();
   const { data, error, isLoading, mutate: refresh } = useSWR<RunDetail>(runId ? ['run', runId] : null, () => api.fetchRun(runId!), { refreshInterval: details => details && ['running', 'queued', 'waiting_human'].includes(details.run.status) ? 2000 : 0 });
   const recipesAvailable = workspace?.pages.some(page => page.path === '/recipes');
+  const watchesAvailable = workspace?.plugins.some(plugin => plugin.id === 'knowledge.watch');
+  const { data: watchSource } = useSWR<{ receipt: { runIds: string[]; attemptedAt: string } | null }>(runId && watchesAvailable ? ['knowledge-watch-receipt', runId] : null, () => api.fetchKnowledgeWatchReceipt(runId!));
   const { data: provenance } = useSWR<{ receipt: { recipeName: string; sourceRunId: string; parametersChanged: boolean } | null }>(runId && recipesAvailable ? ['recipe-receipt', runId] : null, () => api.fetchRecipeReceipt(runId!));
   const [reply, setReply] = useState('');
   const [resuming, setResuming] = useState(false);
@@ -81,6 +84,7 @@ export default function RunDrawer({ runId, onClose, onSelectRun }: { runId: stri
       {stopError && <Alert type="error" showIcon title="停止请求未确认" description={stopError} />}
       {recipesAvailable && data.run.status === 'succeeded' && !data.run.parentRunId && <p><Link to={`/recipes?runId=${encodeURIComponent(data.run.id)}`} onClick={onClose}>保存为任务配方</Link></p>}
       {provenance?.receipt && <Alert type="info" showIcon title={`来自「${provenance.receipt.recipeName}」配方${provenance.receipt.parametersChanged ? ' · 本次参数已修改' : ''}`} action={<Button onClick={() => onSelectRun(provenance.receipt!.sourceRunId)}>查看来源运行</Button>} />}
+      {watchSource?.receipt && <Alert type="info" showIcon title="由知识定期复核计划发起" description={`本次检查 ${watchSource.receipt.runIds.length} 条历史结果，发起于 ${dayjs(watchSource.receipt.attemptedAt).format('YYYY-MM-DD HH:mm:ss')}`} />}
       {data.run.error && <Alert type={data.run.status === 'cancelled' ? 'info' : 'error'} showIcon title={data.run.status === 'cancelled' ? '任务已取消' : '本次执行未完成'} description={data.run.error.message} />}
       {data.run.status === 'succeeded' && <RunActions runId={data.run.id} onSelectRun={onSelectRun} />}
       {data.run.status === 'waiting_human' && data.run.parentRunId && <Alert type="info" showIcon title="子任务等待补充信息" description="请返回父任务，由父 Agent 管理继续执行。" action={<Button onClick={() => onSelectRun(data.run.parentRunId!)}>查看父任务</Button>} />}

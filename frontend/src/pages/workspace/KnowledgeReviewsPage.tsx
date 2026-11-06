@@ -7,12 +7,14 @@ import { api } from '@/api';
 import { capabilityName, errorMessage, useWorkspace } from './state';
 import { filterReviews, reviewLabels, reviewState, selectedReviewIds, type KnowledgeReview } from './knowledgeReviews';
 import RunDrawer from './RunDrawer';
+import KnowledgeWatchControls from './KnowledgeWatchControls';
 
 const colors: Record<string, string> = { needs_review: 'warning', current: 'success', unverifiable: 'warning' };
 export default function KnowledgeReviewsPage() {
   const { data: workspace, mutate: refreshWorkspace } = useWorkspace();
+  const watches = workspace?.plugins.some(plugin => plugin.id === 'knowledge.watch');
   const candidates = (workspace?.runs || []).filter(run => run.status === 'succeeded' && ['knowledge.answer', 'release.prepare'].includes(run.capability)).map(run => run.id);
-  const { data, error: loadingError, isLoading, isValidating, mutate: refresh } = useSWR<{ reviews: KnowledgeReview[] }>(candidates.length ? ['knowledge-reviews', candidates] : null, () => api.fetchKnowledgeReviews(candidates));
+  const { data, error: loadingError, isLoading, isValidating, mutate: refresh } = useSWR<{ reviews: KnowledgeReview[] }>(candidates.length ? ['knowledge-reviews', candidates] : null, () => api.fetchKnowledgeReviews(candidates), { refreshInterval: watches ? 10_000 : 0 });
   const { mutate } = useSWRConfig();
   const [query, setQuery] = useState(''), [state, setState] = useState('all'), [page, setPage] = useState(1);
   const [picked, setPicked] = useState<string[]>([]), [checking, setChecking] = useState(false), [error, setError] = useState('');
@@ -38,6 +40,7 @@ export default function KnowledgeReviewsPage() {
   return <div className="workspace-page">
     <div className="page-heading"><div><h1>知识复核</h1><p>资料更新后，找出需要重新确认的历史回答与发布草稿。</p></div><Button loading={isValidating} disabled={checking} onClick={() => { refresh(); refreshWorkspace(); }}>刷新列表</Button></div>
     <p className="muted">列出最近 50 次根运行中的成功知识回答与发布草稿。状态仅代表上次检查；刷新列表不会读取来源或自动重新检查。</p>
+    {watches && <KnowledgeWatchControls selected={selected} blocked={checking} onSelectRun={setRunId} />}
     {error && <Alert type="error" showIcon title="检查未完成" description={error} />}
     {loadingError ? <Alert type="error" showIcon title="历史引用加载失败" description={errorMessage(loadingError)} action={<Button onClick={() => refresh()}>重试</Button>} /> : isLoading ? <Skeleton active /> : !reviews.length ? <Empty description="最近记录中还没有可复核的知识回答或发布草稿"><Link to="/">去发起任务</Link></Empty> : <>
       <div className="review-filters">
